@@ -21,7 +21,7 @@ from xaikit import (
     inject_catalog,
     list_models,
 )
-from xaikit.catalog import cheapest_model, clear_catalog_cache, set_test_fetch
+from xaikit.catalog import cheapest_model, clear_catalog_cache, resolve_model_selection, set_test_fetch
 
 _RUN_LIVE = os.environ.get("XAITKIT_LIVE", "").strip().lower() in {"1", "true", "yes"}
 _HAS_KEY = bool(os.environ.get("XAI_API_KEY", "").strip())
@@ -71,10 +71,29 @@ def test_live_list_models_includes_bootstrap(api_key: str) -> None:
     cheap = cheapest_model(models)
     assert cheap
     assert cheap in ids
+    if any(not mid.startswith("grok-build-") and "code-fast" not in mid for mid in ids):
+        assert not cheap.startswith("grok-build-")
     for m in models:
         slug = f"{m.id} {' '.join(m.aliases)}".lower()
         if "non-reasoning" in slug.replace("_", "-"):
             assert "reasoning" not in m.capabilities, m.id
+
+
+def test_live_three_intents_resolve_to_catalog_ids(api_key: str) -> None:
+    models = list_models(api_key=api_key, force_refresh=True, allow_fixture_fallback=False)
+    ids = {m.id for m in models}
+    cheap = resolve_model_selection(intent="cheapest", catalog=models)
+    value = resolve_model_selection(intent="best_value", catalog=models)
+    best = resolve_model_selection(intent="best", catalog=models)
+    assert cheap.model_id in ids
+    assert value.model_id in ids
+    assert best.model_id in ids
+    by_id = {m.id: m for m in models}
+    if (
+        by_id[cheap.model_id].input_per_million is not None
+        and by_id[best.model_id].input_per_million is not None
+    ):
+        assert by_id[cheap.model_id].input_per_million <= by_id[best.model_id].input_per_million
 
 
 def test_live_chat_returns_content(client: XaiClient) -> None:

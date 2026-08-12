@@ -9,7 +9,7 @@
 
 **Active task:** Optional: more catalog helpers (image/video models); not blocking video.  
 **Blocked by:** —  
-**Last session:** 2026-08-12 — live catalog smoke; fixed `non-reasoning` capability tag
+**Last session:** 2026-08-12 — three intents (`cheapest` / `best_value` / `best`) with overlap
 
 ---
 
@@ -30,3 +30,4 @@
 
 - [x] Catalog module + resolve + thought_level mapping (2026-08-12 — in tree)
 - [x] Resolve-chain contract tests + `non-reasoning` slug tag (2026-08-12 — live catalog)
+- [x] Three intents + coding-SKU skip (2026-08-12)
