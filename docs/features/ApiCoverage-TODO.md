@@ -1,6 +1,6 @@
 # ApiCoverage — TODO
 
-**Last Updated**: 2026-08-12  
+**Last Updated**: 2026-08-12 *(kit-coverage: streaming STT + role-filtered catalog pointers)*  
 **Related Spec**: [ApiCoverage.md](ApiCoverage.md)
 
 ---
@@ -26,6 +26,8 @@
 - [ ] Vision / multimodal messages — home: [ClientChat-TODO.md](ClientChat-TODO.md)
 - [ ] Native structured outputs — home: [ClientChat-TODO.md](ClientChat-TODO.md)
 - [ ] Image edit — home: [MediaRest-TODO.md](MediaRest-TODO.md)
+- [ ] Streaming STT — home: [MediaRest-TODO.md](MediaRest-TODO.md)
+- [ ] Role-filtered catalog (image / video / voice) — home: [Catalog-TODO.md](Catalog-TODO.md)
 - [ ] Built-in agent tools / Responses API — additive; do not replace `chat`
 - [ ] Batch
 - [ ] Collections / documents

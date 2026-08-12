@@ -13,9 +13,9 @@ docs_profile:
 
 orchestrator:
   git:
-    mode: branch-pr-squash
+    mode: milestone-pr
     recorded: 2026-08-12
-    source: agent-suggested
+    source: user
 
 standing:
   instructions: |
@@ -51,4 +51,5 @@ upstream:
   check_mode: always
   check_mode_recorded: 2026-08-12
   last_checked: 2026-08-12
-  local_pack_version: "2.7.18"
+  local_pack_version: "2.7.19"
+  update_available: false

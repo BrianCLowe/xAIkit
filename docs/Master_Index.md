@@ -2,7 +2,7 @@
 
 **Purpose**: Single entry point for this project's documentation — overview, locations, and Document Map. Read only the files relevant to the current task.
 
-**Pack version**: 2.7.18 *(from [`templates/VERSION`](templates/VERSION))*
+**Pack version**: 2.7.19 *(from [`templates/VERSION`](templates/VERSION))*
 
 ## 1. Project Overview
 
@@ -44,6 +44,8 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 - **Library, not an app** — operable “done” for shipped stems is contract tests + typed API, not a UI.
 - **Ship-first** — implement from spec + TODO; *lock shape* only if a stem gets identity pressure.
 - **README vs docs/** — README for consumers; this tree for agents and contributors; wheel stays code-only.
+- **Orchestrator git:** durable mode is **`milestone-pr`** (per-slice PR → CI/Bugbot → merge → next branch). **Cloud Agent** orchestration uses the same mode.
+- **Kit leftovers:** stay as TODOs on the inventory stem ([ApiCoverage](features/ApiCoverage.md)) until that slice is next; covering TODOs on existing stems (Workflow §5.4); no map rows for vague planned-only items.
 - **Next product work** — [realtime voice](features/RealtimeVoice-TODO.md); remaining API on [ApiCoverage](features/ApiCoverage.md) has no order.
 
 ## 3. Document Map
@@ -95,4 +97,4 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 
 ---
 
-Live docs layout based on [Agentic Doc Templates](https://github.com/BrianCLowe/Agentic-Doc-Templates) by Brian Lowe, licensed under CC BY 4.0. Pack copy: `docs/templates/` (v2.7.18).
+Live docs layout based on [Agentic Doc Templates](https://github.com/BrianCLowe/Agentic-Doc-Templates) by Brian Lowe, licensed under CC BY 4.0. Pack copy: `docs/templates/` (v2.7.19).
