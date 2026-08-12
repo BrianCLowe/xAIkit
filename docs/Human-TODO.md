@@ -11,18 +11,14 @@
 
 ## Open
 
-- [ ] **Confirm Document Map + ship-first prefs** (`decide`)  
-  Owner: [Master_Index.md](Master_Index.md) · Blocks: later stems  
-  Notes: Specs were drafted from existing `src/xaikit/` plus planned video / remaining API. Correct overview or map rows if a surface should be split/merged.
-
-- [ ] **Priority after video** (`decide`)  
-  Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) — "Rank remaining API surfaces"  
-  Notes: Tools / vision / files / realtime voice / batch / collections / embeddings / image edit — pick the next slice so agents do not guess.
+*(none)*
 
 ---
 
 ## Done
 
+- [x] **Confirm Document Map + ship-first prefs** (`decide`) — 2026-08-12 — User confirmed doc shape (map + ship-first). Owner: [Master_Index.md](Master_Index.md)
+- [x] **Priority after video** (`decide`) — 2026-08-12 — Next slice is **realtime voice**; remaining API surfaces have no order preference. Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) · split: [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md)
 - [x] **Optional live xAI key for smoke** (`procure`) — 2026-08-12 — Environment set up; key in local env only (not git)
 
 ---

@@ -7,7 +7,7 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Image edit / streaming STT are later; video is the next modality.  
+**Active task:** Image edit / streaming STT are later; video then realtime voice are the next modalities.  
 **Blocked by:** —  
 **Last session:** 2026-08-12 — live TTS / STT round-trip / Imagine smokes
 

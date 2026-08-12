@@ -25,7 +25,7 @@ Inventory vs current `xai_sdk.Client` and xAI docs (2026-08):
 | Embeddings | No | `embed` in SDK proto |
 | Tokenizer | No | |
 | Auth subclient | No | |
-| Realtime voice / speech-to-speech | No | WebSocket Voice API |
+| Realtime voice / speech-to-speech | No | [RealtimeVoice](RealtimeVoice.md) — next after video |
 | Responses API | No | Docs quickstart path |
 | Service tiers / deferred | No | |
 
@@ -49,21 +49,24 @@ When a slice starts, **add a map row** (spec + TODO) rather than growing this fi
 |------|----------|-----------|
 | 2026-08-12 | Video first, then ranked remainder | User request |
 | 2026-08-12 | Human ranks post-video slices | Avoid agent-guessed product order |
+| 2026-08-12 | After video: realtime voice; rest unordered | User confirm 2026-08-12 |
 
 ## Dependencies
 
 | Piece | Relationship |
 |-------|--------------|
 | [VideoGeneration.md](VideoGeneration.md) | First slice; Files may unblock `file_id` |
+| [RealtimeVoice.md](RealtimeVoice.md) | Next slice after video |
 | [ClientChat.md](ClientChat.md) | Tools / vision / structured outputs land here or split off |
 
 ## Acceptance
 
-- [ ] Human ranking recorded (Human-TODO)
+- [x] Human ranking recorded (Human-TODO)
+- [x] Winner split: [RealtimeVoice](RealtimeVoice.md)
 - [ ] Each taken slice has its own spec/TODO or a clearly scoped PR
 - [ ] No silent “wrap the entire SDK” in one change
 
 ## Current status
 
-- **In progress**: inventory only
-- **Blocked by**: human rank after video
+- **In progress**: remainder unordered after video + realtime voice
+- **Blocked by**: —

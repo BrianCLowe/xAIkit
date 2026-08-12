@@ -44,7 +44,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 - **Library, not an app** — operable “done” for shipped stems is contract tests + typed API, not a UI.
 - **Ship-first** — implement from spec + TODO; *lock shape* only if a stem gets identity pressure.
 - **README vs docs/** — README for consumers; this tree for agents and contributors; wheel stays code-only.
-- **Next product work** — video generation, then remaining xAI API surfaces listed on [ApiCoverage](features/ApiCoverage.md).
+- **Next product work** — [video generation](features/VideoGeneration-TODO.md), then [realtime voice](features/RealtimeVoice-TODO.md); remaining API on [ApiCoverage](features/ApiCoverage.md) has no order.
 
 ## 3. Document Map
 
@@ -68,6 +68,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 | MediaRest | [MediaRest.md](features/MediaRest.md) | — | [MediaRest-TODO.md](features/MediaRest-TODO.md) |
 | ConnectAuth | [ConnectAuth.md](features/ConnectAuth.md) | — | [ConnectAuth-TODO.md](features/ConnectAuth-TODO.md) |
 | VideoGeneration | [VideoGeneration.md](features/VideoGeneration.md) | — | [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md) |
+| RealtimeVoice | [RealtimeVoice.md](features/RealtimeVoice.md) | — | [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md) |
 | ApiCoverage | [ApiCoverage.md](features/ApiCoverage.md) | — | [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) |
 
 ### 3.3 Project-Level Work

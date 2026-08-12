@@ -37,6 +37,7 @@
 
 - **library foundation first · exercise path:** `uv run pytest` (mocked). Optional env-gated live smoke unblocked (Human-TODO procure done 2026-08-12) — do not add a UI.
 - Files `file_id` may wait on [ApiCoverage-TODO.md](ApiCoverage-TODO.md) Files slice; ship URL/data-URL I2V first if needed.
+- After this stem: [RealtimeVoice-TODO.md](RealtimeVoice-TODO.md) (human rank 2026-08-12).
 
 ## Completed
 

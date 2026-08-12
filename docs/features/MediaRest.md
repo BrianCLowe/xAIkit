@@ -10,7 +10,7 @@ REST modalities on `XaiClient` via `httpx` (not the chat provider): speech-to-te
 ## Architecture / Contract
 
 - **Owns**: request shape, auth header, empty-input guards, HTTP error mapping, usage modality tags
-- **Does not own**: realtime WebSocket voice, image **edit**, video (see [VideoGeneration](VideoGeneration.md))
+- **Does not own**: realtime WebSocket voice (see [RealtimeVoice](RealtimeVoice.md)), image **edit**, video (see [VideoGeneration](VideoGeneration.md))
 - **Public API**:
   - `transcribe(file_bytes, filename, content_type, language, purpose, …)` → `str`
   - `synthesize_speech(text, voice_id, language, purpose, …)` → `(bytes, content_type)`
@@ -43,7 +43,7 @@ Constants: `XAI_STT_URL`, `XAI_TTS_URL`, `XAI_IMAGES_URL`, `DEFAULT_TTS_VOICE_ID
 
 - [x] STT/TTS/image URLs, auth, and bodies match client implementation
 - [x] Empty input + purpose-when-metered guards
-- [ ] Streaming STT / realtime voice (ApiCoverage)
+- [ ] Streaming STT / realtime voice ([RealtimeVoice](RealtimeVoice.md) / ApiCoverage)
 - [ ] Image edit / image-to-image (ApiCoverage)
 
 ## Current status
