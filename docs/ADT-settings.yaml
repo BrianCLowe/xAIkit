@@ -30,7 +30,7 @@ tools:
   cursor:
     status: installed
     recorded: 2026-08-12
-    source: agent-suggested
+    source: user
     path: .cursor/rules/modular-documentation.mdc
     note: Also agent-timescale-planning.mdc, agent-build-verify.mdc, template-update-check.mdc. Doc roles in .cursor/agents/.
 
