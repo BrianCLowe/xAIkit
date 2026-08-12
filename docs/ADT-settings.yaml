@@ -2,9 +2,9 @@
 version: 1
 
 sync:
-  mode: auto
+  mode: auto-all
   recorded: 2026-08-12
-  source: agent-suggested
+  source: user
 
 docs_profile:
   mode: ship-first
@@ -32,19 +32,20 @@ tools:
     recorded: 2026-08-12
     source: agent-suggested
     path: .cursor/rules/modular-documentation.mdc
-    note: Also agent-timescale-planning.mdc, agent-build-verify.mdc, template-update-check.mdc. Doc roles declined.
+    note: Also agent-timescale-planning.mdc, agent-build-verify.mdc, template-update-check.mdc. Doc roles in .cursor/agents/.
 
 optional_rules:
   template-update-check:
     status: enabled
     recorded: 2026-08-12
-    source: agent-suggested
+    source: user
 
   doc-roles:
-    status: declined
+    status: enabled
     recorded: 2026-08-12
-    source: agent-suggested
-    note: Lean library repo; short asks still work without harness adapters.
+    source: user
+    paths:
+      cursor: .cursor/agents/
 
 upstream:
   check_mode: always
