@@ -1,0 +1,131 @@
+"""XaiKit — extractable xAI transport + catalog + connect + usage metering."""
+
+from xaikit.catalog import (
+    BOOTSTRAP_MODEL,
+    ModelInfo,
+    effort_options,
+    inject_catalog,
+    list_models,
+    normalize_thought_level,
+    resolve_model,
+    resolve_model_selection,
+)
+from xaikit.client import (
+    DEFAULT_IMAGE_MODEL,
+    DEFAULT_TTS_VOICE_ID,
+    XAI_IMAGES_URL,
+    XAI_STT_URL,
+    XAI_TTS_URL,
+    XaiClient,
+)
+from xaikit.connect import (
+    build_oauth_authorize_url,
+    exchange_oauth_code,
+    normalize_api_key,
+    oauth_is_configured,
+)
+from xaikit.credentials import CredentialStore, DictCredentialStore, EnvCredentialStore
+from xaikit.gaps import (
+    CompositeGapSink,
+    GapEvent,
+    GapLog,
+    GapSink,
+    InMemoryGapSink,
+    JsonlGapSink,
+    NullGapSink,
+    build_gap_log,
+    scrub_gap_text,
+)
+from xaikit.pricing import PriceTable, default_price_table, load_price_table
+from xaikit.provider import (
+    ChatProvider,
+    MockChatProvider,
+    ProviderResponse,
+    ProviderStreamChunk,
+    SdkChatProvider,
+)
+from xaikit.retry import RetryPolicy, call_with_retry, default_retry_policy
+from xaikit.traces import (
+    CompletionTrace,
+    CompletionTracer,
+    CompositeTraceSink,
+    InMemoryTraceSink,
+    JsonlTraceSink,
+    NullTraceSink,
+    TraceSink,
+    build_completion_tracer,
+)
+from xaikit.types import CompletionResponse, ModelSelection, StreamChunk
+from xaikit.usage import (
+    CompositeUsageSink,
+    InMemoryUsageSink,
+    JsonlUsageSink,
+    UsageEvent,
+    UsageMeter,
+    UsageRollup,
+    UsageSink,
+)
+
+__all__ = [
+    "BOOTSTRAP_MODEL",
+    "DEFAULT_IMAGE_MODEL",
+    "DEFAULT_TTS_VOICE_ID",
+    "XAI_IMAGES_URL",
+    "XAI_STT_URL",
+    "XAI_TTS_URL",
+    "ChatProvider",
+    "CompletionResponse",
+    "CompletionTrace",
+    "CompletionTracer",
+    "CompositeGapSink",
+    "CompositeTraceSink",
+    "CompositeUsageSink",
+    "CredentialStore",
+    "DictCredentialStore",
+    "EnvCredentialStore",
+    "GapEvent",
+    "GapLog",
+    "GapSink",
+    "InMemoryGapSink",
+    "InMemoryTraceSink",
+    "InMemoryUsageSink",
+    "JsonlGapSink",
+    "JsonlTraceSink",
+    "JsonlUsageSink",
+    "MockChatProvider",
+    "ModelInfo",
+    "ModelSelection",
+    "NullGapSink",
+    "NullTraceSink",
+    "PriceTable",
+    "ProviderResponse",
+    "ProviderStreamChunk",
+    "RetryPolicy",
+    "SdkChatProvider",
+    "StreamChunk",
+    "TraceSink",
+    "UsageEvent",
+    "UsageMeter",
+    "UsageRollup",
+    "UsageSink",
+    "XaiClient",
+    "build_completion_tracer",
+    "build_gap_log",
+    "build_oauth_authorize_url",
+    "call_with_retry",
+    "default_price_table",
+    "default_retry_policy",
+    "effort_options",
+    "exchange_oauth_code",
+    "inject_catalog",
+    "list_models",
+    "load_price_table",
+    "normalize_api_key",
+    "normalize_thought_level",
+    "oauth_is_configured",
+    "resolve_model",
+    "resolve_model_selection",
+    "scrub_gap_text",
+]
+
+__version__ = "0.1.0"
