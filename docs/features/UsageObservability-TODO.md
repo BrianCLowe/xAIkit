@@ -16,6 +16,7 @@
 ## High Priority / Next Actions
 
 - [ ] **`modality="video"`** (or imagine-video) on generate/extend/poll — same purpose/labels rules as other media
+- [ ] Realtime / files / embed modalities when those methods ship (see [ApiCoverage.md](ApiCoverage.md))
 
 ## Medium Priority
 

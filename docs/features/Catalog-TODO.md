@@ -7,7 +7,7 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Optional: more catalog helpers (image/video models); not blocking video.  
+**Active task:** Optional: role-filtered catalog (image/video/voice); not blocking video.  
 **Blocked by:** —  
 **Last session:** 2026-08-12 — three intents (`cheapest` / `economy` / `best`) with overlap
 
@@ -19,8 +19,9 @@
 
 ## Medium Priority
 
+- [ ] **Role-filtered resolve** — `role=image|video|voice` using the same cheapest / economy / best rules (target: [Catalog.md](Catalog.md))
 - [ ] Refresh bootstrap / fixture models when xAI retires slugs
-- [ ] Surface image/video models in catalog helpers (not chat-only `chat_models`)
+- [ ] Surface image/video/voice models in fetch (not chat-only `list_language_models`)
 
 ## Low Priority / Future Ideas
 

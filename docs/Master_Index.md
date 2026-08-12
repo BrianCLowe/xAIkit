@@ -6,7 +6,7 @@
 
 ## 1. Project Overview
 
-XaiKit is a **library-first Python kit** for xAI (Grok): typed chat transport, living model catalog, connect/credentials, usage metering, and REST modalities (STT / TTS / image). It is **not** a product UI, marketplace, or multi-provider SDK.
+XaiKit is a **library-first Python kit** for xAI (Grok). The **target product** is one typed client: chat (including tools, vision parts, structured outputs), living catalog with `cheapest` / `economy` / `best` per role, connect/credentials, usage metering, REST media (STT / TTS / image generate + edit), video, realtime voice, and Files/`file_id` plus the remaining xAI surfaces on [ApiCoverage](features/ApiCoverage.md). It is **not** a product UI, marketplace, or multi-provider SDK.
 
 Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain schemas stay in apps. Offline CI uses `MockChatProvider`. Contributor/agent docs live here under `docs/`; **release/consumer docs are `README.md` only**.
 

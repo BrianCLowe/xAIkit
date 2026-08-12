@@ -19,6 +19,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 
 - Usage events: purpose, model, tokens, estimated USD, success, thought_level, modality, labels, parent_id
 - Modalities used today: `chat`, `stt`, `tts`, `imagine`
+- **Target modalities:** `video`, `realtime` (or `voice`), `files`, `embed`, plus existing tags — same purpose/labels/success rules
 - Gap notes scrub secret-ish strings and cap length
 - Meter/trace failures must not break the user-facing call (logged)
 
@@ -40,6 +41,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - [x] Stream meters once on completion
 - [x] Gap scrub + jsonl CLI
 - [ ] Video modality on meter when video ships
+- [ ] Realtime-voice / files / embed modalities when those methods ship
 
 ## Current status
 

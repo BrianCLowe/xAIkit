@@ -43,7 +43,7 @@ Prefer wrapping `xai_sdk` (or documented WS protocol) rather than inventing a se
 | [ConnectAuth.md](ConnectAuth.md) | API key / store |
 | [UsageObservability.md](UsageObservability.md) | New modality + prices |
 | [VideoGeneration.md](VideoGeneration.md) | **Implement after video** |
-| [ApiCoverage.md](ApiCoverage.md) | Remainder inventory (no order) |
+| [ApiCoverage.md](ApiCoverage.md) | Remainder inventory + target homes |
 
 ## Acceptance *(library stem — open until shipped)*
 
