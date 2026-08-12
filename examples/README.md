@@ -2,7 +2,7 @@
 
 Thin FastAPI (Starlette-based) sample routes that wrap the typed `XaiClient` API.
 
-**Not** product identity. **Not** shipped as a required package surface. Prefer calling `XaiClient` directly from app code; copy this pattern only when you intentionally want a REST boundary.
+**Not** product identity. **Not** shipped as a required package surface. Apps that want REST can copy this pattern.
 
 ## What you get
 
