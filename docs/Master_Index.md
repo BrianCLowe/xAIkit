@@ -6,7 +6,7 @@
 
 ## 1. Project Overview
 
-XaiKit is a **library-first Python kit** for xAI (Grok): typed chat transport, living model catalog, connect/credentials, usage metering, and REST modalities (STT / TTS / image). It is **not** a product UI, marketplace, or multi-provider SDK.
+XaiKit is a **library-first Python kit** for xAI (Grok). The **target product** is one typed client: chat (including tools, vision parts, structured outputs), living catalog with `cheapest` / `economy` / `best` per role, connect/credentials, usage metering, REST media (STT / TTS / image generate + edit), video, realtime voice, and Files/`file_id` plus the remaining xAI surfaces on [ApiCoverage](features/ApiCoverage.md). It is **not** a product UI, marketplace, or multi-provider SDK.
 
 Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain schemas stay in apps. Offline CI uses `MockChatProvider`. Contributor/agent docs live here under `docs/`; **release/consumer docs are `README.md` only**.
 
@@ -44,7 +44,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 - **Library, not an app** — operable “done” for shipped stems is contract tests + typed API, not a UI.
 - **Ship-first** — implement from spec + TODO; *lock shape* only if a stem gets identity pressure.
 - **README vs docs/** — README for consumers; this tree for agents and contributors; wheel stays code-only.
-- **Next product work** — video generation, then remaining xAI API surfaces listed on [ApiCoverage](features/ApiCoverage.md).
+- **Next product work** — [video generation](features/VideoGeneration-TODO.md), then [realtime voice](features/RealtimeVoice-TODO.md); remaining API on [ApiCoverage](features/ApiCoverage.md) has no order.
 
 ## 3. Document Map
 
@@ -68,6 +68,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 | MediaRest | [MediaRest.md](features/MediaRest.md) | — | [MediaRest-TODO.md](features/MediaRest-TODO.md) |
 | ConnectAuth | [ConnectAuth.md](features/ConnectAuth.md) | — | [ConnectAuth-TODO.md](features/ConnectAuth-TODO.md) |
 | VideoGeneration | [VideoGeneration.md](features/VideoGeneration.md) | — | [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md) |
+| RealtimeVoice | [RealtimeVoice.md](features/RealtimeVoice.md) | — | [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md) |
 | ApiCoverage | [ApiCoverage.md](features/ApiCoverage.md) | — | [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) |
 
 ### 3.3 Project-Level Work

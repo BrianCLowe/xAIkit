@@ -7,30 +7,30 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Wait for video slice unless the user ranks a different surface first.  
-**Blocked by:** [Human-TODO.md](../Human-TODO.md) — "Priority after video"  
-**Last session:** 2026-08-12 — bootstrap inventory from xai-sdk + xAI docs
+**Active task:** Target spec locked on [ApiCoverage.md](ApiCoverage.md). Wait for video, then [RealtimeVoice](RealtimeVoice-TODO.md). Remainder unordered — implement against that spec, do not invent a second client.  
+**Blocked by:** —  
+**Last session:** 2026-08-12 — target kit spec locked (homes + shared rules)
 
 ---
 
 ## High Priority / Next Actions
 
-- [ ] **Rank remaining API surfaces** (`decide` — dual-write Human-TODO) — tools, vision, files, realtime voice, batch, collections, embeddings, image edit, responses API, tokenizer
-- [ ] After rank: **split the winner into its own Document Map row** (spec + TODO) before implementing
+*(none on this stem — video then realtime voice are their own rows.)*
 
 ## Medium Priority
 
-- [ ] Files API (upload) — unblocks video/image `file_id`
-- [ ] Chat tools / function calling
-- [ ] Vision / multimodal messages
-- [ ] Image edit
-- [ ] Realtime voice (WebSocket)
-- [ ] Built-in agent tools / Responses API
+*(no order — pick when a caller needs the surface; **homes** on [ApiCoverage.md](ApiCoverage.md))*
+
+- [ ] Files API (upload / `file_id`) — `XaiClient` files helpers; unblocks video/image `file_id`
+- [ ] Chat tools / function calling — home: [ClientChat-TODO.md](ClientChat-TODO.md)
+- [ ] Vision / multimodal messages — home: [ClientChat-TODO.md](ClientChat-TODO.md)
+- [ ] Native structured outputs — home: [ClientChat-TODO.md](ClientChat-TODO.md)
+- [ ] Image edit — home: [MediaRest-TODO.md](MediaRest-TODO.md)
+- [ ] Built-in agent tools / Responses API — additive; do not replace `chat`
 - [ ] Batch
 - [ ] Collections / documents
 - [ ] Embeddings
 - [ ] Tokenizer
-- [ ] Native structured outputs
 
 ## Low Priority / Future Ideas
 
@@ -39,9 +39,13 @@
 
 ## Cross-Feature Dependencies & Integration Notes
 
-- **Needs a human** (`decide`): Rank remaining API surfaces (see [Human-TODO.md](../Human-TODO.md) — "Priority after video")
-- Do not implement the whole table in one PR.
+- **library-only.** Do not implement the whole table in one PR. Implement against the **target kit** on the spec — no interim second client.
+- Next after video: [RealtimeVoice-TODO.md](RealtimeVoice-TODO.md) (human rank 2026-08-12).
+- Remaining rows above: **no order preference**.
 
 ## Completed
 
 - [x] Inventory vs `xai_sdk` + public docs (2026-08-12 — this spec)
+- [x] Rank remaining API surfaces (2026-08-12 — realtime voice next; rest unordered)
+- [x] Split winner into Document Map row (2026-08-12 — RealtimeVoice)
+- [x] Target kit spec (homes + shared rules) (2026-08-12)
