@@ -1013,11 +1013,9 @@ class XaiClient:
         cleaned = (url or "").strip()
         if not cleaned:
             raise RuntimeError("Video URL is empty")
-        headers = {"Authorization": f"Bearer {self.api_key}"}
         try:
             response = httpx.get(
                 cleaned,
-                headers=headers,
                 timeout=_VIDEO_DOWNLOAD_TIMEOUT,
                 follow_redirects=True,
             )
@@ -1221,6 +1219,15 @@ class XaiClient:
             detail = response.text[:500] if response.text else response.reason_phrase
             logger.error("xAI video poll error %s: %s", response.status_code, detail)
             raise RuntimeError(f"Video poll failed ({response.status_code}): {detail}")
+        if response.status_code == 202:
+            if response.text.strip():
+                try:
+                    payload = response.json()
+                    if isinstance(payload, dict):
+                        return payload
+                except json.JSONDecodeError:
+                    pass
+            return {"status": "pending", "request_id": request_id}
         try:
             payload = response.json()
         except json.JSONDecodeError as exc:

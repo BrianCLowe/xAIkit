@@ -367,7 +367,7 @@ def test_download_video_gets_url_and_returns_bytes(
 
     assert data == b"mp4bytes"
     assert cap.gets[0]["url"] == "https://example.com/out.mp4"
-    assert cap.gets[0]["headers"]["Authorization"] == "Bearer test-key"
+    assert "Authorization" not in (cap.gets[0].get("headers") or {})
 
 
 def test_download_video_rejects_empty_url() -> None:
