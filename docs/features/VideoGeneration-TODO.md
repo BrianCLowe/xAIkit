@@ -9,9 +9,9 @@
 
 **Active task:** Implement video generate (+ poll/extend) on `XaiClient` with mocked contract tests.  
 **Blocked by:** —  
-**Last session:** 2026-08-12 — bootstrap; user asked for video next
+**Last session:** 2026-08-12 — human confirmed live xAI key procured (env set up)
 
-*Next agent: read the spec, then High Priority. library-only · exercise path: pytest + optional env-gated smoke.*
+*Next agent: read the spec, then High Priority. library-only · exercise path: pytest + optional env-gated smoke (key available).*
 
 ---
 
@@ -35,7 +35,7 @@
 
 ## Cross-Feature Dependencies & Integration Notes
 
-- **library foundation first · exercise path:** `uv run pytest` (mocked). Live key smoke only if Human-TODO procure is done — do not add a UI.
+- **library foundation first · exercise path:** `uv run pytest` (mocked). Optional env-gated live smoke unblocked (Human-TODO procure done 2026-08-12) — do not add a UI.
 - Files `file_id` may wait on [ApiCoverage-TODO.md](ApiCoverage-TODO.md) Files slice; ship URL/data-URL I2V first if needed.
 
 ## Completed

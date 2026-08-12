@@ -19,15 +19,11 @@
   Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) — "Rank remaining API surfaces"  
   Notes: Tools / vision / files / realtime voice / batch / collections / embeddings / image edit — pick the next slice so agents do not guess.
 
-- [ ] **Optional live xAI key for smoke** (`procure`)  
-  Owner: this file · Blocks: live (non-CI) video/media smokes  
-  Notes: Put key in local env only — **never** in git or this file. Offline contract tests do not need this.
-
 ---
 
 ## Done
 
-*(none yet)*
+- [x] **Optional live xAI key for smoke** (`procure`) — 2026-08-12 — Environment set up; key in local env only (not git)
 
 ---
 
