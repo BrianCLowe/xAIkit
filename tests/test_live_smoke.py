@@ -197,3 +197,26 @@ def test_live_generate_image_returns_url_or_b64(client: XaiClient) -> None:
     )
     assert out.get("model") == "grok-imagine-image"
     assert out.get("url") or out.get("b64_json")
+
+
+_RUN_LIVE_VIDEO = os.environ.get("XAITKIT_LIVE_VIDEO", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+}
+
+
+@pytest.mark.skipif(
+    not _RUN_LIVE_VIDEO,
+    reason="set XAITKIT_LIVE_VIDEO=1 (video gen is slow/expensive; not part of default live smokes)",
+)
+def test_live_generate_video_start_returns_request_id(client: XaiClient) -> None:
+    """Opt-in start-only smoke — does not wait for the finished clip."""
+    out = client.generate_video(
+        "A tiny red cube rotating once, plain white background",
+        duration=1,
+        aspect_ratio="1:1",
+        resolution="480p",
+        wait=False,
+    )
+    assert out.get("request_id")

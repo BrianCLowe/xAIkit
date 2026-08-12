@@ -37,6 +37,29 @@ resp = client.chat([{"role": "user", "content": "hello"}], purpose="demo.chat")
 
 When `usage_meter` is attached, **purpose is required**. Without a meter, purpose is optional.
 
+## Video generation
+
+REST Imagine video on `XaiClient` (mocked HTTP in tests; live calls need `XAI_API_KEY`). Default `wait=True` polls until the clip is ready; `wait=False` returns `request_id` for `poll_video`.
+
+```python
+from xaikit import MockChatProvider, XaiClient
+
+client = XaiClient(provider=MockChatProvider(), api_key="test-key")
+# Live: XaiClient(api_key=os.environ["XAI_API_KEY"])
+
+started = client.generate_video(
+    "A red cube rotating on a table",
+    duration=8,
+    aspect_ratio="16:9",
+    resolution="480p",
+    wait=False,
+)
+status = client.poll_video(started["request_id"])
+# bytes = client.download_video(status["url"])  # when status == "done"
+```
+
+`extend_video(prompt, video_url=...)` continues a clip. Default model is `grok-imagine-video-1.5`.
+
 ## Streaming
 
 ```python

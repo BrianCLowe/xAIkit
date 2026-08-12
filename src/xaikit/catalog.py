@@ -23,6 +23,7 @@ from xaikit.types import ModelInfo, ModelSelection
 logger = logging.getLogger(__name__)
 
 BOOTSTRAP_MODEL = "grok-4.5"
+DEFAULT_VIDEO_MODEL = "grok-imagine-video-1.5"
 
 INTENT_CHEAPEST = "cheapest"
 INTENT_ECONOMY = "economy"
@@ -372,6 +373,37 @@ def _version_tuple(model: ModelInfo) -> tuple:
         created,
         mid,
     )
+
+
+def _imagine_video_sort_key(model: ModelInfo) -> tuple:
+    """Newest grok-imagine-video* id: numeric suffix, then created, then id."""
+    mid = (model.id or "").strip().lower().replace("_", "-")
+    rest = mid
+    if rest.startswith("grok-imagine-video"):
+        rest = rest[len("grok-imagine-video") :].lstrip("-")
+    nums: list[int] = []
+    for part in re.split(r"[^0-9]+", rest):
+        if part.isdigit():
+            nums.append(int(part))
+    is_latest = 1 if rest.endswith("latest") or "-latest-" in f"-{rest}-" else 0
+    created = model.created or 0
+    return (tuple(nums) if nums else (0,), is_latest, created, mid)
+
+
+def prefer_latest_video_model(catalog: Sequence[ModelInfo] | None = None) -> str:
+    """Pick the newest ``grok-imagine-video*`` id from *catalog*.
+
+    Does not change chat resolve. Empty / missing catalog → ``DEFAULT_VIDEO_MODEL``.
+    """
+    rows = list(catalog) if catalog is not None else []
+    videos = [
+        m
+        for m in rows
+        if (m.id or "").strip().lower().replace("_", "-").startswith("grok-imagine-video")
+    ]
+    if not videos:
+        return DEFAULT_VIDEO_MODEL
+    return max(videos, key=_imagine_video_sort_key).id
 
 
 def prefer_latest_model(catalog: Sequence[ModelInfo] | None = None) -> str | None:

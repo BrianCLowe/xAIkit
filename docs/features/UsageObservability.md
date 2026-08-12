@@ -18,8 +18,8 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 ## Behavior (stable)
 
 - Usage events: purpose, model, tokens, estimated USD, success, thought_level, modality, labels, parent_id
-- Modalities used today: `chat`, `stt`, `tts`, `imagine`
-- **Target modalities:** `video`, `realtime` (or `voice`), `files`, `embed`, plus existing tags — same purpose/labels/success rules
+- Modalities used today: `chat`, `stt`, `tts`, `imagine`, `video`
+- **Target modalities:** `realtime` (or `voice`), `files`, `embed`, plus existing tags — same purpose/labels/success rules
 - Gap notes scrub secret-ish strings and cap length
 - Meter/trace failures must not break the user-facing call (logged)
 
@@ -28,6 +28,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-08-12 | Opt-in companions, default off | Library-first; apps attach sinks |
+| 2026-08-12 | Video prices: `ModelPrice.per_second_usd` (+ optional resolution map); 480p default | Video is billed per second by resolution, not tokens. Public Imagine rates are estimates, not a billing authority |
 
 ## Dependencies
 
@@ -40,9 +41,9 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - [x] Meter records by purpose; purpose required when attached
 - [x] Stream meters once on completion
 - [x] Gap scrub + jsonl CLI
-- [ ] Video modality on meter when video ships
+- [x] Video modality on meter when video ships
 - [ ] Realtime-voice / files / embed modalities when those methods ship
 
 ## Current status
 
-- **Last reconciled with code**: 2026-08-12
+- **Last reconciled with code**: 2026-08-12 (`modality="video"` + Imagine per-second price rows)

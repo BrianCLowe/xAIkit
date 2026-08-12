@@ -11,7 +11,7 @@
 
 ## Open
 
-*(none)*
+- [ ] **VideoGeneration library look-list** (`playtest`) — 2026-08-12 — Confirm generate/extend/poll/download + README example feel right; optional live start-only smoke if you want. Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md) · Blocks: none (realtime voice can start without this)
 
 ---
 

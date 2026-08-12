@@ -2,6 +2,7 @@
 
 from xaikit.catalog import (
     BOOTSTRAP_MODEL,
+    DEFAULT_VIDEO_MODEL,
     ModelInfo,
     effort_options,
     inject_catalog,
@@ -9,6 +10,7 @@ from xaikit.catalog import (
     list_models,
     normalize_intent,
     normalize_thought_level,
+    prefer_latest_video_model,
     resolve_model,
     resolve_model_selection,
 )
@@ -18,6 +20,9 @@ from xaikit.client import (
     XAI_IMAGES_URL,
     XAI_STT_URL,
     XAI_TTS_URL,
+    XAI_VIDEO_EXTENSIONS_URL,
+    XAI_VIDEO_STATUS_URL,
+    XAI_VIDEOS_URL,
     XaiClient,
 )
 from xaikit.connect import (
@@ -72,9 +77,13 @@ __all__ = [
     "BOOTSTRAP_MODEL",
     "DEFAULT_IMAGE_MODEL",
     "DEFAULT_TTS_VOICE_ID",
+    "DEFAULT_VIDEO_MODEL",
     "XAI_IMAGES_URL",
     "XAI_STT_URL",
     "XAI_TTS_URL",
+    "XAI_VIDEO_EXTENSIONS_URL",
+    "XAI_VIDEO_STATUS_URL",
+    "XAI_VIDEOS_URL",
     "ChatProvider",
     "CompletionResponse",
     "CompletionTrace",
@@ -127,6 +136,7 @@ __all__ = [
     "normalize_intent",
     "normalize_thought_level",
     "oauth_is_configured",
+    "prefer_latest_video_model",
     "resolve_model",
     "resolve_model_selection",
     "scrub_gap_text",

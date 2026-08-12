@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import time
 from collections.abc import Iterator
 from typing import Any
 
@@ -16,6 +17,7 @@ from xai_sdk import Client
 
 from xaikit.catalog import (
     BOOTSTRAP_MODEL,
+    DEFAULT_VIDEO_MODEL,
     normalize_thought_level,
     resolve_model_selection,
 )
@@ -33,8 +35,20 @@ _JSON_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 XAI_STT_URL = "https://api.x.ai/v1/stt"
 XAI_TTS_URL = "https://api.x.ai/v1/tts"
 XAI_IMAGES_URL = "https://api.x.ai/v1/images/generations"
+XAI_VIDEOS_URL = "https://api.x.ai/v1/videos/generations"
+XAI_VIDEO_EXTENSIONS_URL = "https://api.x.ai/v1/videos/extensions"
+XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos/{request_id}"
 DEFAULT_TTS_VOICE_ID = "eve"
 DEFAULT_IMAGE_MODEL = "grok-imagine-image-quality"
+
+_VIDEO_ASPECT_RATIOS = frozenset({"1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"})
+_VIDEO_RESOLUTIONS = frozenset({"480p", "720p", "1080p"})
+_VIDEO_START_TIMEOUT = 60.0
+_VIDEO_POLL_TIMEOUT = 60.0
+_VIDEO_DOWNLOAD_TIMEOUT = 120.0
+_VIDEO_WAIT_TIMEOUT = 600.0
+_VIDEO_WAIT_INTERVAL = 5.0
+_VIDEO_MAX_REFERENCE_AUDIOS = 3
 
 
 def _error_class(exc: BaseException) -> str:
@@ -63,6 +77,7 @@ class XaiClient:
         credential_store: CredentialStore | None = None,
         subject: str | None = None,
         image_model: str | None = None,
+        video_model: str | None = None,
         bootstrap_model: str = BOOTSTRAP_MODEL,
         completion_tracer: CompletionTracer | None = None,
     ) -> None:
@@ -112,6 +127,7 @@ class XaiClient:
             retry_policy if retry_policy is not None else default_retry_policy()
         )
         self.image_model = (image_model or DEFAULT_IMAGE_MODEL).strip()
+        self.video_model = (video_model or DEFAULT_VIDEO_MODEL).strip()
 
     def _require_purpose_if_metered(self, purpose: str | None) -> str | None:
         if self._usage_meter is None:
@@ -824,3 +840,543 @@ class XaiClient:
             "b64_json": str(b64) if b64 else None,
             "model": image_model,
         }
+
+    def _video_headers(self) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+    def _effective_video_model(self, model: str | None) -> str:
+        return (model or self.video_model or DEFAULT_VIDEO_MODEL).strip()
+
+    def _record_video_failed(
+        self,
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        error: str,
+        video_model: str,
+        usage: dict[str, Any] | None = None,
+    ) -> None:
+        self._record(
+            purpose=tag,
+            usage=usage,
+            parent_id=parent_id,
+            labels=labels,
+            success=False,
+            thought_level=None,
+            error=error,
+            modality="video",
+            model=video_model,
+        )
+
+    def generate_video(
+        self,
+        prompt: str | None = None,
+        *,
+        model: str | None = None,
+        duration: int | None = None,
+        aspect_ratio: str | None = None,
+        resolution: str | None = None,
+        image_url: str | None = None,
+        image_file_id: str | None = None,
+        image: dict[str, Any] | None = None,
+        reference_images: list[Any] | None = None,
+        reference_audios: list[Any] | None = None,
+        wait: bool = True,
+        timeout: float = _VIDEO_WAIT_TIMEOUT,
+        interval: float = _VIDEO_WAIT_INTERVAL,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Generate a video via xAI Imagine (REST ``/v1/videos/generations``).
+
+        Default ``wait=True`` polls until ``done``. Pass ``wait=False`` to return
+        the start payload (``request_id``) and call :meth:`poll_video` yourself.
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        video_model = self._effective_video_model(model)
+        image_obj = _video_media_ref(image, url=image_url, file_id=image_file_id)
+        ref_images = _video_reference_images(reference_images)
+        ref_audios = _video_reference_audios(reference_audios)
+        if image_obj is not None and ref_images:
+            raise ValueError("image and reference_images cannot be combined")
+
+        cleaned = (prompt or "").strip()
+        is_i2v = image_obj is not None
+        is_r2v = bool(ref_images) or bool(ref_audios)
+        if not is_i2v and not cleaned:
+            raise RuntimeError("Video prompt is empty")
+        if is_r2v and not cleaned:
+            raise RuntimeError("Video prompt is empty")
+
+        if duration is not None and not (1 <= int(duration) <= 15):
+            raise ValueError("duration must be between 1 and 15 seconds")
+        aspect = _optional_aspect_ratio(aspect_ratio)
+        res = _optional_resolution(resolution)
+
+        body: dict[str, Any] = {"model": video_model}
+        if cleaned:
+            body["prompt"] = cleaned
+        if duration is not None:
+            body["duration"] = int(duration)
+        if aspect:
+            body["aspect_ratio"] = aspect
+        if res:
+            body["resolution"] = res
+        if image_obj is not None:
+            body["image"] = image_obj
+        if ref_images:
+            body["reference_images"] = ref_images
+        if ref_audios:
+            body["reference_audios"] = ref_audios
+
+        return self._start_and_maybe_wait_video(
+            XAI_VIDEOS_URL,
+            body,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            video_model=video_model,
+            wait=wait,
+            timeout=timeout,
+            interval=interval,
+            resolution=res,
+            requested_duration=int(duration) if duration is not None else None,
+            action="Video generation",
+        )
+
+    def extend_video(
+        self,
+        prompt: str,
+        *,
+        video_url: str | None = None,
+        video_file_id: str | None = None,
+        video: dict[str, Any] | None = None,
+        model: str | None = None,
+        duration: int | None = None,
+        wait: bool = True,
+        timeout: float = _VIDEO_WAIT_TIMEOUT,
+        interval: float = _VIDEO_WAIT_INTERVAL,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Extend a video via xAI Imagine (REST ``/v1/videos/extensions``)."""
+        tag = self._require_purpose_if_metered(purpose)
+        video_model = self._effective_video_model(model)
+        cleaned = (prompt or "").strip()
+        if not cleaned:
+            raise RuntimeError("Video prompt is empty")
+        video_obj = _video_media_ref(video, url=video_url, file_id=video_file_id)
+        if not video_obj:
+            raise RuntimeError("Video url or file_id is required to extend")
+        if duration is not None and not (2 <= int(duration) <= 10):
+            raise ValueError("extend duration must be between 2 and 10 seconds")
+
+        body: dict[str, Any] = {
+            "model": video_model,
+            "prompt": cleaned,
+            "video": video_obj,
+        }
+        if duration is not None:
+            body["duration"] = int(duration)
+
+        return self._start_and_maybe_wait_video(
+            XAI_VIDEO_EXTENSIONS_URL,
+            body,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            video_model=video_model,
+            wait=wait,
+            timeout=timeout,
+            interval=interval,
+            resolution=None,
+            requested_duration=int(duration) if duration is not None else None,
+            action="Video extension",
+        )
+
+    def poll_video(self, request_id: str) -> dict[str, Any]:
+        """Single GET of ``/v1/videos/{request_id}`` (no wait loop)."""
+        rid = (request_id or "").strip()
+        if not rid:
+            raise RuntimeError("Video request_id is empty")
+        payload = self._get_video_status(rid)
+        return _normalize_video_payload(payload, request_id=rid)
+
+    def download_video(self, url: str) -> bytes:
+        """GET a generated video URL and return the bytes."""
+        cleaned = (url or "").strip()
+        if not cleaned:
+            raise RuntimeError("Video URL is empty")
+        try:
+            response = httpx.get(
+                cleaned,
+                timeout=_VIDEO_DOWNLOAD_TIMEOUT,
+                follow_redirects=True,
+            )
+        except httpx.HTTPError as exc:
+            logger.exception("xAI video download failed")
+            raise RuntimeError(f"Video download failed: {exc}") from exc
+        if response.status_code == 401:
+            raise RuntimeError("xAI video download unauthorized — check API key")
+        if response.status_code >= 400:
+            detail = response.text[:500] if response.text else response.reason_phrase
+            raise RuntimeError(
+                f"Video download failed ({response.status_code}): {detail}"
+            )
+        if not response.content:
+            raise RuntimeError("Video download returned empty body")
+        return response.content
+
+    def _start_and_maybe_wait_video(
+        self,
+        url: str,
+        body: dict[str, Any],
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        video_model: str,
+        wait: bool,
+        timeout: float,
+        interval: float,
+        resolution: str | None,
+        requested_duration: int | None,
+        action: str,
+    ) -> dict[str, Any]:
+        headers = self._video_headers()
+        try:
+            response = httpx.post(
+                url,
+                headers=headers,
+                json=body,
+                timeout=_VIDEO_START_TIMEOUT,
+            )
+        except httpx.HTTPError as exc:
+            self._record_video_failed(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                error=_error_class(exc),
+                video_model=video_model,
+            )
+            logger.exception("xAI %s request failed", action)
+            raise RuntimeError(f"{action} request failed: {exc}") from exc
+
+        if response.status_code == 401:
+            raise RuntimeError(f"xAI {action.lower()} unauthorized — check API key")
+        if response.status_code >= 400:
+            detail = response.text[:500] if response.text else response.reason_phrase
+            logger.error("xAI %s error %s: %s", action, response.status_code, detail)
+            self._record_video_failed(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                error=f"HTTP{response.status_code}",
+                video_model=video_model,
+            )
+            raise RuntimeError(f"{action} failed ({response.status_code}): {detail}")
+
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"{action} returned non-JSON response") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError(f"{action} returned unexpected payload")
+
+        request_id = str(payload.get("request_id") or "").strip()
+        if not request_id:
+            raise RuntimeError(f"{action} response missing request_id")
+
+        start_usage = _video_meter_usage(
+            None,
+            requested_duration=requested_duration,
+            resolution=resolution,
+        )
+        if not wait:
+            self._record(
+                purpose=tag,
+                usage=start_usage,
+                parent_id=parent_id,
+                labels=labels,
+                success=True,
+                thought_level=None,
+                modality="video",
+                model=video_model,
+            )
+            return _normalize_video_payload(
+                {"request_id": request_id, "status": "pending", "model": video_model},
+                request_id=request_id,
+            )
+
+        return self._wait_for_video(
+            request_id,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            video_model=video_model,
+            timeout=timeout,
+            interval=interval,
+            resolution=resolution,
+            requested_duration=requested_duration,
+            action=action,
+        )
+
+    def _wait_for_video(
+        self,
+        request_id: str,
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        video_model: str,
+        timeout: float,
+        interval: float,
+        resolution: str | None,
+        requested_duration: int | None,
+        action: str,
+    ) -> dict[str, Any]:
+        deadline = time.monotonic() + max(0.0, float(timeout))
+        poll_interval = max(0.0, float(interval))
+        while True:
+            try:
+                payload = self._get_video_status(request_id)
+            except Exception as exc:
+                self._record_video_failed(
+                    tag=tag,
+                    parent_id=parent_id,
+                    labels=labels,
+                    error=_error_class(exc),
+                    video_model=video_model,
+                )
+                raise
+
+            status = str(payload.get("status") or "").strip().lower()
+            if status == "done":
+                usage = _video_meter_usage(
+                    payload,
+                    requested_duration=requested_duration,
+                    resolution=resolution,
+                )
+                self._record(
+                    purpose=tag,
+                    usage=usage,
+                    parent_id=parent_id,
+                    labels=labels,
+                    success=True,
+                    thought_level=None,
+                    modality="video",
+                    model=str(payload.get("model") or video_model),
+                )
+                return _normalize_video_payload(payload, request_id=request_id)
+            if status in {"failed", "expired"}:
+                message = _video_error_message(payload) or status
+                self._record_video_failed(
+                    tag=tag,
+                    parent_id=parent_id,
+                    labels=labels,
+                    error=f"video_{status}",
+                    video_model=video_model,
+                    usage=_video_meter_usage(
+                        payload,
+                        requested_duration=requested_duration,
+                        resolution=resolution,
+                    ),
+                )
+                raise RuntimeError(f"{action} {status}: {message}")
+            if time.monotonic() >= deadline:
+                self._record_video_failed(
+                    tag=tag,
+                    parent_id=parent_id,
+                    labels=labels,
+                    error="video_timeout",
+                    video_model=video_model,
+                )
+                raise RuntimeError(f"{action} timed out waiting for request_id={request_id}")
+            remaining = deadline - time.monotonic()
+            sleep_for = poll_interval if poll_interval > 0 else 0.0
+            if sleep_for > remaining:
+                sleep_for = max(0.0, remaining)
+            if sleep_for > 0:
+                time.sleep(sleep_for)
+
+    def _get_video_status(self, request_id: str) -> dict[str, Any]:
+        url = XAI_VIDEO_STATUS_URL.format(request_id=request_id)
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        try:
+            response = httpx.get(url, headers=headers, timeout=_VIDEO_POLL_TIMEOUT)
+        except httpx.HTTPError as exc:
+            logger.exception("xAI video poll request failed")
+            raise RuntimeError(f"Video poll request failed: {exc}") from exc
+        if response.status_code == 401:
+            raise RuntimeError("xAI video poll unauthorized — check API key")
+        if response.status_code >= 400:
+            detail = response.text[:500] if response.text else response.reason_phrase
+            logger.error("xAI video poll error %s: %s", response.status_code, detail)
+            raise RuntimeError(f"Video poll failed ({response.status_code}): {detail}")
+        if response.status_code == 202:
+            if response.text.strip():
+                try:
+                    payload = response.json()
+                    if isinstance(payload, dict):
+                        return payload
+                except json.JSONDecodeError:
+                    pass
+            return {"status": "pending", "request_id": request_id}
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Video poll returned non-JSON response") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError("Video poll returned unexpected payload")
+        return payload
+
+
+def _optional_aspect_ratio(value: str | None) -> str | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    if raw not in _VIDEO_ASPECT_RATIOS:
+        raise ValueError(
+            f"aspect_ratio must be one of {sorted(_VIDEO_ASPECT_RATIOS)}"
+        )
+    return raw
+
+
+def _optional_resolution(value: str | None) -> str | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    if raw not in _VIDEO_RESOLUTIONS:
+        raise ValueError(f"resolution must be one of {sorted(_VIDEO_RESOLUTIONS)}")
+    return raw
+
+
+def _video_media_ref(
+    explicit: dict[str, Any] | None,
+    *,
+    url: str | None = None,
+    file_id: str | None = None,
+) -> dict[str, str] | None:
+    source = dict(explicit) if isinstance(explicit, dict) else {}
+    url_val = url or source.get("url") or source.get("image_url")
+    file_val = file_id or source.get("file_id")
+    url_s = str(url_val).strip() if url_val else ""
+    file_s = str(file_val).strip() if file_val else ""
+    if url_s and file_s:
+        raise ValueError("url and file_id are mutually exclusive")
+    if url_s:
+        return {"url": url_s}
+    if file_s:
+        return {"file_id": file_s}
+    return None
+
+
+def _video_reference_images(items: list[Any] | None) -> list[dict[str, str]]:
+    if not items:
+        return []
+    out: list[dict[str, str]] = []
+    for item in items:
+        if isinstance(item, str):
+            ref = _video_media_ref(None, url=item)
+        elif isinstance(item, dict):
+            ref = _video_media_ref(item)
+        else:
+            raise ValueError("reference_images entries must be url strings or {url|file_id} dicts")
+        if not ref:
+            raise ValueError("reference_images entry missing url or file_id")
+        out.append(ref)
+    return out
+
+
+def _video_reference_audios(items: list[Any] | None) -> list[dict[str, str]]:
+    if not items:
+        return []
+    if len(items) > _VIDEO_MAX_REFERENCE_AUDIOS:
+        raise ValueError(
+            f"reference_audios accepts at most {_VIDEO_MAX_REFERENCE_AUDIOS} voices"
+        )
+    out: list[dict[str, str]] = []
+    for item in items:
+        if isinstance(item, str):
+            voice = item.strip()
+        elif isinstance(item, dict):
+            voice = str(item.get("voice_id") or "").strip()
+        else:
+            raise ValueError("reference_audios entries must be voice_id strings or {voice_id} dicts")
+        if not voice:
+            raise ValueError("reference_audios entry missing voice_id")
+        out.append({"voice_id": voice})
+    return out
+
+
+def _video_error_message(payload: dict[str, Any]) -> str | None:
+    err = payload.get("error")
+    if isinstance(err, dict):
+        msg = err.get("message")
+        if msg:
+            return str(msg)
+    message = payload.get("message")
+    if message:
+        return str(message)
+    return None
+
+
+def _video_meter_usage(
+    payload: dict[str, Any] | None,
+    *,
+    requested_duration: int | None,
+    resolution: str | None,
+) -> dict[str, Any] | None:
+    """Best-effort usage dict for the meter. Never raises."""
+    try:
+        out: dict[str, Any] = {}
+        usage = payload.get("usage") if isinstance(payload, dict) else None
+        if isinstance(usage, dict):
+            for key in (
+                "cost_in_usd_ticks",
+                "input_tokens",
+                "output_tokens",
+                "prompt_tokens",
+                "completion_tokens",
+                "total_tokens",
+            ):
+                if usage.get(key) is not None:
+                    out[key] = usage[key]
+        video = payload.get("video") if isinstance(payload, dict) else None
+        duration = None
+        if isinstance(video, dict) and video.get("duration") is not None:
+            duration = video.get("duration")
+        if duration is None:
+            duration = requested_duration
+        if duration is not None:
+            out["duration"] = duration
+        if resolution:
+            out["resolution"] = resolution
+        return out or None
+    except Exception:
+        return None
+
+
+def _normalize_video_payload(
+    payload: dict[str, Any],
+    *,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    video = payload.get("video") if isinstance(payload.get("video"), dict) else {}
+    rid = (request_id or payload.get("request_id") or "") or None
+    if rid:
+        rid = str(rid)
+    return {
+        "request_id": rid,
+        "status": payload.get("status"),
+        "url": video.get("url"),
+        "duration": video.get("duration"),
+        "model": payload.get("model"),
+        "respect_moderation": video.get("respect_moderation"),
+    }
