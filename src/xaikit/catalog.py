@@ -1,6 +1,6 @@
 """Model catalog + resolution for XaiKit.
 
-Resolve chain: pin → intent (cheapest|best_value|best) → task hook → prefer_latest → bootstrap.
+Resolve chain: pin → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap.
 No settings import; callers pass knobs / inject fixtures.
 """
 
@@ -25,14 +25,13 @@ logger = logging.getLogger(__name__)
 BOOTSTRAP_MODEL = "grok-4.5"
 
 INTENT_CHEAPEST = "cheapest"
-INTENT_BEST_VALUE = "best_value"
+INTENT_ECONOMY = "economy"
 INTENT_BEST = "best"
 # Canonical three; aliases normalize in. Overlap is allowed when the lineup is thin.
+# "economy" = cheaper-than-flagship rung, not "best performance-per-dollar".
 _INTENT_ALIASES = {
     "cheapest": INTENT_CHEAPEST,
-    "best_value": INTENT_BEST_VALUE,
-    "best-value": INTENT_BEST_VALUE,
-    "value": INTENT_BEST_VALUE,
+    "economy": INTENT_ECONOMY,
     "best": INTENT_BEST,
 }
 KNOWN_INTENTS = frozenset(_INTENT_ALIASES.keys())
@@ -105,11 +104,11 @@ def effort_options() -> list[str]:
 
 def intent_options() -> list[str]:
     """UI-queryable catalog intents (canonical names, cheapest → best)."""
-    return [INTENT_CHEAPEST, INTENT_BEST_VALUE, INTENT_BEST]
+    return [INTENT_CHEAPEST, INTENT_ECONOMY, INTENT_BEST]
 
 
 def normalize_intent(intent: str | None) -> str | None:
-    """Map product intent strings to canonical cheapest | best_value | best."""
+    """Map product intent strings to canonical cheapest | economy | best."""
     if intent is None:
         return None
     raw = str(intent).strip().lower().replace(" ", "_")
@@ -418,11 +417,13 @@ def best_model(catalog: Sequence[ModelInfo] | None = None) -> str | None:
     return prefer_latest_model(catalog)
 
 
-def best_value_model(catalog: Sequence[ModelInfo] | None = None) -> str | None:
+def economy_model(catalog: Sequence[ModelInfo] | None = None) -> str | None:
     """Newest general-chat model in the price band strictly below flagship.
 
-    Overlaps ``cheapest`` when that band is a single price, and overlaps
-    ``best`` when nothing is cheaper than the flagship.
+    This is the mid / economy rung, not a performance-per-dollar optimum
+    (that ratio can belong to ``best``). Overlaps ``cheapest`` when that
+    band is a single price, and overlaps ``best`` when nothing is cheaper
+    than the flagship.
     """
     chat = general_chat_models(catalog)
     if not chat:
@@ -472,7 +473,7 @@ def resolve_model_selection(
     bootstrap: str = BOOTSTRAP_MODEL,
     task_assignment: _TaskAssignFn | None = None,
 ) -> ModelSelection:
-    """pin → intent (cheapest|best_value|best) → task hook → prefer_latest → bootstrap."""
+    """pin → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap."""
     level = normalize_thought_level(thought_level)
 
     explicit = (pin or "").strip()
@@ -493,7 +494,7 @@ def resolve_model_selection(
     elif canonical is not None and cat is not None:
         picker = {
             INTENT_CHEAPEST: cheapest_model,
-            INTENT_BEST_VALUE: best_value_model,
+            INTENT_ECONOMY: economy_model,
             INTENT_BEST: best_model,
         }[canonical]
         mid = picker(cat)

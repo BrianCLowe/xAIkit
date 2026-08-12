@@ -9,7 +9,7 @@
 
 **Active task:** Optional: more catalog helpers (image/video models); not blocking video.  
 **Blocked by:** —  
-**Last session:** 2026-08-12 — three intents (`cheapest` / `best_value` / `best`) with overlap
+**Last session:** 2026-08-12 — three intents (`cheapest` / `economy` / `best`) with overlap
 
 ---
 

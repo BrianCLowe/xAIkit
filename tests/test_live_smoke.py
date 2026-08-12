@@ -83,10 +83,10 @@ def test_live_three_intents_resolve_to_catalog_ids(api_key: str) -> None:
     models = list_models(api_key=api_key, force_refresh=True, allow_fixture_fallback=False)
     ids = {m.id for m in models}
     cheap = resolve_model_selection(intent="cheapest", catalog=models)
-    value = resolve_model_selection(intent="best_value", catalog=models)
+    economy = resolve_model_selection(intent="economy", catalog=models)
     best = resolve_model_selection(intent="best", catalog=models)
     assert cheap.model_id in ids
-    assert value.model_id in ids
+    assert economy.model_id in ids
     assert best.model_id in ids
     by_id = {m.id: m for m in models}
     if (

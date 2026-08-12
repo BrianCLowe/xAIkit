@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from xaikit.catalog import (
     BOOTSTRAP_MODEL,
     ModelInfo,
-    best_value_model,
+    economy_model,
     cheapest_model,
     intent_options,
     model_info_from_language_proto,
@@ -152,12 +152,12 @@ def _live_like_catalog() -> list[ModelInfo]:
 def test_three_intents_on_live_like_lineup() -> None:
     cat = _live_like_catalog()
     cheap = resolve_model_selection(intent="cheapest", catalog=cat)
-    value = resolve_model_selection(intent="best_value", catalog=cat)
+    economy = resolve_model_selection(intent="economy", catalog=cat)
     best = resolve_model_selection(intent="best", catalog=cat)
     assert cheap.model_id == "grok-4.20-0309-non-reasoning"
     assert cheap.source == "intent:cheapest"
-    assert value.model_id == "grok-4.3"
-    assert value.source == "intent:best_value"
+    assert economy.model_id == "grok-4.3"
+    assert economy.source == "intent:economy"
     assert best.model_id == "grok-4.6"
     assert best.source == "intent:best"
     # coding SKU is cheaper on paper but excluded from general intents
@@ -166,14 +166,14 @@ def test_three_intents_on_live_like_lineup() -> None:
     assert best.model_id == "grok-4.6"
 
 
-def test_value_alias_and_intent_options() -> None:
-    cat = _live_like_catalog()
-    assert intent_options() == ["cheapest", "best_value", "best"]
-    assert normalize_intent("value") == "best_value"
-    assert normalize_intent("best value") == "best_value"
-    sel = resolve_model_selection(intent="value", catalog=cat)
+def test_intent_options_canonical_names() -> None:
+    assert intent_options() == ["cheapest", "economy", "best"]
+    assert normalize_intent("economy") == "economy"
+    assert normalize_intent("best_value") is None
+    assert normalize_intent("value") is None
+    sel = resolve_model_selection(intent="economy", catalog=_live_like_catalog())
     assert sel.model_id == "grok-4.3"
-    assert sel.source == "intent:best_value"
+    assert sel.source == "intent:economy"
 
 
 def test_intents_overlap_when_lineup_is_thin() -> None:
@@ -182,12 +182,12 @@ def test_intents_overlap_when_lineup_is_thin() -> None:
         ModelInfo(id="grok-4.6", capabilities=["chat"], input_per_million=20.0, created=2),
     ]
     assert resolve_model_selection(intent="cheapest", catalog=two).model_id == "grok-4.3"
-    assert resolve_model_selection(intent="best_value", catalog=two).model_id == "grok-4.3"
+    assert resolve_model_selection(intent="economy", catalog=two).model_id == "grok-4.3"
     assert resolve_model_selection(intent="best", catalog=two).model_id == "grok-4.6"
 
     one = [ModelInfo(id="grok-4.6", capabilities=["chat"], input_per_million=20.0, created=1)]
     assert resolve_model_selection(intent="cheapest", catalog=one).model_id == "grok-4.6"
-    assert best_value_model(one) == "grok-4.6"
+    assert economy_model(one) == "grok-4.6"
     assert resolve_model_selection(intent="best", catalog=one).model_id == "grok-4.6"
 
 
