@@ -13,9 +13,9 @@ docs_profile:
 
 orchestrator:
   git:
-    mode: branch-pr-squash
+    mode: milestone-pr
     recorded: 2026-08-12
-    source: agent-suggested
+    source: user
 
 standing:
   instructions: |

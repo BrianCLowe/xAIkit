@@ -44,7 +44,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 - **Library, not an app** — operable “done” for shipped stems is contract tests + typed API, not a UI.
 - **Ship-first** — implement from spec + TODO; *lock shape* only if a stem gets identity pressure.
 - **README vs docs/** — README for consumers; this tree for agents and contributors; wheel stays code-only.
-- **Orchestrator git:** durable mode is `branch-pr-squash` (one morning PR). Pack recommend is **`milestone-pr`** (per-slice PR → CI/Bugbot → merge). **Cloud Agent** orchestration this-runs **`milestone-pr`** when durable is `branch-pr*` (does not rewrite settings).
+- **Orchestrator git:** durable mode is **`milestone-pr`** (per-slice PR → CI/Bugbot → merge → next branch). **Cloud Agent** orchestration uses the same mode.
 - **Kit leftovers:** stay as TODOs on the inventory stem ([ApiCoverage](features/ApiCoverage.md)) until that slice is next; covering TODOs on existing stems (Workflow §5.4); no map rows for vague planned-only items.
 - **Next product work** — [realtime voice](features/RealtimeVoice-TODO.md); remaining API on [ApiCoverage](features/ApiCoverage.md) has no order.
 
