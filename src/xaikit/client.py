@@ -1,6 +1,6 @@
 """xAI (Grok) client — typed transport for XaiKit.
 
-Domain schemas (DiffWorkflow StructuredProposal, Quill, XaiBrain) stay in apps.
+Domain schemas stay in consuming apps; this module is transport only.
 """
 
 from __future__ import annotations
@@ -120,7 +120,7 @@ class XaiClient:
         if not tag:
             raise ValueError(
                 "purpose tag is required when a UsageMeter is attached "
-                "(e.g. purpose='quill.chat')"
+                "(e.g. purpose='demo.chat')"
             )
         return tag
 
