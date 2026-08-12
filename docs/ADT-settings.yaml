@@ -1,0 +1,54 @@
+# Live pack preferences — survives TEMPLATE_SYNC (this file is not under docs/templates/).
+version: 1
+
+sync:
+  mode: auto-all
+  recorded: 2026-08-12
+  source: user
+
+docs_profile:
+  mode: ship-first
+  recorded: 2026-08-12
+  source: user
+
+orchestrator:
+  git:
+    mode: branch-pr-squash
+    recorded: 2026-08-12
+    source: agent-suggested
+
+standing:
+  instructions: |
+    - README.md is consumer/release documentation only (install + public API usage). Do not put contributor ceremony, ADT workflow, or private-app names there.
+    - Live docs under docs/ and docs/templates/ stay in git; they must not ship in the installed wheel.
+    - Prove library wiring with offline contract tests (mock provider + mocked HTTP). Do not add a playground UI for knob/media verification.
+    - Keep examples and tests generic — no private consumer project names.
+  recorded: 2026-08-12
+  source: user
+
+tools:
+  cursor:
+    status: installed
+    recorded: 2026-08-12
+    source: user
+    path: .cursor/rules/modular-documentation.mdc
+    note: Also agent-timescale-planning.mdc, agent-build-verify.mdc, template-update-check.mdc. Doc roles in .cursor/agents/.
+
+optional_rules:
+  template-update-check:
+    status: enabled
+    recorded: 2026-08-12
+    source: user
+
+  doc-roles:
+    status: enabled
+    recorded: 2026-08-12
+    source: user
+    paths:
+      cursor: .cursor/agents/
+
+upstream:
+  check_mode: always
+  check_mode_recorded: 2026-08-12
+  last_checked: 2026-08-12
+  local_pack_version: "2.7.18"

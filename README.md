@@ -16,14 +16,6 @@ uv add --editable ../xAIkit
 
 PyPI publish may follow once the API settles.
 
-## Develop
-
-```bash
-uv sync --group dev
-uv run pytest
-uv run python scripts/smoke_meter_mock.py
-```
-
 ## Quick usage
 
 ```python
@@ -83,3 +75,5 @@ Thin FastAPI samples under [`examples/`](examples/) — not required package sur
 ## License
 
 MIT
+
+Contributor / agent docs (not part of the installed package): [`docs/Master_Index.md`](docs/Master_Index.md).
