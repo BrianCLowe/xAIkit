@@ -63,7 +63,7 @@ class GapEvent(BaseModel):
     feature: str = Field(
         ...,
         min_length=1,
-        description="App feature/purpose tag e.g. quill.chat, notes.propose",
+        description="App feature/purpose tag e.g. demo.chat, search.rank",
     )
     job_tag: str = Field(
         default="",

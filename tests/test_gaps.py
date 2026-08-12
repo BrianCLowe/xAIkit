@@ -38,8 +38,8 @@ def test_scrub_redacts_secretish_and_caps() -> None:
 def test_default_gap_log_is_null_off() -> None:
     log = GapLog()
     assert isinstance(log.sink, NullGapSink)
-    ev = log.record(feature="quill.chat", note="missing tool")
-    assert ev.feature == "quill.chat"
+    ev = log.record(feature="demo.chat", note="missing tool")
+    assert ev.feature == "demo.chat"
     assert list(log.sink.iter_events()) == []
 
 
@@ -48,7 +48,7 @@ def test_record_scrubs_note_and_requires_feature() -> None:
     log = GapLog(sink=sink)
     ev = log.record(
         kind="capability_gap",
-        feature="notes.propose",
+        feature="demo.feature",
         note="need api_key=SECRETVALUE99 in response",
         code="missing_schema",
         model="grok-4.5",
@@ -92,7 +92,7 @@ def test_record_from_payload_and_dump() -> None:
                 {"kind": "capability_gap", "text": "no tool", "code": "t1"},
             ]
         },
-        feature="quill.chat",
+        feature="demo.chat",
         model="grok-3-mini",
     )
     assert len(events) == 2
@@ -120,13 +120,13 @@ def test_build_gap_log_paths_and_env(tmp_path: Path, monkeypatch: pytest.MonkeyP
 def test_cli_review_jsonl(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     path = tmp_path / "gaps.jsonl"
     log = GapLog(sink=JsonlGapSink(path))
-    log.record(feature="quill.chat", note="hole", code="h1")
+    log.record(feature="demo.chat", note="hole", code="h1")
 
     reset_gap_log()
     rc = main(["--path", str(path), "--json"])
     assert rc == 0
     out = capsys.readouterr().out
-    assert "quill.chat" in out
+    assert "demo.chat" in out
     assert "h1" in out
 
     rc2 = main([])

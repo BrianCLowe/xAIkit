@@ -2,7 +2,7 @@
 
 Thin FastAPI (Starlette-based) sample routes that wrap the typed `XaiClient` API.
 
-**Not** product identity. **Not** shipped as a required package surface. Rivenquill’s `/ai` routes do **not** use these mounts — apps that want REST copy this pattern.
+**Not** product identity. **Not** shipped as a required package surface. Apps that want REST can copy this pattern.
 
 ## What you get
 

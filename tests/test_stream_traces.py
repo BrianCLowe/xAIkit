@@ -30,7 +30,7 @@ def test_chat_stream_yields_incremental_deltas_and_meters() -> None:
     accumulated = ""
     for chunk in client.chat_stream(
         [{"role": "user", "content": "hi"}],
-        purpose="quill.stream",
+        purpose="demo.stream",
     ):
         assert chunk.delta
         deltas.append(chunk.delta)
@@ -43,7 +43,7 @@ def test_chat_stream_yields_incremental_deltas_and_meters() -> None:
 
     events = list(sink.iter_events())
     assert len(events) == 1
-    assert events[0].purpose == "quill.stream"
+    assert events[0].purpose == "demo.stream"
     assert events[0].success is True
     assert events[0].prompt_tokens == 10
 
