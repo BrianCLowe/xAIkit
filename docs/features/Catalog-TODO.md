@@ -7,15 +7,15 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Optional: add offline catalog resolve tests; not blocking video.  
+**Active task:** Optional: more catalog helpers (image/video models); not blocking video.  
 **Blocked by:** —  
-**Last session:** 2026-08-12 — bootstrap
+**Last session:** 2026-08-12 — live catalog smoke; fixed `non-reasoning` capability tag
 
 ---
 
 ## High Priority / Next Actions
 
-- [ ] **Contract tests for resolve chain** — pin, cheapest, best, task hook, bootstrap fallback, unknown intent skip (**library-only**)
+*(none blocking — resolve-chain tests + reasoning-tag fix landed.)*
 
 ## Medium Priority
 
@@ -29,3 +29,4 @@
 ## Completed
 
 - [x] Catalog module + resolve + thought_level mapping (2026-08-12 — in tree)
+- [x] Resolve-chain contract tests + `non-reasoning` slug tag (2026-08-12 — live catalog)

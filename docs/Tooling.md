@@ -50,4 +50,4 @@ Do not commit `.env` / API keys. Live xAI calls are optional and not default CI.
 ## Instructions for AI Agents
 
 - Before claiming code is good, run **Cheap / default**.
-- Do not invent extra required tools. Live-key smokes stay optional and env-gated (key procured — see Human-TODO Done).
+- Do not invent extra required tools. Live-key smokes stay optional and env-gated (`XAITKIT_LIVE=1` plus `XAI_API_KEY` — see Human-TODO Done).

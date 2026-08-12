@@ -9,7 +9,7 @@
 
 **Active task:** Image edit / streaming STT are later; video is the next modality.  
 **Blocked by:** —  
-**Last session:** 2026-08-12 — bootstrap
+**Last session:** 2026-08-12 — live TTS / STT round-trip / Imagine smokes
 
 ---
 
@@ -34,3 +34,4 @@
 
 - [x] `transcribe` / `synthesize_speech` / `generate_image` (2026-08-12 — in tree)
 - [x] Media REST wiring tests (PR #2; 2026-08-12)
+- [x] Env-gated live TTS / STT / Imagine smokes (2026-08-12)

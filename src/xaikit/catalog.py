@@ -162,7 +162,7 @@ def model_info_from_language_proto(lm: Any) -> ModelInfo:
         if tag and tag not in ("invalid", "invalid_modality", "0"):
             if tag not in caps:
                 caps.append(tag)
-    if "reasoning" in name.lower() or any("reason" in a.lower() for a in aliases):
+    if _slug_implies_reasoning(name, *[str(a) for a in aliases if a]):
         if "reasoning" not in caps:
             caps.append("reasoning")
 
@@ -296,6 +296,18 @@ _GROK_NUM = re.compile(
     r"grok[-_]?(\d+(?:\.\d+)?)(?:[-_]|$)",
     re.IGNORECASE,
 )
+_NON_REASONING = re.compile(r"non[-_]?reasoning", re.IGNORECASE)
+
+
+def _slug_implies_reasoning(*parts: str) -> bool:
+    """True when a slug names a reasoning model, not a ``non-reasoning`` variant."""
+    for part in parts:
+        if not part:
+            continue
+        stripped = _NON_REASONING.sub("", str(part).lower())
+        if "reasoning" in stripped:
+            return True
+    return False
 
 
 def _version_tuple(model: ModelInfo) -> tuple:

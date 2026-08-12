@@ -17,13 +17,11 @@ from xaikit import (
     InMemoryUsageSink,
     UsageMeter,
     XaiClient,
-    cheapest_model,
-    clear_catalog_cache,
     default_retry_policy,
     inject_catalog,
     list_models,
-    set_test_fetch,
 )
+from xaikit.catalog import cheapest_model, clear_catalog_cache, set_test_fetch
 
 _RUN_LIVE = os.environ.get("XAITKIT_LIVE", "").strip().lower() in {"1", "true", "yes"}
 _HAS_KEY = bool(os.environ.get("XAI_API_KEY", "").strip())
@@ -69,10 +67,14 @@ def test_live_list_models_includes_bootstrap(api_key: str) -> None:
     models = list_models(api_key=api_key, force_refresh=True, allow_fixture_fallback=False)
     ids = {m.id for m in models}
     assert models, "SDK catalog was empty"
-    assert any("grok" in mid.lower() for mid in ids), ids
+    assert BOOTSTRAP_MODEL in ids
     cheap = cheapest_model(models)
     assert cheap
     assert cheap in ids
+    for m in models:
+        slug = f"{m.id} {' '.join(m.aliases)}".lower()
+        if "non-reasoning" in slug.replace("_", "-"):
+            assert "reasoning" not in m.capabilities, m.id
 
 
 def test_live_chat_returns_content(client: XaiClient) -> None:
@@ -104,6 +106,30 @@ def test_live_chat_json_returns_object(client: XaiClient) -> None:
     )
     assert isinstance(data, dict)
     assert data.get("ok") is True or data.get("tag") == "live" or "ok" in data
+
+
+def test_live_unpinned_client_resolves_and_chats(api_key: str) -> None:
+    client = XaiClient(
+        api_key=api_key,
+        retry_policy=default_retry_policy(max_attempts=2, backoff_seconds=0.5),
+    )
+    assert client.model
+    resp = client.chat(
+        [{"role": "user", "content": "Reply with exactly: UNPIN_OK"}],
+        temperature=0,
+        max_tokens=16,
+    )
+    assert "UNPIN_OK" in (resp.content or "")
+
+
+def test_live_thought_level_high(client: XaiClient) -> None:
+    resp = client.chat(
+        [{"role": "user", "content": "Reply with exactly: HIGH_OK"}],
+        temperature=0,
+        max_tokens=32,
+        thought_level="high",
+    )
+    assert "HIGH_OK" in (resp.content or "")
 
 
 def test_live_chat_stream_accumulates(client: XaiClient) -> None:
