@@ -23,13 +23,46 @@ _DEFAULT_MODELS: dict[str, dict[str, float]] = {
     "default": {"input_per_million": 3.0, "output_per_million": 15.0},
 }
 
+# Public Imagine video list rates (USD / second). Estimates, not a billing authority.
+# 480p is the per_second_usd default when resolution is omitted.
+_DEFAULT_VIDEO_MODELS: dict[str, dict[str, Any]] = {
+    "grok-imagine-video-1.5": {
+        "input_per_million": 0.0,
+        "output_per_million": 0.0,
+        "per_second_usd": 0.08,
+        "per_second_usd_by_resolution": {
+            "480p": 0.08,
+            "720p": 0.14,
+            "1080p": 0.25,
+        },
+    },
+    "grok-imagine-video": {
+        "input_per_million": 0.0,
+        "output_per_million": 0.0,
+        "per_second_usd": 0.05,
+        "per_second_usd_by_resolution": {
+            "480p": 0.05,
+            "720p": 0.07,
+        },
+    },
+}
+
 
 class ModelPrice(BaseModel):
-    """Per-model token pricing (USD per million tokens)."""
+    """Per-model pricing (token rates and/or per-second video rates)."""
 
     input_per_million: float = Field(ge=0.0)
     output_per_million: float = Field(ge=0.0)
     per_call_usd: float | None = Field(default=None, ge=0.0)
+    per_second_usd: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="USD per second (video 480p default when resolution omitted)",
+    )
+    per_second_usd_by_resolution: dict[str, float] | None = Field(
+        default=None,
+        description="Optional USD/second map keyed by resolution (480p, 720p, 1080p)",
+    )
 
 
 class PriceTable(BaseModel):
@@ -65,9 +98,21 @@ class PriceTable(BaseModel):
         *,
         prompt_tokens: int | None = None,
         completion_tokens: int | None = None,
+        duration_seconds: float | None = None,
+        resolution: str | None = None,
     ) -> float | None:
-        """Estimate USD cost from token counts (or per-call fallback)."""
+        """Estimate USD from video duration, token counts, or per-call fallback."""
         price = self.price_for(model)
+        if duration_seconds is not None:
+            rate = None
+            res_map = price.per_second_usd_by_resolution or {}
+            res_key = (resolution or "").strip()
+            if res_key and res_key in res_map:
+                rate = res_map[res_key]
+            elif price.per_second_usd is not None:
+                rate = price.per_second_usd
+            if rate is not None:
+                return round(float(duration_seconds) * float(rate), 8)
         pt = prompt_tokens if prompt_tokens is not None else 0
         ct = completion_tokens if completion_tokens is not None else 0
         if prompt_tokens is not None or completion_tokens is not None:
@@ -83,6 +128,8 @@ class PriceTable(BaseModel):
 def default_price_table() -> PriceTable:
     """Built-in bootstrap table (no file required)."""
     models = {mid: ModelPrice(**vals) for mid, vals in _DEFAULT_MODELS.items()}
+    for mid, vals in _DEFAULT_VIDEO_MODELS.items():
+        models[mid] = ModelPrice(**vals)
     return PriceTable(version=1, currency="USD", models=models)
 
 

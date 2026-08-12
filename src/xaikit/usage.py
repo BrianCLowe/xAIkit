@@ -54,7 +54,7 @@ class UsageEvent(BaseModel):
     )
     modality: str | None = Field(
         default=None,
-        description="Optional modality tag e.g. chat, stt, tts, imagine",
+        description="Optional modality tag e.g. chat, stt, tts, imagine, video",
     )
 
     def model_post_init(self, __context: Any) -> None:
@@ -152,6 +152,10 @@ class CompositeUsageSink:
         return self.sinks[0].iter_events()
 
 
+# xAI video usage: 1 USD = 10_000_000_000 ticks (1 cent = 100_000_000 ticks).
+_USD_TICKS_PER_DOLLAR = 10_000_000_000
+
+
 def _parse_usage_dict(
     usage: dict[str, Any] | None,
 ) -> tuple[int | None, int | None]:
@@ -172,6 +176,28 @@ def _parse_usage_dict(
     except (TypeError, ValueError):
         ct_i = None
     return pt_i, ct_i
+
+
+def _usd_from_ticks(raw: Any) -> float | None:
+    try:
+        ticks = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return round(ticks / float(_USD_TICKS_PER_DOLLAR), 8)
+
+
+def _duration_seconds_from_usage(usage: dict[str, Any] | None) -> float | None:
+    if not usage:
+        return None
+    raw = usage.get("duration")
+    if raw is None:
+        raw = usage.get("duration_seconds")
+    try:
+        if raw is None:
+            return None
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
 
 
 class UsageMeter:
@@ -219,9 +245,24 @@ class UsageMeter:
         if completion_tokens is not None:
             ct = completion_tokens
 
+        if estimated_usd is None and usage:
+            ticks = usage.get("cost_in_usd_ticks")
+            if ticks is not None:
+                estimated_usd = _usd_from_ticks(ticks)
+
         if estimated_usd is None:
+            duration = _duration_seconds_from_usage(usage)
+            resolution = None
+            if usage:
+                raw_res = usage.get("resolution")
+                if raw_res is not None:
+                    resolution = str(raw_res).strip() or None
             estimated_usd = self.price_table.estimate_usd(
-                model, prompt_tokens=pt, completion_tokens=ct
+                model,
+                prompt_tokens=pt,
+                completion_tokens=ct,
+                duration_seconds=duration,
+                resolution=resolution,
             )
 
         event = UsageEvent(

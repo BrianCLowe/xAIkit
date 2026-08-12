@@ -7,11 +7,11 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Wait until [VideoGeneration](VideoGeneration-TODO.md) ships, then implement realtime voice on the kit.  
-**Blocked by:** [VideoGeneration-TODO.md](VideoGeneration-TODO.md)  
-**Last session:** 2026-08-12 — human ranked this next after video
+**Active task:** Implement realtime voice on the kit.  
+**Blocked by:** —  
+**Last session:** 2026-08-12 — video High+Medium+Low shipped; this stem is next
 
-*Next agent: do not start this stem while video High Priority is open. library-only · exercise path: pytest + optional env-gated smoke.*
+*Next agent: video is drained — implement this stem. library-only · exercise path: pytest + optional env-gated smoke.*
 
 ---
 
@@ -36,7 +36,7 @@
 
 - **library-only** — mocked tests, not a recorder UI. Optional live: `XAITKIT_LIVE=1 uv run pytest tests/test_live_smoke.py -m live` once a live test exists.
 - REST STT/TTS stay on [MediaRest-TODO.md](MediaRest-TODO.md).
-- Do not implement while video is the Current focus on [VideoGeneration-TODO.md](VideoGeneration-TODO.md).
+- Video generation shipped 2026-08-12 ([VideoGeneration-TODO.md](VideoGeneration-TODO.md)); this stem is next.
 
 ## Completed
 

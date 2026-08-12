@@ -44,7 +44,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 - **Library, not an app** — operable “done” for shipped stems is contract tests + typed API, not a UI.
 - **Ship-first** — implement from spec + TODO; *lock shape* only if a stem gets identity pressure.
 - **README vs docs/** — README for consumers; this tree for agents and contributors; wheel stays code-only.
-- **Next product work** — [video generation](features/VideoGeneration-TODO.md), then [realtime voice](features/RealtimeVoice-TODO.md); remaining API on [ApiCoverage](features/ApiCoverage.md) has no order.
+- **Next product work** — [realtime voice](features/RealtimeVoice-TODO.md); remaining API on [ApiCoverage](features/ApiCoverage.md) has no order.
 
 ## 3. Document Map
 
@@ -91,7 +91,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 1. Consumers: `README.md`.
 2. Agents: this map → the stem spec + TODO.
 3. Workflow: [`templates/agent/Modular_Docs_Workflow.md`](templates/agent/Modular_Docs_Workflow.md) (ship-first: no Understanding gate).
-4. Current focus: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md).
+4. Current focus: [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md).
 
 ---
 
