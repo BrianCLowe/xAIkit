@@ -190,6 +190,14 @@ def test_intents_overlap_when_lineup_is_thin() -> None:
     assert economy_model(one) == "grok-4.6"
     assert resolve_model_selection(intent="best", catalog=one).model_id == "grok-4.6"
 
+    same_band = [
+        ModelInfo(id="grok-4.5", capabilities=["chat"], input_per_million=20.0, created=1),
+        ModelInfo(id="grok-4.6", capabilities=["chat"], input_per_million=20.0, created=2),
+    ]
+    assert resolve_model_selection(intent="cheapest", catalog=same_band).model_id == "grok-4.6"
+    assert resolve_model_selection(intent="economy", catalog=same_band).model_id == "grok-4.6"
+    assert resolve_model_selection(intent="best", catalog=same_band).model_id == "grok-4.6"
+
 
 def test_coding_only_catalog_still_resolves() -> None:
     cat = [

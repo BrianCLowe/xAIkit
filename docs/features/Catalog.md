@@ -26,9 +26,9 @@ Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook �
 - Test inject: `inject_catalog`, `set_test_fetch`, `clear_catalog_cache`
 - Capability tag `reasoning` comes from slugs that contain `reasoning` after stripping `non-reasoning` / `non_reasoning`
 - General intents skip coding SKUs (`grok-build-*`, `grok-code-*`, `*code-fast*` **id**) unless the catalog is coding-only. Do not match aliases (`grok-4.5` currently aliases `grok-build-latest`).
-- `cheapest`: lowest `input_per_million`; ties → oldest, then non-reasoning, then not multi-agent
+- `cheapest`: lowest `input_per_million`. **One price band** → same as `best` (newer is usually more efficient at the same list price). **Multiple bands** → oldest / non-reasoning in the cheapest band
 - `best`: newest general-chat flagship (`prefer_latest`)
-- `economy`: newest model in the price band **strictly below** flagship; overlaps `cheapest` or `best` when that band is empty or a single SKU
+- `economy`: newest model in the price band **strictly below** flagship; overlaps `cheapest` when a cheaper band exists, overlaps `best` when there is only one band
 
 ## Decisions
 
@@ -37,6 +37,7 @@ Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook �
 | 2026-08-12 | Bootstrap model `grok-4.5` | Current default pin when catalog empty |
 | 2026-08-12 | Strip `non-reasoning` before tagging `reasoning` | Live catalog slugs like `grok-4.20-0309-non-reasoning` contain the substring `reasoning` |
 | 2026-08-12 | Three intents: cheapest / economy / best; overlap OK | Not 4+ named tiers. `economy` not `best_value` — that phrase reads as performance-per-dollar, which can be the flagship. Live 2026-08-12: 4.20-non-reasoning / 4.3 / 4.6 after skipping grok-build |
+| 2026-08-12 | Single price band → all intents pick flagship | Same list price: older SKU is not cheaper, and newer models are usually more token-efficient. Multi-band cheapest still uses the low band (4.20 vs 4.3 at $12.5 while 4.6 is $20) |
 
 ## Dependencies
 

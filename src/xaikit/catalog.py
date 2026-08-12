@@ -401,13 +401,21 @@ def _cheapest_tie_key(model: ModelInfo) -> tuple:
 
 
 def cheapest_model(catalog: Sequence[ModelInfo] | None = None) -> str | None:
-    """Lowest input_per_million general-chat model (ties → oldest / non-reasoning)."""
+    """Lowest input_per_million general-chat model.
+
+    One price band → flagship (newer models are usually more efficient at
+    the same list price). Multiple bands → oldest / non-reasoning in the
+    cheapest band.
+    """
     chat = general_chat_models(catalog)
     if not chat:
         return None
     priced = [m for m in chat if m.input_per_million is not None]
     pool = priced or chat
-    min_price = min(_input_price(m) for m in pool)
+    prices = {_input_price(m) for m in pool}
+    if len(prices) <= 1:
+        return prefer_latest_model(pool) or pool[0].id
+    min_price = min(prices)
     candidates = [m for m in pool if _input_price(m) == min_price]
     return min(candidates, key=_cheapest_tie_key).id
 
