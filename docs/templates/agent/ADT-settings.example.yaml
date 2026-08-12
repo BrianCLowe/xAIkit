@@ -1,0 +1,150 @@
+# Example — copy to docs/ADT-settings.yaml when recording the first pack preference.
+# Live file: docs/ADT-settings.yaml (project-specific; survives pack overwrite on TEMPLATE_SYNC)
+#
+# Replaces older docs/rule-install-status.yaml + docs/upstream-status.yaml (migrate on sync).
+
+version: 1
+
+# Pack sync behavior — bootstrap / first sync asks once; do not re-ask every update.
+# auto     = apply all changelog-gated live work + refresh installed rules (no mid-sync optionals quiz)
+#            + local post-sync hygiene commits (pack/stamps, then reshape, then TODO ambition when those ran)
+#            Still asks once for brand-new unset optional_rules.* (doc-roles, update-check, …)
+#            Pre-sync dirty tree is still a hard stop (commit YOUR work first) — see TEMPLATE_SYNC_A A0
+# auto-all = same as auto, and also enable + install any unset optional_rules.* (never re-enable declined)
+#            New update-check defaults to check_mode: always (no cadence quiz)
+# choose   = present optionals (reshape, TODO ambition, …) each sync; suggest commits, ask before committing
+sync:
+  mode: auto
+  recorded: 2026-08-06
+
+# Docs ceremony profile — how heavy the pre-build gate is.
+# prevent   = default. Understanding + shape confirm before code (blocks wrong builds).
+# balanced  = Understanding only when identity is ambiguous / multi-surface / split pressure;
+#             clear single-identity stems may be Spec + TODO only.
+# ship-first = Spec + TODO core only; no draft coding gate; fix-forward via verify + Human-TODO.
+# Bootstrap / first “build from reference” may suggest a mode from docs/reference/ (cite 2–3
+# snippets) then ask once. Unset → treat as prevent (no silent downgrade of existing projects).
+# Re-ask only on explicit *Set docs profile to …* / *Change docs ceremony*.
+docs_profile:
+  mode: prevent
+  recorded: 2026-08-08
+  # source: user | agent-suggested
+
+# Orchestrator git delivery — how unattended backlog runs land in git.
+# local            = milestone commits only; no push / PR
+# branch-pr-squash = run branch → milestone commits → push → draft PR mid-run → end: build-verify → squash → mark ready
+#                    (recommend when remote + forge — Bugbot / tip-only bots only see HEAD; squash = full run as one tip)
+# branch-pr        = same without squash (keeps milestone history on the PR)
+# branch-push      = same without PR (remote but no gh/glab, or no PR culture)
+# current-push     = milestone commits on the branch you are already on → push (solo opt-in; often main). Never silent-default
+# none             = no commits
+# PR close-out order (branch-pr / branch-pr-squash): final push → build verify → squash(if squash mode) → mark ready
+# Unset → always ask (bootstrap Step 3p / sync B0.6 / orchestrator pre-run) — even under sync.mode auto-all; never invent current-push
+# Cloud Agent path: if a remote Cloud Agent orchestrates while this key is local/none/branch-push/current-push/branch-pr,
+#   it uses branch-pr-squash for that run only (does not rewrite this file) — see agent/roles/orchestrator-git.md
+# After choose/change: forge tooling probe — see agent/roles/orchestrator-git.md
+# Re-ask only on *Set orchestrator git to …* / change this key.
+orchestrator:
+  git:
+    mode: branch-pr-squash
+    recorded: 2026-08-12
+    # source: user | agent-suggested
+
+# Freeform durable workflow prefs the pack does not encode as enums (or not yet).
+# Lives under docs/ — TEMPLATE_SYNC never overwrites this block.
+# Agents: read with docs_profile / orchestrator.git on feature + orchestrate paths (Workflow §0.2).
+# Apply unless they conflict with hard pack safety (dirty-tree hard stop, no silent current-push,
+# no force-push / protected-main surprises). This-turn user instructions always win over standing.
+#
+# LOOKOUT (mandatory): when the user states a lasting preference that opposes pack defaults or
+# corrects agent process (“always…”, “never…”, “from now on…”, “don’t open draft PRs…”,
+# “squash before review…”) → same turn append a short bullet here and say you saved it.
+# Prefer first-class keys when they exist (docs_profile, orchestrator.git.mode, sync.mode).
+# Product/UI prefs for one stem → that stem’s spec Decisions (Workflow §10), not here.
+# Do not invent. Empty / missing block = no ceremony.
+standing:
+  instructions: |
+    # Examples only — delete and write your own (one bullet per durable preference):
+    # - When using draft PRs, squash to one commit before mark ready
+    # - Prefer docker compose verify over host npm for this repo
+  # recorded: 2026-08-09
+  # source: user
+
+# One entry per tool. Status: installed | declined
+# Do not ask again for a tool when status is installed or declined
+# unless the user explicitly requests install/reinstall for that tool.
+# Install/refresh: open docs/templates/agent/tools/<key>.md only.
+# Set customized: true only if the user edited pack-managed rule bodies — then ask before overwrite.
+
+tools:
+  cursor:
+    status: installed
+    recorded: 2026-06-12
+    path: .cursor/rules/modular-documentation.mdc
+
+  grok-build:
+    status: installed
+    recorded: 2026-07-18
+    path: AGENTS.md
+    note: Documentation workflow section; doc roles under .grok/agents/
+
+  github-copilot:
+    status: declined
+    recorded: 2026-06-12
+    note: User installs manually on work machine
+
+  # claude-code:
+  #   status: installed
+  #   recorded: 2026-06-12
+  #   path: .claude/rules/modular-documentation.md
+
+  # agents-md:
+  #   status: installed
+  #   recorded: 2026-06-12
+  #   path: AGENTS.md
+
+  # openclaw:
+  #   status: installed
+  #   recorded: 2026-07-18
+  #   path: AGENTS.md
+
+  # continue:
+  #   status: declined
+  #   recorded: 2026-06-12
+
+  # cline:
+  #   status: installed
+  #   recorded: 2026-06-12
+  #   path: .clinerules/modular-documentation.md
+
+# Optional pack features. Status: enabled | declined
+# Bootstrap Steps 4b / 4c record these; each tools/<key>.md installs matching artifacts.
+
+optional_rules:
+  template-update-check:
+    status: enabled
+    recorded: 2026-07-16
+
+  doc-roles:
+    status: enabled
+    recorded: 2026-07-18
+    # paths:
+    #   cursor: .cursor/agents/
+    #   grok-build: .grok/agents/
+
+# Upstream ping stamps — used when optional_rules.template-update-check is enabled.
+# Survives pack overwrite (this whole file lives under docs/, not docs/templates/).
+#
+# check_mode:
+#   always   — default / recommended: fetch upstream VERSION each session when the rule runs
+#   interval — only fetch when last_checked is older than check_interval_days
+
+upstream:
+  check_mode: always
+  check_mode_recorded: 2026-08-07   # set when the user chooses cadence (bootstrap / sync B0.4) — missing → ask once
+  # check_mode: interval
+  # check_interval_days: 7
+  last_checked: 2026-07-16
+  local_pack_version: "2.7.13"
+  # upstream_pack_version: "2.7.13"
+  # update_available: true
