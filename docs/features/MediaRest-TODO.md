@@ -1,6 +1,6 @@
 # MediaRest — TODO
 
-**Last Updated**: 2026-08-12  
+**Last Updated**: 2026-08-12 *(kit-coverage: Imagine `file_id` on generate/edit)*  
 **Related Spec**: [MediaRest.md](MediaRest.md)
 
 ---
@@ -21,6 +21,7 @@
 
 - [ ] **Image edit / i2i** — `edit_image` per [MediaRest.md](MediaRest.md) (`POST /v1/images/edits` or SDK)
 - [ ] **Streaming STT** — only if still unary-transcribe; STS is [RealtimeVoice-TODO.md](RealtimeVoice-TODO.md)
+- [ ] Surface Imagine `file_output.file_id` on generate/edit when upstream returns it (target: [MediaRest.md](MediaRest.md))
 
 ## Low Priority / Future Ideas
 
