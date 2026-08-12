@@ -31,3 +31,6 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+markers = [
+    "live: hits the live xAI API (requires XAI_API_KEY and XAITKIT_LIVE=1)",
+]

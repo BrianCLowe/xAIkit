@@ -1,6 +1,6 @@
 """Model catalog + resolution for XaiKit.
 
-Resolve chain: pin → intent (cheapest|best) → task hook → prefer_latest → bootstrap.
+Resolve chain: pin → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap.
 No settings import; callers pass knobs / inject fixtures.
 """
 
@@ -25,8 +25,16 @@ logger = logging.getLogger(__name__)
 BOOTSTRAP_MODEL = "grok-4.5"
 
 INTENT_CHEAPEST = "cheapest"
+INTENT_ECONOMY = "economy"
 INTENT_BEST = "best"
-KNOWN_INTENTS = frozenset({INTENT_CHEAPEST, INTENT_BEST})
+# Canonical three; aliases normalize in. Overlap is allowed when the lineup is thin.
+# "economy" = cheaper-than-flagship rung, not "best performance-per-dollar".
+_INTENT_ALIASES = {
+    "cheapest": INTENT_CHEAPEST,
+    "economy": INTENT_ECONOMY,
+    "best": INTENT_BEST,
+}
+KNOWN_INTENTS = frozenset(_INTENT_ALIASES.keys())
 
 # xAI SDK reasoning_effort currently accepts only low | high.
 THOUGHT_LEVELS_API = frozenset({"low", "high"})
@@ -92,6 +100,21 @@ def inject_catalog(models: Sequence[ModelInfo] | None) -> None:
 def effort_options() -> list[str]:
     """UI-queryable effort / thought_level options (xAI: low|high)."""
     return list(EFFORT_OPTIONS)
+
+
+def intent_options() -> list[str]:
+    """UI-queryable catalog intents (canonical names, cheapest → best)."""
+    return [INTENT_CHEAPEST, INTENT_ECONOMY, INTENT_BEST]
+
+
+def normalize_intent(intent: str | None) -> str | None:
+    """Map product intent strings to canonical cheapest | economy | best."""
+    if intent is None:
+        return None
+    raw = str(intent).strip().lower().replace(" ", "_")
+    if not raw:
+        return None
+    return _INTENT_ALIASES.get(raw)
 
 
 def normalize_thought_level(level: str | None) -> str | None:
@@ -162,7 +185,7 @@ def model_info_from_language_proto(lm: Any) -> ModelInfo:
         if tag and tag not in ("invalid", "invalid_modality", "0"):
             if tag not in caps:
                 caps.append(tag)
-    if "reasoning" in name.lower() or any("reason" in a.lower() for a in aliases):
+    if _slug_implies_reasoning(name, *[str(a) for a in aliases if a]):
         if "reasoning" not in caps:
             caps.append("reasoning")
 
@@ -292,10 +315,40 @@ def chat_models(catalog: Sequence[ModelInfo] | None = None) -> list[ModelInfo]:
     return [m for m in rows if m.is_chat and m.id]
 
 
+def _is_coding_sku(model: ModelInfo) -> bool:
+    """True for coding-specialized ids (grok-build-*, grok-code-*, *code-fast*)."""
+    mid = (model.id or "").strip().lower().replace("_", "-")
+    return bool(mid and _CODE_SKU_ID.search(mid))
+
+
+def general_chat_models(catalog: Sequence[ModelInfo] | None = None) -> list[ModelInfo]:
+    """Chat models minus coding SKUs; falls back to all chat if that would be empty."""
+    chat = chat_models(catalog)
+    general = [m for m in chat if not _is_coding_sku(m)]
+    return general or chat
+
+
 _GROK_NUM = re.compile(
     r"grok[-_]?(\d+(?:\.\d+)?)(?:[-_]|$)",
     re.IGNORECASE,
 )
+_NON_REASONING = re.compile(r"non[-_]?reasoning", re.IGNORECASE)
+# Match **id** only — grok-4.5 currently aliases grok-build-latest.
+_CODE_SKU_ID = re.compile(
+    r"^(?:grok-build-|grok-code-)|code-fast",
+    re.IGNORECASE,
+)
+
+
+def _slug_implies_reasoning(*parts: str) -> bool:
+    """True when a slug names a reasoning model, not a ``non-reasoning`` variant."""
+    for part in parts:
+        if not part:
+            continue
+        stripped = _NON_REASONING.sub("", str(part).lower())
+        if "reasoning" in stripped:
+            return True
+    return False
 
 
 def _version_tuple(model: ModelInfo) -> tuple:
@@ -322,8 +375,8 @@ def _version_tuple(model: ModelInfo) -> tuple:
 
 
 def prefer_latest_model(catalog: Sequence[ModelInfo] | None = None) -> str | None:
-    """Pick newest chat flagship from catalog."""
-    chat = chat_models(catalog)
+    """Pick newest chat flagship from catalog (coding SKUs skipped when others exist)."""
+    chat = general_chat_models(catalog)
     if not chat:
         return None
     best = max(chat, key=_version_tuple)
@@ -337,21 +390,63 @@ def _input_price(model: ModelInfo) -> float:
     return 1e9
 
 
+def _cheapest_tie_key(model: ModelInfo) -> tuple:
+    """Oldest, then non-reasoning, then not multi-agent — budget pick among a price tie."""
+    mid = (model.id or "").lower().replace("_", "-")
+    created = model.created or 0
+    missing_created = 0 if model.created else 1
+    is_multi_agent = 1 if "multi-agent" in mid else 0
+    is_non_reasoning = 0 if "non-reasoning" in mid else 1
+    return (missing_created, created, is_multi_agent, is_non_reasoning, mid)
+
+
 def cheapest_model(catalog: Sequence[ModelInfo] | None = None) -> str | None:
-    """Pick lowest input_per_million chat model (ties → prefer_latest among them)."""
-    chat = chat_models(catalog)
+    """Lowest input_per_million general-chat model.
+
+    One price band → flagship (newer models are usually more efficient at
+    the same list price). Multiple bands → oldest / non-reasoning in the
+    cheapest band.
+    """
+    chat = general_chat_models(catalog)
     if not chat:
         return None
     priced = [m for m in chat if m.input_per_million is not None]
     pool = priced or chat
-    min_price = min(_input_price(m) for m in pool)
+    prices = {_input_price(m) for m in pool}
+    if len(prices) <= 1:
+        return prefer_latest_model(pool) or pool[0].id
+    min_price = min(prices)
     candidates = [m for m in pool if _input_price(m) == min_price]
-    return prefer_latest_model(candidates) or candidates[0].id
+    return min(candidates, key=_cheapest_tie_key).id
 
 
 def best_model(catalog: Sequence[ModelInfo] | None = None) -> str | None:
     """Alias for prefer_latest (flagship / best quality heuristic)."""
     return prefer_latest_model(catalog)
+
+
+def economy_model(catalog: Sequence[ModelInfo] | None = None) -> str | None:
+    """Newest general-chat model in the price band strictly below flagship.
+
+    This is the mid / economy rung, not a performance-per-dollar optimum
+    (that ratio can belong to ``best``). Overlaps ``cheapest`` when that
+    band is a single price, and overlaps ``best`` when nothing is cheaper
+    than the flagship.
+    """
+    chat = general_chat_models(catalog)
+    if not chat:
+        return None
+    flagship_id = prefer_latest_model(chat)
+    if not flagship_id:
+        return cheapest_model(chat)
+    flagship = next((m for m in chat if m.id == flagship_id), None)
+    if flagship is None:
+        return flagship_id
+    cap = _input_price(flagship)
+    cheaper = [m for m in chat if _input_price(m) < cap]
+    if cheaper:
+        return prefer_latest_model(cheaper) or cheaper[0].id
+    return flagship_id
 
 
 def resolve_model(
@@ -386,7 +481,7 @@ def resolve_model_selection(
     bootstrap: str = BOOTSTRAP_MODEL,
     task_assignment: _TaskAssignFn | None = None,
 ) -> ModelSelection:
-    """pin → intent (cheapest|best) → task hook → prefer_latest → bootstrap."""
+    """pin → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap."""
     level = normalize_thought_level(thought_level)
 
     explicit = (pin or "").strip()
@@ -401,23 +496,20 @@ def resolve_model_selection(
             logger.warning("Catalog unavailable (%s)", type(exc).__name__)
             cat = None
 
-    intent_raw = (intent or "").strip().lower()
-    if intent_raw:
-        if intent_raw not in KNOWN_INTENTS:
-            logger.warning("Unknown intent %r — skipping intent step", intent)
-        elif cat is not None:
-            if intent_raw == INTENT_CHEAPEST:
-                mid = cheapest_model(cat)
-                if mid:
-                    return ModelSelection(
-                        model_id=mid, thought_level=level, source="intent:cheapest"
-                    )
-            elif intent_raw == INTENT_BEST:
-                mid = best_model(cat)
-                if mid:
-                    return ModelSelection(
-                        model_id=mid, thought_level=level, source="intent:best"
-                    )
+    canonical = normalize_intent(intent)
+    if (intent or "").strip() and canonical is None:
+        logger.warning("Unknown intent %r — skipping intent step", intent)
+    elif canonical is not None and cat is not None:
+        picker = {
+            INTENT_CHEAPEST: cheapest_model,
+            INTENT_ECONOMY: economy_model,
+            INTENT_BEST: best_model,
+        }[canonical]
+        mid = picker(cat)
+        if mid:
+            return ModelSelection(
+                model_id=mid, thought_level=level, source=f"intent:{canonical}"
+            )
 
     assign = task_assignment if task_assignment is not None else _task_assignment
     task_key = (task or "").strip()

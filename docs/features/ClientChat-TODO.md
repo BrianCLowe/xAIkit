@@ -9,7 +9,7 @@
 
 **Active task:** Chat path is shipped; next library work is video (see [VideoGeneration-TODO.md](VideoGeneration-TODO.md)).  
 **Blocked by:** —  
-**Last session:** 2026-08-12 — bootstrap from existing code
+**Last session:** 2026-08-12 — live xAI smokes (chat / JSON / stream / unpinned / thought_level)
 
 *Next agent: only pick up this file if chat/tools/vision work is in scope.*
 
@@ -30,10 +30,11 @@
 
 ## Cross-Feature Dependencies & Integration Notes
 
-- **library-only** — exercise path is `uv run pytest` / mock provider, not a UI.
+- **library-only** — exercise path is `uv run pytest` / mock provider, not a UI. Optional live: `XAITKIT_LIVE=1 uv run pytest tests/test_live_smoke.py -m live`.
 
 ## Completed
 
 - [x] Typed `chat` / `chat_json` / `chat_stream` (2026-08-12 — in tree)
 - [x] Mock provider + retry + purpose-when-metered (2026-08-12)
 - [x] Knob pass-through contract tests (PR #2; 2026-08-12)
+- [x] Env-gated live chat smokes (2026-08-12)

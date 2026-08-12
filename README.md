@@ -2,7 +2,7 @@
 
 Extractable **xAI transport + living model catalog + connect + usage metering** as a library-first Python kit.
 
-Built for apps that want a typed Grok/xAI client with purpose-tagged usage events, catalog resolve (`cheapest` / `best`), inject credential stores, and a mock provider for CI — without pulling in a multi-provider marketplace.
+Built for apps that want a typed Grok/xAI client with purpose-tagged usage events, catalog resolve (`cheapest` / `economy` / `best`), inject credential stores, and a mock provider for CI — without pulling in a multi-provider marketplace.
 
 ## Install
 
