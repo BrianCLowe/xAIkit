@@ -4,8 +4,6 @@ Extractable **xAI transport + living model catalog + connect + usage metering** 
 
 Built for apps that want a typed Grok/xAI client with purpose-tagged usage events, catalog resolve (`cheapest` / `best`), inject credential stores, and a mock provider for CI — without pulling in a multi-provider marketplace.
 
-Primary consumers today: [Rivenquill](https://github.com/BrianCLowe/Rivenquill) (writing assistant) and sibling apps after cutover.
-
 ## Install
 
 ```bash
