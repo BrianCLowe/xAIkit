@@ -27,7 +27,7 @@ def test_metered_chat_records_by_purpose() -> None:
 
     resp = client.chat(
         [{"role": "user", "content": "hi"}],
-        purpose="quill.chat",
+        purpose="demo.chat",
         thought_level="low",
     )
     assert resp.content == "hello from mock"
@@ -35,7 +35,7 @@ def test_metered_chat_records_by_purpose() -> None:
 
     events = list(sink.iter_events())
     assert len(events) == 1
-    assert events[0].purpose == "quill.chat"
+    assert events[0].purpose == "demo.chat"
     assert events[0].success is True
     assert events[0].thought_level == "low"
     assert events[0].prompt_tokens == 10
@@ -43,7 +43,7 @@ def test_metered_chat_records_by_purpose() -> None:
 
     rollups = meter.rollup_by_purpose()
     assert len(rollups) == 1
-    assert rollups[0].key == "quill.chat"
+    assert rollups[0].key == "demo.chat"
     assert rollups[0].event_count == 1
 
 
@@ -99,11 +99,11 @@ def test_chat_json_and_labels() -> None:
     )
     data = client.chat_json(
         "return json",
-        purpose="quill.structured",
-        labels={"note_id": "abc"},
+        purpose="demo.structured",
+        labels={"request_id": "abc"},
         parent_id="sess-1",
     )
     assert data == {"ok": True, "n": 1}
     ev = list(sink.iter_events())[0]
-    assert ev.labels["note_id"] == "abc"
+    assert ev.labels["request_id"] == "abc"
     assert ev.parent_id == "sess-1"
