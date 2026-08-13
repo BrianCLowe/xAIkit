@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -12,6 +13,7 @@ from xaikit.catalog import (
     DEFAULT_VIDEO_MODEL,
     DEFAULT_VOICE_MODEL,
     ModelInfo,
+    catalog_source,
     cheapest_model,
     clear_catalog_cache,
     economy_model,
@@ -19,6 +21,7 @@ from xaikit.catalog import (
     inject_catalog,
     intent_options,
     list_models,
+    load_fixture_catalog,
     model_info_from_image_proto,
     model_info_from_language_proto,
     models_for_role,
@@ -26,6 +29,7 @@ from xaikit.catalog import (
     prefer_latest_model,
     resolve_model,
     resolve_model_selection,
+    save_catalog_snapshot,
 )
 
 
@@ -598,3 +602,142 @@ def test_default_price_table_current_chat_rates() -> None:
     mini = table.price_for("grok-3-mini")
     assert mini.input_per_million == 0.3
     assert mini.output_per_million == 0.5
+
+
+def test_save_catalog_snapshot_roundtrip(tmp_path) -> None:
+    path = tmp_path / "nested" / "cat.json"
+    models = [
+        ModelInfo(id="grok-4.6", capabilities=["chat"], input_per_million=2.0),
+        ModelInfo(id="grok-4.3", capabilities=["chat"], input_per_million=1.25),
+    ]
+    out = save_catalog_snapshot(path, models)
+    assert out == path
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    assert "models" in payload
+    loaded = load_fixture_catalog(path)
+    assert [m.id for m in loaded] == ["grok-4.6", "grok-4.3"]
+    assert loaded[0].input_per_million == 2.0
+    empty = tmp_path / "empty.json"
+    save_catalog_snapshot(empty, [])
+    assert json.loads(empty.read_text(encoding="utf-8")) == {"models": []}
+    assert load_fixture_catalog(empty) == []
+
+
+def test_save_catalog_snapshot_failed_write_keeps_existing(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "cat.json"
+    save_catalog_snapshot(path, [ModelInfo(id="keep-me", capabilities=["chat"])])
+    original = path.read_text(encoding="utf-8")
+
+    def _boom(self, *_a, **_k):  # noqa: ANN001
+        raise OSError("disk full")
+
+    monkeypatch.setattr("pathlib.Path.write_text", _boom)
+    with pytest.raises(RuntimeError, match="Cannot write catalog snapshot"):
+        save_catalog_snapshot(path, [ModelInfo(id="new", capabilities=["chat"])])
+    assert path.read_text(encoding="utf-8") == original
+    assert load_fixture_catalog(path)[0].id == "keep-me"
+
+
+def test_list_models_sdk_success_writes_persist(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    import xai_sdk
+
+    inject_catalog(None)
+    clear_catalog_cache()
+    persist = tmp_path / "snap" / "catalog.json"
+    monkeypatch.setattr(
+        xai_sdk,
+        "Client",
+        _fake_sdk_client(
+            language=[_lm(name="from-sdk")],
+            images=[],
+        ),
+    )
+    models = list_models(
+        api_key="test-key",
+        persist_path=persist,
+        force_refresh=True,
+        allow_fixture_fallback=False,
+    )
+    assert [m.id for m in models] == ["from-sdk"]
+    assert persist.is_file()
+    assert [m.id for m in load_fixture_catalog(persist)] == ["from-sdk"]
+    assert catalog_source() == "sdk"
+    clear_catalog_cache()
+    offline = list_models(persist_path=persist, force_refresh=True)
+    assert [m.id for m in offline] == ["from-sdk"]
+    assert catalog_source() == "persist"
+    clear_catalog_cache()
+
+
+def test_list_models_persist_beats_bootstrap_when_no_key(tmp_path) -> None:
+    inject_catalog(None)
+    clear_catalog_cache()
+    persist = tmp_path / "catalog.json"
+    save_catalog_snapshot(
+        persist,
+        [ModelInfo(id="from-persist", capabilities=["chat"])],
+    )
+    models = list_models(persist_path=persist, force_refresh=True)
+    assert [m.id for m in models] == ["from-persist"]
+    assert catalog_source() == "persist"
+    # cache drop does not delete the file
+    clear_catalog_cache()
+    assert persist.is_file()
+    again = list_models(persist_path=persist, force_refresh=True)
+    assert [m.id for m in again] == ["from-persist"]
+    clear_catalog_cache()
+
+
+def test_list_models_memory_cache_wins_over_persist(tmp_path) -> None:
+    inject_catalog(None)
+    clear_catalog_cache()
+    persist = tmp_path / "catalog.json"
+    save_catalog_snapshot(
+        persist,
+        [ModelInfo(id="cached-row", capabilities=["chat"])],
+    )
+    first = list_models(persist_path=persist, force_refresh=True)
+    assert [m.id for m in first] == ["cached-row"]
+    save_catalog_snapshot(
+        persist,
+        [ModelInfo(id="newer-on-disk", capabilities=["chat"])],
+    )
+    second = list_models(persist_path=persist)
+    assert [m.id for m in second] == ["cached-row"]
+    clear_catalog_cache()
+    third = list_models(persist_path=persist, force_refresh=True)
+    assert [m.id for m in third] == ["newer-on-disk"]
+    clear_catalog_cache()
+
+
+def test_list_models_persist_write_failure_still_returns(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    import xai_sdk
+
+    inject_catalog(None)
+    clear_catalog_cache()
+    blocker = tmp_path / "not-a-dir"
+    blocker.write_text("x", encoding="utf-8")
+    persist = blocker / "catalog.json"
+    monkeypatch.setattr(
+        xai_sdk,
+        "Client",
+        _fake_sdk_client(
+            language=[_lm(name="live-ok")],
+            images=[],
+        ),
+    )
+    models = list_models(
+        api_key="test-key",
+        persist_path=persist,
+        force_refresh=True,
+        allow_fixture_fallback=False,
+    )
+    assert [m.id for m in models] == ["live-ok"]
+    assert catalog_source() == "sdk"
+    clear_catalog_cache()

@@ -7,9 +7,9 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Persist catalog snapshot to disk (today is in-process)  
+**Active task:** Stem shipped — Catalog High / Medium / Low drained  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — bootstrap `grok-4.6`; offline fallback `grok-4.6` + `grok-4.3`; public chat rates in `pricing.py`
+**Last session:** 2026-08-13 — opt-in `persist_path` + `save_catalog_snapshot` (memory cache still wins; write failure does not fail `list_models`)
 
 ---
 
@@ -23,10 +23,11 @@
 
 ## Low Priority / Future Ideas
 
-- [ ] Persist catalog snapshot to disk (today is in-process)
+*(none)*
 
 ## Completed
 
+- [x] Persist catalog snapshot to disk (today is in-process) (2026-08-13 — opt-in `persist_path=` / `save_catalog_snapshot`; no default cwd/home path)
 - [x] Catalog module + resolve + thought_level mapping (2026-08-12 — in tree)
 - [x] Resolve-chain contract tests + `non-reasoning` slug tag (2026-08-12 — live catalog)
 - [x] Three intents + coding-SKU skip (2026-08-12)

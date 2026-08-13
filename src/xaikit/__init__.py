@@ -13,6 +13,7 @@ from xaikit.catalog import (
     prefer_latest_video_model,
     resolve_model,
     resolve_model_selection,
+    save_catalog_snapshot,
 )
 from xaikit.client import (
     DEFAULT_IMAGE_MODEL,
@@ -179,6 +180,7 @@ __all__ = [
     "prefer_latest_video_model",
     "resolve_model",
     "resolve_model_selection",
+    "save_catalog_snapshot",
     "scrub_gap_text",
 ]
 

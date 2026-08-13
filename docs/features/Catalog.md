@@ -13,7 +13,7 @@ The same `cheapest` / `economy` / `best` intents run on a **role-filtered** pool
 
 - **Owns**: fetch/cache/list `ModelInfo`; resolve `cheapest` / `economy` / `best` / pin / task hook / bootstrap. `role=` selects the pool
 - **Does not own**: billing UI, per-app task names (apps inject `set_task_assignment`)
-- **Public API**: `list_models`, `inject_catalog`, `resolve_model`, `resolve_model_selection` (`role=`), `normalize_thought_level`, `normalize_intent`, `effort_options`, `intent_options`, `BOOTSTRAP_MODEL`, `ModelInfo`, `ModelSelection`
+- **Public API**: `list_models` (`persist_path=`), `save_catalog_snapshot`, `inject_catalog`, `resolve_model`, `resolve_model_selection` (`role=`), `normalize_thought_level`, `normalize_intent`, `effort_options`, `intent_options`, `BOOTSTRAP_MODEL`, `ModelInfo`, `ModelSelection`
 
 Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook → prefer_latest → bootstrap** (`grok-4.6` for chat; image/video/voice use that role’s default slug when the pool is empty). Offline with no key/fixture, `list_models` injects `grok-4.6` plus cheaper-band `grok-4.3`.
 
@@ -26,6 +26,7 @@ Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook �
 - SDK fetch with fallback to empty/offline catalog when allowed
 - Fetch unions `list_language_models` + `list_image_generation_models` (best-effort: one list failing does not wipe the others). No video/voice list APIs — tag `grok-imagine-video*` / `grok-voice*` by slug; image-generation rows get capability `image` (or video/voice when the slug says so)
 - In-process snapshot + TTL freshness
+- Opt-in disk persist: `list_models(..., persist_path=)` writes `{models: [...]}` after a successful SDK fetch (same shape `save_catalog_snapshot` writes). Writes go to a sibling temp file then `os.replace` so a failed write cannot truncate the last good snapshot. No default cwd/home path. Read order when no inject/test-fetch: fresh memory → SDK if key → persist file if present → `fixture_path` → bootstrap. Disk write errors are logged; the live list is still returned. `clear_catalog_cache` is memory-only (does not delete the file)
 - Test inject: `inject_catalog`, `set_test_fetch`, `clear_catalog_cache`
 - Capability tag `reasoning` comes from slugs that contain `reasoning` after stripping `non-reasoning` / `non_reasoning`
 - General **chat** intents skip coding SKUs (`grok-build-*`, `grok-code-*`, `*code-fast*` **id**) unless the catalog is coding-only. Do not match aliases (`grok-4.5` currently aliases `grok-build-latest`). Coding-SKU skip does **not** apply to image/video/voice
@@ -46,6 +47,8 @@ Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook �
 | 2026-08-12 | Catalog intents per role, same three names | Thin image/voice/video lineups; overlap already specified ([ApiCoverage](ApiCoverage.md)) |
 | 2026-08-13 | `role=` on resolve; fetch via `list_image_generation_models` | Same three intents on a filtered pool. SDK has no video/voice list APIs — slug-tag those; image proto prices map when present, else public rates |
 | 2026-08-13 | Bootstrap `grok-4.6`; offline fallback `grok-4.6` + `grok-4.3` | Public models page (fetched 2026-08-13): chat/code default is Grok 4.6. `grok-3-mini` is off that table — cheap offline row is `grok-4.3` ($1.25 in / $2.50 out under 200k). Cite: https://docs.x.ai/docs/models and https://docs.x.ai/developers/pricing |
+| 2026-08-13 | Opt-in `persist_path` only; log-and-continue on write failure | Callers pass a path — kit never writes cwd/home by default. A full disk must not block metering/chat. Cache clear does not delete the snapshot file |
+| 2026-08-13 | Persist writes via temp file + `os.replace` | In-place `write_text` would truncate the last good snapshot on a mid-write failure |
 
 ## Dependencies
 
@@ -61,8 +64,9 @@ Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook �
 - [x] `non-reasoning` slugs are not tagged `reasoning`
 - [x] Three intents with overlap + coding-SKU skip
 - [x] Role-filtered catalog (image / video / voice) using the same intents
+- [x] Opt-in `persist_path`: SDK write + offline reload of the same JSON; memory cache still wins when fresh; write failure does not fail `list_models`
 
 ## Current status
 
-- **In progress**: none
-- **Last reconciled with code**: 2026-08-13 (bootstrap `grok-4.6`; offline fallback + `grok-4.3`)
+- **In progress**: none — High / Medium / Low drained
+- **Last reconciled with code**: 2026-08-13 (opt-in `persist_path` + `save_catalog_snapshot`)
