@@ -1,4 +1,4 @@
-# XaiKit — Tooling
+# xAIkit — Tooling
 
 **Last Updated**: 2026-08-13  
 **Related**: [Master_Index.md](Master_Index.md)
