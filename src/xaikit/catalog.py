@@ -278,9 +278,9 @@ def model_info_from_language_proto(lm: Any) -> ModelInfo:
 def model_info_from_image_proto(im: Any) -> ModelInfo:
     """Map xAI SDK ImageGenerationModel proto (or duck-typed object) → ModelInfo.
 
-    Tags ``image`` (or ``video`` / ``voice`` when the slug says so). Maps
-    ``image_price`` when present; otherwise leaves prices None so resolve can
-    use public rates.
+    Tags ``image`` (or ``video`` / ``voice`` when the slug says so). Does
+    **not** copy ``image_price`` into ``input_per_million`` (incompatible
+    units). Resolve ranks image/video/voice on public list rates.
     """
     name = (getattr(im, "name", None) or "").strip()
     aliases = list(getattr(im, "aliases", None) or [])
@@ -300,7 +300,7 @@ def model_info_from_image_proto(im: Any) -> ModelInfo:
         version=version,
         capabilities=caps,
         context_length=context_length,
-        input_per_million=_price_from_sdk_units(getattr(im, "image_price", None)),
+        input_per_million=None,
         created=_created_unix(getattr(im, "created", None)),
     )
 
@@ -341,10 +341,14 @@ def _sdk_list_models(
     client: Any,
     method_name: str,
     mapper: Callable[[Any], ModelInfo],
-) -> list[ModelInfo]:
+) -> tuple[list[ModelInfo] | None, BaseException | None]:
+    """Return ``(rows, None)`` on success, ``(None, exc)`` if the list call failed.
+
+    Missing methods are success with an empty list (not a fetch failure).
+    """
     fn = getattr(getattr(client, "models", None), method_name, None)
     if not callable(fn):
-        return []
+        return [], None
     try:
         rows = fn()
     except Exception as exc:
@@ -353,7 +357,7 @@ def _sdk_list_models(
             method_name,
             type(exc).__name__,
         )
-        return []
+        return None, exc
     out: list[ModelInfo] = []
     for row in rows or []:
         try:
@@ -363,25 +367,34 @@ def _sdk_list_models(
             continue
         if info.id:
             out.append(info)
-    return out
+    return out, None
 
 
 def fetch_models_from_sdk(api_key: str) -> list[ModelInfo]:
     """Live fetch language + image-generation models via xAI SDK.
 
     Video/voice have no list APIs — those rows are tagged by slug when they
-    appear on either list. One list failing does not wipe the others.
+    appear on either list. One list failing does not wipe the others. If
+    **every** list call fails, raise so ``list_models`` can fixture-fallback
+    instead of caching an empty SDK snapshot.
     """
     from xai_sdk import Client
 
     client = Client(api_key=api_key)
     by_id: dict[str, ModelInfo] = {}
+    errors: list[BaseException] = []
+    any_ok = False
     try:
         for method_name, mapper in (
             ("list_language_models", model_info_from_language_proto),
             ("list_image_generation_models", model_info_from_image_proto),
         ):
-            for info in _sdk_list_models(client, method_name, mapper):
+            rows, err = _sdk_list_models(client, method_name, mapper)
+            if err is not None:
+                errors.append(err)
+                continue
+            any_ok = True
+            for info in rows or []:
                 _merge_catalog_row(by_id, info)
     finally:
         close = getattr(client, "close", None)
@@ -391,6 +404,8 @@ def fetch_models_from_sdk(api_key: str) -> list[ModelInfo]:
             except Exception:
                 pass
 
+    if not any_ok:
+        raise errors[0] if errors else RuntimeError("Model catalog SDK lists unavailable")
     return list(by_id.values())
 
 
@@ -657,6 +672,10 @@ def _public_ranking_price(model: ModelInfo, role: str) -> float | None:
 
 
 def _ranking_price(model: ModelInfo, role: str) -> float:
+    if role != ROLE_CHAT:
+        public = _public_ranking_price(model, role)
+        if public is not None:
+            return public
     if model.input_per_million is not None:
         return float(model.input_per_million)
     public = _public_ranking_price(model, role)
@@ -666,6 +685,8 @@ def _ranking_price(model: ModelInfo, role: str) -> float:
 
 
 def _has_ranking_price(model: ModelInfo, role: str) -> bool:
+    if role != ROLE_CHAT and _public_ranking_price(model, role) is not None:
+        return True
     if model.input_per_million is not None:
         return True
     return _public_ranking_price(model, role) is not None

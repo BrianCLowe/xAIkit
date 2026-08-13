@@ -13,9 +13,11 @@ from xaikit.catalog import (
     DEFAULT_VOICE_MODEL,
     ModelInfo,
     cheapest_model,
+    clear_catalog_cache,
     economy_model,
     fetch_models_from_sdk,
     intent_options,
+    list_models,
     model_info_from_image_proto,
     model_info_from_language_proto,
     models_for_role,
@@ -382,7 +384,7 @@ def test_image_proto_maps_price_and_capability() -> None:
     )
     assert info.id == "grok-imagine-image-quality"
     assert info.capabilities == ["image"]
-    assert info.input_per_million == 50.0
+    assert info.input_per_million is None
     assert info.aliases == ["grok-imagine-image-pro"]
 
 
@@ -498,3 +500,60 @@ def test_fetch_language_list_failure_keeps_image_models(
     models = fetch_models_from_sdk("test-key")
     assert [m.id for m in models] == ["grok-imagine-image"]
     assert models[0].capabilities == ["image"]
+
+
+def test_fetch_all_lists_fail_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    import xai_sdk
+
+    monkeypatch.setattr(
+        xai_sdk,
+        "Client",
+        _fake_sdk_client(
+            language=RuntimeError("language list down"),
+            images=RuntimeError("image list down"),
+        ),
+    )
+    with pytest.raises(RuntimeError, match="list down"):
+        fetch_models_from_sdk("test-key")
+
+
+def test_list_models_sdk_total_failure_falls_back_to_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    import xai_sdk
+
+    clear_catalog_cache()
+    monkeypatch.setattr(
+        xai_sdk,
+        "Client",
+        _fake_sdk_client(
+            language=RuntimeError("language list down"),
+            images=RuntimeError("image list down"),
+        ),
+    )
+    fixture = tmp_path / "cat.json"
+    fixture.write_text(
+        '[{"id": "from-fixture", "capabilities": ["chat"]}]',
+        encoding="utf-8",
+    )
+    models = list_models(
+        api_key="test-key",
+        fixture_path=fixture,
+        force_refresh=True,
+    )
+    assert [m.id for m in models] == ["from-fixture"]
+    clear_catalog_cache()
+
+
+def test_image_role_ranks_on_public_per_call_not_sdk_token_units() -> None:
+    cat = [
+        ModelInfo(
+            id="grok-imagine-image-quality",
+            capabilities=["image"],
+            input_per_million=0.001,
+        ),
+        ModelInfo(id="grok-imagine-image", capabilities=["image"]),
+    ]
+    cheap = resolve_model_selection(intent="cheapest", role="image", catalog=cat)
+    assert cheap.model_id == "grok-imagine-image"
