@@ -250,7 +250,7 @@ with client.open_realtime_session(
     # session.send_audio(pcm16_bytes)
 ```
 
-Default model is `grok-voice-latest`. Constructor `voice_model=` overrides like `video_model=`. REST STT/TTS stay on `transcribe` / `synthesize_speech`. Streaming STT is `open_stt_session`; streaming TTS is `open_tts_session` (not speech-to-speech).
+Default model is `grok-voice-latest`. Constructor `voice_model=` overrides like `video_model=`. Custom `voice_id` strings on `voice=` work the same as built-in names like `eve`. REST STT/TTS stay on `transcribe` / `synthesize_speech`. Streaming STT is `open_stt_session`; streaming TTS is `open_tts_session` (not speech-to-speech).
 
 Mint a short-lived token on the **server** so the long-lived API key never reaches the browser. Pass `value` to the client (`Authorization: Bearer <token>`, or `realtime_client_secret_protocol(token)` for `sec-websocket-protocol`).
 

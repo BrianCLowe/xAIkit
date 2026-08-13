@@ -12,7 +12,7 @@ Upstream: `wss://api.x.ai/v1/realtime?model=…`. Default model `grok-voice-late
 ## Architecture / Contract
 
 - **Owns**: session open/close, inbound/outbound audio, optional text, usage `modality="realtime"`; server-side mint helper `create_realtime_client_secret` (wraps documented `POST /v1/realtime/client_secrets`)
-- **Does not own**: REST `transcribe` / `synthesize_speech`; streaming STT-only WS (shipped on [MediaRest](MediaRest.md) as `open_stt_session`); streaming TTS-only WS (shipped on [MediaRest](MediaRest.md) as `open_tts_session`); custom voice clone; a recorder UI; ephemeral-token **product login** / User types (ConnectAuth stays stores + OAuth helpers); catalog `role=voice`
+- **Does not own**: REST `transcribe` / `synthesize_speech`; streaming STT-only WS (shipped on [MediaRest](MediaRest.md) as `open_stt_session`); streaming TTS-only WS (shipped on [MediaRest](MediaRest.md) as `open_tts_session`); custom voice **clone** (`POST /v1/custom-voices`) or the TTS voice roster (`GET /v1/tts/voices` — [MediaRest](MediaRest.md)); a recorder UI; ephemeral-token **product login** / User types (ConnectAuth stays stores + OAuth helpers); catalog `role=voice`
 - **Public API** (frozen 2026-08-13; mint added 2026-08-13):
   - `XaiClient.open_realtime_session(...)` → `RealtimeSession` (context manager)
   - Constructor: optional `voice_model=` (like `video_model=` / `image_model=`)
@@ -23,7 +23,7 @@ Upstream: `wss://api.x.ai/v1/realtime?model=…`. Default model `grok-voice-late
 
 Constants: `XAI_REALTIME_URL` (`wss://api.x.ai/v1/realtime`), `XAI_REALTIME_CLIENT_SECRETS_URL` (`https://api.x.ai/v1/realtime/client_secrets`), `DEFAULT_VOICE_MODEL` (`grok-voice-latest`). Session tests monkeypatch `connect_realtime_websocket` (no live socket). Mint tests mock `httpx.post`.
 
-Knobs on open (forwarded on `session.update`; omit unset optionals): `voice` (default `eve`), `instructions`, `turn_detection` (default `{"type": "server_vad"}`; pass `None` for manual), `tools`, `audio` (input/output format + transport), `reasoning_effort` (`high` \| `none`), full `session=` overlay. `purpose` / `parent_id` / `labels` like other media.
+Knobs on open (forwarded on `session.update`; omit unset optionals): `voice` (default `eve`; built-in ids **or** an opaque custom `voice_id` — no kit allowlist; empty/whitespace keeps the default), `instructions`, `turn_detection` (default `{"type": "server_vad"}`; pass `None` for manual), `tools`, `audio` (input/output format + transport), `reasoning_effort` (`high` \| `none`), full `session=` overlay. `purpose` / `parent_id` / `labels` like other media. Clone/list custom-voices APIs are not on this stem.
 
 Audio send: `input_audio_buffer.append` (bytes base64-encoded, or a base64 string). Text send: `conversation.item.create` + `response.create`. Receive: JSON events or binary frames; decode audio deltas with `decode_realtime_audio`.
 
@@ -53,6 +53,7 @@ Mint body is documented only: `{"expires_after": {"seconds": N}}`. Default `N=30
 | 2026-08-13 | Meter modality is `realtime` (not `voice`) | Distinguishes STS from REST TTS; files/embed stay unclaimed |
 | 2026-08-13 | `ModelPrice.per_minute_usd` for STS audio-minute list rates | Public table: $0.05/min (think-fast-1.0), $0.08/min (think-fast-2.0 / `grok-voice-latest`). Text-input `$0.004` has no documented unit — not estimated. Estimates, not a billing authority |
 | 2026-08-13 | Wrap documented ephemeral-token mint; do not add product login | xAI `POST /v1/realtime/client_secrets`; long-lived key stays server-side. No FastAPI session server, no User types. Body is `expires_after.seconds` only (no `session` / `anchor`). Mint meters purpose/success with `modality="realtime"` and `apply_price_table=False` so estimates stay None |
+| 2026-08-13 | `voice=` forwards built-in ids or opaque custom `voice_id`; no clone wrap | Same `session.update` `voice` field as `eve` / `ara`. Empty/whitespace does not overwrite the default. This stem does not own `POST /v1/custom-voices` or `GET /v1/tts/voices` |
 
 ## Dependencies
 
@@ -71,8 +72,9 @@ Mint body is documented only: `{"expires_after": {"seconds": N}}`. Default `N=30
 - [x] Meter purpose + realtime-voice modality
 - [x] Offline contract tests; optional live smoke env-gated
 - [x] Server-side ephemeral client-secret mint (`create_realtime_client_secret`); mocked HTTP; no product login
+- [x] Custom `voice_id` on `voice=` forwarded unchanged on `session.update` (no allowlist; clone/roster not this stem)
 
 ## Current status
 
-- **Shipped** (library-only): `open_realtime_session` + `RealtimeSession` + meter + default per-minute prices + mocked WS tests; `create_realtime_client_secret` + `realtime_client_secret_protocol` + mocked mint tests
+- **Shipped** (library-only): `open_realtime_session` + `RealtimeSession` + meter + default per-minute prices + mocked WS tests; `create_realtime_client_secret` + `realtime_client_secret_protocol` + mocked mint tests; `voice=` accepts built-in ids or custom `voice_id` (no clone wrap)
 - **Last reconciled with code**: 2026-08-13
