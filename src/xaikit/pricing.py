@@ -14,8 +14,13 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
+# Public list prices the bootstrap table was last copied from. Estimates, not billing.
+# Refresh: re-read those pages, update the `_DEFAULT_*` dicts below, set PRICE_TABLE_FETCHED.
+PRICE_TABLE_SOURCE_URL = "https://docs.x.ai/developers/pricing"
+PRICE_TABLE_MODELS_URL = "https://docs.x.ai/docs/models"
+PRICE_TABLE_FETCHED = "2026-08-13"
+
 # Chat token rates: public under-200k list prices (USD / 1M). Estimates, not billing.
-# https://docs.x.ai/docs/models · https://docs.x.ai/developers/pricing (fetched 2026-08-13)
 # grok-3 / grok-3-mini kept for old event estimates (off the public table).
 _DEFAULT_MODELS: dict[str, dict[str, float]] = {
     "grok-4.6": {"input_per_million": 2.0, "output_per_million": 6.0},
@@ -137,6 +142,11 @@ class PriceTable(BaseModel):
 
     version: int = 1
     currency: str = "USD"
+    source_url: str = PRICE_TABLE_SOURCE_URL
+    fetched: str = Field(
+        default=PRICE_TABLE_FETCHED,
+        description="YYYY-MM-DD the bootstrap (or overlay) rates were last copied from source_url",
+    )
     models: dict[str, ModelPrice] = Field(default_factory=dict)
 
     def price_for(self, model: str) -> ModelPrice:
@@ -208,7 +218,13 @@ def default_price_table() -> PriceTable:
         models[mid] = ModelPrice(**vals)
     for mid, vals in _DEFAULT_STT_MODELS.items():
         models[mid] = ModelPrice(**vals)
-    return PriceTable(version=1, currency="USD", models=models)
+    return PriceTable(
+        version=1,
+        currency="USD",
+        source_url=PRICE_TABLE_SOURCE_URL,
+        fetched=PRICE_TABLE_FETCHED,
+        models=models,
+    )
 
 
 def load_price_table(path: str | Path | None = None) -> PriceTable:
@@ -232,6 +248,8 @@ def load_price_table(path: str | Path | None = None) -> PriceTable:
         return PriceTable(
             version=file_table.version,
             currency=file_table.currency or base.currency,
+            source_url=(file_table.source_url or "").strip() or base.source_url,
+            fetched=(file_table.fetched or "").strip() or base.fetched,
             models=merged,
         )
     except Exception as exc:

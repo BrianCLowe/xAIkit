@@ -54,7 +54,15 @@ from xaikit.gaps import (
     build_gap_log,
     scrub_gap_text,
 )
-from xaikit.pricing import PriceTable, default_price_table, load_price_table
+from xaikit.pricing import (
+    PRICE_TABLE_FETCHED,
+    PRICE_TABLE_MODELS_URL,
+    PRICE_TABLE_SOURCE_URL,
+    PriceTable,
+    default_price_table,
+    load_price_table,
+    save_price_table_template,
+)
 from xaikit.provider import (
     AsyncChatProvider,
     AsyncSdkChatProvider,
@@ -158,6 +166,9 @@ __all__ = [
     "NullGapSink",
     "NullTraceSink",
     "OpenTelemetryUsageSink",
+    "PRICE_TABLE_FETCHED",
+    "PRICE_TABLE_MODELS_URL",
+    "PRICE_TABLE_SOURCE_URL",
     "PriceTable",
     "ProviderResponse",
     "ProviderStreamChunk",
@@ -199,6 +210,7 @@ __all__ = [
     "resolve_model",
     "resolve_model_selection",
     "save_catalog_snapshot",
+    "save_price_table_template",
     "scrub_gap_text",
 ]
 
@@ -207,4 +219,4 @@ from importlib.metadata import PackageNotFoundError, version
 try:
     __version__ = version("xaikit-py")
 except PackageNotFoundError:
-    __version__ = "0.1.0a2"
+    __version__ = "0.1.0a3"

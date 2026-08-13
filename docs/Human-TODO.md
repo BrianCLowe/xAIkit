@@ -11,6 +11,7 @@
 
 ## Open
 
+- [ ] **Tag `v0.1.0a3` after the feedback README lands on master** (`procure`) — 2026-08-13 — After [#41](https://github.com/BrianCLowe/xAIkit/pull/41) is on master: `git tag v0.1.0a3 && git push origin v0.1.0a3`. Do not retag `v0.1.0a1` / `v0.1.0a2`. Owner: this file. Blocks: none
 - [ ] **GitHub About + topics** (`procure`) — 2026-08-13 — Cloud Agents cannot write repo settings. On the repo homepage, click the gear next to **About** (or Settings → General). Paste:
 
   - **Description:** `Unofficial Python kit for the xAI (Grok) API — typed client, catalog, usage metering, media, and realtime voice. Not a multi-provider SDK.`

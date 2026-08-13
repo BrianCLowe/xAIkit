@@ -9,7 +9,7 @@
 
 **Active task:** *(stem shipped — High/Medium/Low drained)*  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — Custom `voice_id` on realtime `voice=` (forwarded unchanged; no clone wrap)
+**Last session:** 2026-08-13 — README recv loop for realtime (still no mic/speaker)
 
 *Human verify look-list is open (orchestration 2026-08-13). Do not add a recorder UI.*
 
@@ -55,3 +55,4 @@ Library-only look-list — reply in chat when done (do not mark this row yoursel
 - [x] **Ephemeral tokens for client-side connect** — `create_realtime_client_secret` wraps `POST /v1/realtime/client_secrets`; `realtime_client_secret_protocol`; mocked HTTP; no product login (2026-08-13)
 - [x] Catalog: voice models in resolve helpers — shipped on [Catalog-TODO.md](Catalog-TODO.md) (`role=voice`; 2026-08-13); closed here as a stale pointer (not this slice)
 - [x] Custom voice `voice_id` on the realtime path — `voice=` forwards opaque ids unchanged on `session.update`; empty/whitespace keeps default; no allowlist; clone/roster not this stem (2026-08-13)
+- [x] README end-to-end-ish recv loop (app owns mic/speaker) (2026-08-13)
