@@ -205,7 +205,7 @@ def _result_to_dict(result: Any) -> dict[str, Any]:
             "code": code,
             "message": str(getattr(error, "message", "") or ""),
         }
-    data = getattr(proto, "response", None)
+    data = getattr(proto, "result", None) or getattr(proto, "response", None)
     completion = _completion_from_result_data(data)
     if completion is not None:
         cid = str(getattr(completion, "id", "") or "").strip()
@@ -232,13 +232,18 @@ def _completion_from_result_data(data: Any) -> Any | None:
             if has("completion_response"):
                 return data.completion_response
         except (ValueError, KeyError):
-            return None
+            pass
+    else:
+        completion = getattr(data, "completion_response", None)
+        if completion is not None:
+            if getattr(completion, "id", None) or getattr(completion, "outputs", None):
+                return completion
         return None
-    completion = getattr(data, "completion_response", None)
-    if completion is None:
-        return None
-    if getattr(completion, "id", None) or getattr(completion, "outputs", None):
-        return completion
+    if getattr(data, "outputs", None) is not None or getattr(data, "id", None):
+        return data
+    nested = getattr(data, "response", None)
+    if nested is not None and nested is not data:
+        return _completion_from_result_data(nested)
     return None
 
 
