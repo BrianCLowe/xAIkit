@@ -60,6 +60,28 @@ status = client.poll_video(started["request_id"])
 
 `extend_video(prompt, video_url=...)` continues a clip. Default model is `grok-imagine-video-1.5`.
 
+## Realtime voice
+
+Speech-to-speech over the documented xAI realtime WebSocket (`wss://api.x.ai/v1/realtime`). No mic, recorder, or playground in this library — apps own capture/playback. Offline tests mock the socket.
+
+```python
+from xaikit import MockChatProvider, XaiClient, decode_realtime_audio
+
+client = XaiClient(provider=MockChatProvider(), api_key="test-key")
+# Live: XaiClient(api_key=os.environ["XAI_API_KEY"])
+
+with client.open_realtime_session(
+    voice="eve",
+    instructions="You are a helpful assistant.",
+) as session:
+    session.send_text("Hello!")
+    event = session.recv(timeout=30)
+    # audio bytes: decode_realtime_audio(event)  # when type is response.output_audio.delta
+    # session.send_audio(pcm16_bytes)
+```
+
+Default model is `grok-voice-latest`. Constructor `voice_model=` overrides like `video_model=`. REST STT/TTS stay on `transcribe` / `synthesize_speech`.
+
 ## Streaming
 
 ```python

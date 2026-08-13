@@ -25,7 +25,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 | STT / TTS (REST) | [MediaRest](MediaRest.md) | Yes |
 | Streaming STT (non-STS) | [MediaRest](MediaRest.md) | No |
 | Video | [VideoGeneration](VideoGeneration.md) | No |
-| Realtime voice / STS | [RealtimeVoice](RealtimeVoice.md) | No |
+| Realtime voice / STS | [RealtimeVoice](RealtimeVoice.md) | Yes |
 | Files upload / `file_id` | `XaiClient` files helpers (this spec until a map row) | No |
 | Embeddings | `XaiClient` (this spec) | No |
 | Tokenizer | `XaiClient` or `xaikit` helper (this spec) | No |

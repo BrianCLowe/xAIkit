@@ -51,6 +51,12 @@ from xaikit.provider import (
     ProviderStreamChunk,
     SdkChatProvider,
 )
+from xaikit.realtime import (
+    DEFAULT_VOICE_MODEL,
+    XAI_REALTIME_URL,
+    RealtimeSession,
+    decode_realtime_audio,
+)
 from xaikit.retry import RetryPolicy, call_with_retry, default_retry_policy
 from xaikit.traces import (
     CompletionTrace,
@@ -78,7 +84,9 @@ __all__ = [
     "DEFAULT_IMAGE_MODEL",
     "DEFAULT_TTS_VOICE_ID",
     "DEFAULT_VIDEO_MODEL",
+    "DEFAULT_VOICE_MODEL",
     "XAI_IMAGES_URL",
+    "XAI_REALTIME_URL",
     "XAI_STT_URL",
     "XAI_TTS_URL",
     "XAI_VIDEO_EXTENSIONS_URL",
@@ -111,6 +119,7 @@ __all__ = [
     "PriceTable",
     "ProviderResponse",
     "ProviderStreamChunk",
+    "RealtimeSession",
     "RetryPolicy",
     "SdkChatProvider",
     "StreamChunk",
@@ -124,6 +133,7 @@ __all__ = [
     "build_gap_log",
     "build_oauth_authorize_url",
     "call_with_retry",
+    "decode_realtime_audio",
     "default_price_table",
     "default_retry_policy",
     "effort_options",

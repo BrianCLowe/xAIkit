@@ -54,7 +54,7 @@ class UsageEvent(BaseModel):
     )
     modality: str | None = Field(
         default=None,
-        description="Optional modality tag e.g. chat, stt, tts, imagine, video",
+        description="Optional modality tag e.g. chat, stt, tts, imagine, video, realtime",
     )
 
     def model_post_init(self, __context: Any) -> None:
