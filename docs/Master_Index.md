@@ -85,7 +85,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 |----------|-------------|
 | [Human-TODO.md](Human-TODO.md) | Human inbox |
 | [Tooling.md](Tooling.md) | Dev tools + `uv run pytest` |
-| [decisions/](decisions/) | Cross-cutting decisions ([Python version](decisions/python-version.md)) |
+| [decisions/](decisions/) | Cross-cutting decisions ([Python version](decisions/python-version.md), [PyPI release](decisions/pypi-release.md)) |
 | [reference/](reference/) | Chat exports / clippings (empty at bootstrap) |
 
 ## 4. Quick Start

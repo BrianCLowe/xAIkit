@@ -18,7 +18,9 @@
 - [ ] **ClientChat library look-list** (`playtest`) — 2026-08-13 — Tools/vision/schema, service_tier, AsyncXaiClient (orchestration). Owner: [ClientChat-TODO.md](features/ClientChat-TODO.md) · Blocks: none
 - [ ] **ApiCoverage library look-list** (`playtest`) — 2026-08-13 — Files, embed, tokenize, batch, collections, Responses, deferred chat (orchestration). Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) · Blocks: none
 - [ ] **UsageObservability library look-list** (`playtest`) — 2026-08-13 — New modalities + optional OTel sink (orchestration). Owner: [UsageObservability-TODO.md](features/UsageObservability-TODO.md) · Blocks: none
-- [ ] **ConnectAuth library look-list** (`playtest`) — 2026-08-13 — Caller-supplied OAuth URLs (orchestration). Owner: [ConnectAuth-TODO.md](features/ConnectAuth-TODO.md) · Blocks: none
+- [ ] **PyPI pending Trusted Publisher for `xaikit`** (`procure`) — 2026-08-13 — Account [BrianCLowe](https://pypi.org/user/BrianCLowe/) exists. Add a pending publisher at [pypi.org/manage/account/publishing](https://pypi.org/manage/account/publishing/) **before** tagging `v0.1.0a1`. Owner: this file · Blocks: first PyPI upload
+
+  Fields (must match exactly): **PyPI project name** `xaikit` · **Owner** `BrianCLowe` · **Repository** `xAIkit` · **Workflow** `publish.yml` · **Environment** `pypi`. Then reply in chat; an agent can tag `v0.1.0a1` to publish.
 
 ---
 

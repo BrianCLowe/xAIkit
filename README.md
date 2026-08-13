@@ -1,8 +1,10 @@
 <p align="center">
-  <img src="docs/readme-header.jpg" alt="xAIkit — kit for interacting with xAI models and APIs" width="100%" />
+  <img src="https://raw.githubusercontent.com/BrianCLowe/xAIkit/master/docs/readme-header.jpg" alt="xAIkit — kit for interacting with xAI models and APIs" width="100%" />
 </p>
 
 # xAIkit
+
+**Early testing release (`0.1.0a1`).** Not an official xAI package. The API may change; expect rough edges. A non-alpha release will follow after more testing.
 
 Extractable **xAI transport + living model catalog + connect + usage metering** as a library-first Python kit.
 
@@ -29,15 +31,19 @@ Not an official xAI package. Domain schemas and the tool loop stay in your app.
 
 ## Install
 
-```bash
-# From a release tag (Docker / CI / other repos)
-uv add "xaikit @ git+https://github.com/BrianCLowe/xAIkit@v0.1.0"
+This is a **pre-release**. A plain `pip install xaikit` / `uv add xaikit` will not pick it up until a non-alpha version exists.
 
-# Or editable neighbor checkout
+```bash
+# PyPI alpha (opt in)
+uv add xaikit --prerelease allow
+# or: pip install --pre xaikit
+
+# From a git tag
+uv add "xaikit @ git+https://github.com/BrianCLowe/xAIkit@v0.1.0a1"
+
+# Editable neighbor checkout
 uv add --editable ../xAIkit
 ```
-
-PyPI publish may follow once the API settles.
 
 ## Quick usage
 
