@@ -11,6 +11,15 @@
 
 ## Open
 
+- [ ] **Tag `v0.1.0a2` after the version bump is on master** (`procure`) — 2026-08-13 — PyPI still serves `0.1.0a1` (no Issues pointer). After the `0.1.0a2` bump is on master:
+
+  ```bash
+  git checkout master && git pull
+  git tag v0.1.0a2
+  git push origin v0.1.0a2
+  ```
+
+  That is what runs **Publish to PyPI**. Do not retag `v0.1.0a1`. Owner: this file. Blocks: none
 - [ ] **GitHub About + topics** (`procure`) — 2026-08-13 — Cloud Agents cannot write repo settings. On the repo homepage, click the gear next to **About** (or Settings → General). Paste:
 
   - **Description:** `Unofficial Python kit for the xAI (Grok) API — typed client, catalog, usage metering, media, and realtime voice. Not a multi-provider SDK.`
