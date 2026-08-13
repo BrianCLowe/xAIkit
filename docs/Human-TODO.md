@@ -1,6 +1,6 @@
 # XaiKit — Human TODO
 
-**Last Updated**: 2026-08-12  
+**Last Updated**: 2026-08-13  
 **Related**: [Master_Index.md](Master_Index.md) · [Tooling.md](Tooling.md)
 
 ---
@@ -11,7 +11,14 @@
 
 ## Open
 
-- [ ] **VideoGeneration library look-list** (`playtest`) — 2026-08-12 — Confirm generate/extend/poll/download + README example feel right; optional live start-only smoke if you want. Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md) · Blocks: none (realtime voice can start without this)
+- [ ] **VideoGeneration library look-list** (`playtest`) — 2026-08-12 — Confirm generate/extend/poll/download + README example feel right; optional live start-only smoke if you want. Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md) · Blocks: none
+- [ ] **RealtimeVoice library look-list** (`playtest`) — 2026-08-13 — Session + ephemeral mint + custom `voice=` (orchestration). Owner: [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md) · Blocks: none
+- [ ] **MediaRest library look-list** (`playtest`) — 2026-08-13 — Image edit, streaming STT/TTS, voice roster (orchestration). Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md) · Blocks: none
+- [ ] **Catalog library look-list** (`playtest`) — 2026-08-13 — `role=`, grok-4.6 bootstrap, persist_path (orchestration). Owner: [Catalog-TODO.md](features/Catalog-TODO.md) · Blocks: none
+- [ ] **ClientChat library look-list** (`playtest`) — 2026-08-13 — Tools/vision/schema, service_tier, AsyncXaiClient (orchestration). Owner: [ClientChat-TODO.md](features/ClientChat-TODO.md) · Blocks: none
+- [ ] **ApiCoverage library look-list** (`playtest`) — 2026-08-13 — Files, embed, tokenize, batch, collections, Responses, deferred chat (orchestration). Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) · Blocks: none
+- [ ] **UsageObservability library look-list** (`playtest`) — 2026-08-13 — New modalities + optional OTel sink (orchestration). Owner: [UsageObservability-TODO.md](features/UsageObservability-TODO.md) · Blocks: none
+- [ ] **ConnectAuth library look-list** (`playtest`) — 2026-08-13 — Caller-supplied OAuth URLs (orchestration). Owner: [ConnectAuth-TODO.md](features/ConnectAuth-TODO.md) · Blocks: none
 
 ---
 
@@ -27,6 +34,7 @@
 
 - Work **Open**, then tell the agent in chat so they sync owner TODOs.
 - Keep secrets out of git.
+- Orchestration look-lists are **library-only** (paths + pytest), not a UI tour. Reply in chat when a row is done.
 
 ## Instructions for AI Agents
 

@@ -7,7 +7,7 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Remainder unordered — implement against [ApiCoverage.md](ApiCoverage.md); do not invent a second client.  
+**Active task:** Target kit Low drained. Human verify look-list is open. Spec Acceptance still has two process-guard lines (each implemented slice matches home; no silent wrap-the-SDK).  
 **Blocked by:** —  
 **Last session:** 2026-08-13 — Async twin `AsyncXaiClient` (same method names; REST `httpx.AsyncClient`; WS `connect_*_websocket_async`; live chat `xai_sdk.AsyncClient`); covering [ClientChat-TODO.md](ClientChat-TODO.md)
 
@@ -29,9 +29,18 @@
 
 ## Cross-Feature Dependencies & Integration Notes
 
-- **library-only.** Do not implement the whole table in one PR. Implement against the **target kit** on the spec — no interim second client.
-- Next after video: [RealtimeVoice-TODO.md](RealtimeVoice-TODO.md) (human rank 2026-08-12).
-- Remaining rows above: **no order preference**.
+- **library-only.** Inventory slices shipped on this stem or homes; do not invent a second client.
+- Human rank after video was realtime voice (2026-08-12); that stem is shipped.
+
+## Human verify (orchestration 2026-08-13)
+
+Library-only look-list — reply in chat when done (do not mark this row yourself).
+
+- **Surfaces:** Files; `embed`; `tokenize`; batch; collections; `create_response` / `get_response`; `create_deferred_chat` / `get_deferred_chat`; `AsyncXaiClient`
+- **Placement:** `src/xaikit/client.py`, `async_client.py`; README sections for each
+- **Copy:** Responses tools are opt-in; `get_response` does not re-count tokens; deferred GET 202 is `{status: "pending"}`
+- **Happy path:** `uv run pytest tests/test_files_wiring.py tests/test_embed_wiring.py tests/test_tokenize_wiring.py tests/test_batch_wiring.py tests/test_collections_wiring.py tests/test_responses_wiring.py tests/test_deferred_chat_wiring.py tests/test_async_client_wiring.py`
+- **Rough edges:** collections management uses `XAI_MANAGEMENT_KEY`; no invented USD on these modalities
 
 ## Completed
 
