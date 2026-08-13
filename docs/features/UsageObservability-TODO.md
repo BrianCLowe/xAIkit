@@ -1,15 +1,15 @@
 # UsageObservability — TODO
 
-**Last Updated**: 2026-08-13 *(embed modality)*  
+**Last Updated**: 2026-08-13 *(tokenize modality)*  
 **Related Spec**: [UsageObservability.md](UsageObservability.md)
 
 ---
 
 ## Current focus *(session handoff)*
 
-**Active task:** Tokenize helper if we wrap tokenizer API.  
-**Blocked by:** [ApiCoverage-TODO.md](ApiCoverage-TODO.md)  
-**Last session:** 2026-08-13 — `modality="embed"` on `XaiClient.embed`; no default USD row (public table has no embeddings rate)
+**Active task:** OpenTelemetry export sink (Low).  
+**Blocked by:** —  
+**Last session:** 2026-08-13 — `modality="tokenize"` on `XaiClient.tokenize`; no default USD row (public table has no tokenizer rate)
 
 ---
 
@@ -19,11 +19,15 @@
 
 ## Medium Priority
 
-- [ ] Tokenize helper if we wrap tokenizer API (see ApiCoverage)
+*(none)*
 
 ## Low Priority / Future Ideas
 
 - [ ] OpenTelemetry export sink
+
+## Cross-Feature Dependencies & Integration Notes
+
+- Tokenizer helper shipped with [ApiCoverage-TODO.md](ApiCoverage-TODO.md) (`XaiClient.tokenize`).
 
 ## Completed
 
@@ -35,3 +39,4 @@
 - [x] **`modality="files"`** on upload/get/delete — same purpose/labels rules (2026-08-13)
 - [x] Default `stt` price row `$0.20/hour` (`per_minute_usd`) for streaming wall-clock estimates (2026-08-13)
 - [x] **`modality="embed"`** on `embed` — same purpose/labels/success rules; no invented USD (2026-08-13)
+- [x] Tokenize helper if we wrap tokenizer API — `modality="tokenize"` on `tokenize`; no invented USD (2026-08-13)

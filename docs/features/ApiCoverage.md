@@ -28,7 +28,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 | Realtime voice / STS | [RealtimeVoice](RealtimeVoice.md) | Yes |
 | Files upload / `file_id` | `XaiClient` files helpers (this spec until a map row) | Yes |
 | Embeddings | `XaiClient` (this spec) | Yes |
-| Tokenizer | `XaiClient` or `xaikit` helper (this spec) | No |
+| Tokenizer | `XaiClient` or `xaikit` helper (this spec) | Yes |
 | Batch | `XaiClient` (this spec) | No |
 | Collections / documents | `XaiClient` (this spec) | No |
 | Responses / built-in agent tools | Additive wrap — **do not replace** `chat` | No |
@@ -80,7 +80,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 ### Other `XaiClient` surfaces *(target — this spec)*
 
 - **Embeddings**: `embed(texts: str | list[str], *, model=…, purpose=…, parent_id=…, labels=…)` → REST envelope `{object, model, data, usage}` where `data` is `[{index, embedding}, …]`. Constant `XAI_EMBEDDINGS_URL` (`POST https://api.x.ai/v1/embeddings`). Wrap documented REST via httpx (`xai_sdk` has no embeddings module). `model=` is required — OpenAPI examples use `v1`; docs do not name a grok-embedding default. Empty string / empty list / blank items / lists over 128 are rejected before HTTP. Failures → `RuntimeError`. Meter success and failure with `modality="embed"` (tokens from response `usage`, no invented USD). Pin `model=`; do not add catalog `role=embed` (Catalog roles stay `chat` \| `image` \| `video` \| `voice`).
-- **Tokenizer**: count/encode helper if we wrap the tokenizer API; used by meter estimates, not a UI.
+- **Tokenizer**: `tokenize(text, *, model=…, purpose=…, parent_id=…, labels=…)` → `{tokens, count, model}` where `tokens` is `[{token_id, string, token_bytes}, …]` (JSON dicts, no protobuf). Constant `XAI_TOKENIZE_URL` (`POST https://api.x.ai/v1/tokenize-text`). Wrap documented REST via httpx. `model=` defaults to the client's chat `self.model`. Empty/blank text is rejected before HTTP. Failures → `RuntimeError`. Meter success and failure with `modality="tokenize"` (count from the token list, no invented USD). Works with `provider=` mocks (no live SDK required).
 - **Batch**: submit + poll/results; same chat/media payloads where upstream allows; purpose-when-metered on the job.
 - **Collections / documents**: upload/query if we wrap that API; not a RAG product.
 
@@ -110,6 +110,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 | 2026-08-13 | Files: kit `purpose=` is the meter tag; `file_purpose=` (default `"assistants"`) is the REST multipart field | xAI Files also names a multipart field `purpose` (OpenAI compat). Do not collide with UsageMeter |
 | 2026-08-13 | Embeddings: REST envelope `{object, model, data, usage}`; require `model=` | Official OpenAPI `POST /v1/embeddings` (https://api.x.ai/api-docs/openapi.json). Example model id is `v1`, not a grok-embedding-* default. Return the documented envelope so callers get vectors and usage. |
 | 2026-08-13 | Embeddings: httpx REST, not gRPC; no catalog `role=embed` | `xai_sdk` ships embed protos but no Python module. Catalog roles are chat/image/video/voice only — pin `model=` |
+| 2026-08-13 | Tokenizer: `{tokens, count, model}`; httpx REST; default model is client chat model | Official OpenAPI `POST /v1/tokenize-text`. Map `string_token` → `string` so callers never import protos. SDK also has `tokenize.tokenize_text`; REST matches embed/files mock-HTTP tests. |
 
 ## Dependencies
 
@@ -133,5 +134,5 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 
 ## Current status
 
-- **In progress**: remainder unordered after video + realtime voice + ClientChat extras + Files + embeddings
+- **In progress**: remainder unordered after video + realtime voice + ClientChat extras + Files + embeddings + tokenizer
 - **Blocked by**: —

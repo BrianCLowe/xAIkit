@@ -55,6 +55,7 @@ XAI_IMAGES_URL = "https://api.x.ai/v1/images/generations"
 XAI_IMAGE_EDITS_URL = "https://api.x.ai/v1/images/edits"
 XAI_FILES_URL = "https://api.x.ai/v1/files"
 XAI_EMBEDDINGS_URL = "https://api.x.ai/v1/embeddings"
+XAI_TOKENIZE_URL = "https://api.x.ai/v1/tokenize-text"
 XAI_VIDEOS_URL = "https://api.x.ai/v1/videos/generations"
 XAI_VIDEO_EXTENSIONS_URL = "https://api.x.ai/v1/videos/extensions"
 XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos/{request_id}"
@@ -63,6 +64,7 @@ XAI_FILE_MAX_BYTES = 50 * 1024 * 1024
 XAI_EMBED_MAX_INPUTS = 128
 _FILES_TIMEOUT = 120.0
 _EMBED_TIMEOUT = 120.0
+_TOKENIZE_TIMEOUT = 60.0
 _FILES_EXPIRES_AFTER_MIN = 3600
 _FILES_EXPIRES_AFTER_MAX = 2_592_000
 DEFAULT_FILE_PURPOSE = "assistants"
@@ -1133,6 +1135,109 @@ class XaiClient:
         )
         return out
 
+    def _record_tokenize(
+        self,
+        *,
+        tag: str | None,
+        model: str,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        success: bool,
+        count: int | None = None,
+        error: str | None = None,
+    ) -> None:
+        usage = None
+        if count is not None:
+            usage = {"prompt_tokens": count, "total_tokens": count}
+        self._record(
+            purpose=tag,
+            usage=usage,
+            parent_id=parent_id,
+            labels=labels,
+            success=success,
+            thought_level=None,
+            error=error,
+            modality="tokenize",
+            model=model,
+            apply_price_table=False,
+        )
+
+    def tokenize(
+        self,
+        text: str,
+        *,
+        model: str | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Tokenize text via xAI REST ``POST /v1/tokenize-text``.
+
+        Returns ``{tokens, count, model}`` where ``tokens`` is a list of
+        JSON dicts ``{token_id, string, token_bytes}`` (no protobuf types).
+        *model* defaults to this client's chat model. Empty text is rejected
+        before HTTP. Works with ``provider=`` mocks (httpx is patched in
+        tests); a live SDK client is not required.
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        pin = (model or "").strip() or (self.model or "").strip()
+        if not pin:
+            raise RuntimeError("model is required for tokenize")
+        payload_text = _normalize_tokenize_text(text)
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        body = {"text": payload_text, "model": pin}
+        try:
+            response = httpx.post(
+                XAI_TOKENIZE_URL,
+                headers=headers,
+                json=body,
+                timeout=_TOKENIZE_TIMEOUT,
+            )
+        except httpx.HTTPError as exc:
+            self._record_tokenize(
+                tag=tag,
+                model=pin,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            logger.exception("xAI tokenize request failed")
+            raise RuntimeError(f"Tokenize request failed: {exc}") from exc
+
+        if response.status_code == 401:
+            raise RuntimeError("xAI tokenize unauthorized — check API key")
+        if response.status_code >= 400:
+            detail = response.text[:500] if response.text else response.reason_phrase
+            logger.error("xAI tokenize error %s: %s", response.status_code, detail)
+            self._record_tokenize(
+                tag=tag,
+                model=pin,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=f"HTTP{response.status_code}",
+            )
+            raise RuntimeError(f"Tokenize failed ({response.status_code}): {detail}")
+
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Tokenize returned non-JSON response") from exc
+        out = _parse_tokenize_response(payload, fallback_model=pin)
+        self._record_tokenize(
+            tag=tag,
+            model=str(out.get("model") or pin),
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+            count=int(out["count"]),
+        )
+        return out
+
     def _submit_imagine(
         self,
         endpoint: str,
@@ -1959,6 +2064,78 @@ def _parse_embed_response(payload: Any, *, fallback_model: str) -> dict[str, Any
         "model": str(model).strip() if model is not None and str(model).strip() else fallback_model,
         "data": rows,
         "usage": _parse_embed_usage(payload.get("usage")),
+    }
+
+
+def _normalize_tokenize_text(text: str) -> str:
+    """Reject empty input before HTTP."""
+    if not isinstance(text, str):
+        raise RuntimeError("Tokenize text must be a string")
+    if not text.strip():
+        raise RuntimeError("Tokenize text is empty")
+    return text
+
+
+def _token_bytes_list(raw: Any) -> list[int] | None:
+    if raw is None:
+        return None
+    if isinstance(raw, (bytes, bytearray)):
+        return list(raw)
+    if isinstance(raw, str):
+        return [ord(ch) for ch in raw]
+    if isinstance(raw, list):
+        out: list[int] = []
+        for item in raw:
+            try:
+                out.append(int(item))
+            except (TypeError, ValueError) as exc:
+                raise RuntimeError("Tokenize token_bytes item is invalid") from exc
+        return out
+    raise RuntimeError("Tokenize token_bytes is invalid")
+
+
+def _parse_tokenize_token(item: Any) -> dict[str, Any]:
+    """Map OpenAPI/proto token fields to JSON-dict ``{token_id, string, …}``."""
+    if not isinstance(item, dict):
+        raise RuntimeError("Tokenize token is invalid")
+    raw_id = item.get("token_id")
+    if raw_id is None:
+        raise RuntimeError("Tokenize token missing token_id")
+    try:
+        token_id = int(raw_id)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("Tokenize token_id is invalid") from exc
+    string_val = item.get("string")
+    if string_val is None:
+        string_val = item.get("string_token")
+    row: dict[str, Any] = {
+        "token_id": token_id,
+        "string": "" if string_val is None else str(string_val),
+    }
+    token_bytes = _token_bytes_list(item.get("token_bytes"))
+    if token_bytes is not None:
+        row["token_bytes"] = token_bytes
+    return row
+
+
+def _parse_tokenize_response(payload: Any, *, fallback_model: str) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise RuntimeError("Tokenize response is not a JSON object")
+    raw_tokens = payload.get("token_ids")
+    if raw_tokens is None:
+        raw_tokens = payload.get("tokens")
+    if not isinstance(raw_tokens, list):
+        raise RuntimeError("Tokenize response missing tokens")
+    tokens = [_parse_tokenize_token(item) for item in raw_tokens]
+    model = payload.get("model")
+    return {
+        "tokens": tokens,
+        "count": len(tokens),
+        "model": (
+            str(model).strip()
+            if model is not None and str(model).strip()
+            else fallback_model
+        ),
     }
 
 

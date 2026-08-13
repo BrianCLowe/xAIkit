@@ -112,6 +112,23 @@ vectors = [row["embedding"] for row in out["data"]]
 
 When a usage meter is attached, `purpose=` is required. Events use `modality="embed"`. The public pricing table has no embeddings rate, so the meter records tokens without inventing USD.
 
+## Tokenizer
+
+REST tokenize on `XaiClient` (mocked HTTP in tests). `tokenize` posts JSON to `/v1/tokenize-text` and returns `{tokens, count, model}` where `tokens` is `[{token_id, string, token_bytes}, …]` (plain dicts, not protobuf). `model=` defaults to the client's chat model. Empty text is rejected before HTTP.
+
+```python
+from xaikit import MockChatProvider, XaiClient
+
+client = XaiClient(provider=MockChatProvider(), api_key="test-key")
+# Live: XaiClient(api_key=os.environ["XAI_API_KEY"])
+
+out = client.tokenize("Hello world")
+n = out["count"]
+pieces = [row["string"] for row in out["tokens"]]
+```
+
+When a usage meter is attached, `purpose=` is required. Events use `modality="tokenize"`. The public pricing table has no tokenizer rate, so the meter records the token count without inventing USD.
+
 ## Video generation
 
 REST Imagine video on `XaiClient` (mocked HTTP in tests; live calls need `XAI_API_KEY`). Default `wait=True` polls until the clip is ready; `wait=False` returns `request_id` for `poll_video`.

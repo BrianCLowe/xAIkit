@@ -1,6 +1,6 @@
 # ApiCoverage — TODO
 
-**Last Updated**: 2026-08-13 *(embeddings on XaiClient)*  
+**Last Updated**: 2026-08-13 *(tokenizer on XaiClient)*  
 **Related Spec**: [ApiCoverage.md](ApiCoverage.md)
 
 ---
@@ -9,7 +9,7 @@
 
 **Active task:** Remainder unordered — implement against [ApiCoverage.md](ApiCoverage.md); do not invent a second client.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — Embeddings (`XaiClient.embed` REST `/v1/embeddings`) + UsageObservability `modality="embed"`
+**Last session:** 2026-08-13 — Tokenizer (`XaiClient.tokenize` REST `/v1/tokenize-text`) + UsageObservability `modality="tokenize"`
 
 ---
 
@@ -24,7 +24,6 @@
 - [ ] Built-in agent tools / Responses API — additive; do not replace `chat`
 - [ ] Batch
 - [ ] Collections / documents
-- [ ] Tokenizer
 
 ## Low Priority / Future Ideas
 
@@ -51,3 +50,4 @@
 - [x] Native structured outputs — home: [ClientChat-TODO.md](ClientChat-TODO.md) (2026-08-13)
 - [x] Streaming STT — home: [MediaRest-TODO.md](MediaRest-TODO.md) (2026-08-13)
 - [x] Embeddings — `XaiClient.embed` REST `/v1/embeddings`; meter `modality="embed"` (2026-08-13)
+- [x] Tokenizer — `XaiClient.tokenize` REST `/v1/tokenize-text`; meter `modality="tokenize"` (2026-08-13)
