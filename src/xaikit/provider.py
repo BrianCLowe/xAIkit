@@ -76,14 +76,18 @@ class ChatProvider(Protocol):
 
 
 def _parse_tool_arguments(raw: Any) -> Any:
-    """Parse tool-call arguments: JSON object/array when possible, else the raw string."""
+    """Parse tool-call arguments: JSON object/array when possible, else the raw string.
+
+    Missing or blank payloads stay ``""`` (not ``{}``) so incomplete stream
+    deltas are not mistaken for a finished empty-object call.
+    """
     if raw is None:
-        return {}
+        return ""
     if isinstance(raw, (dict, list)):
         return raw
     text = str(raw)
     if not text.strip():
-        return {}
+        return ""
     try:
         return json.loads(text)
     except json.JSONDecodeError:

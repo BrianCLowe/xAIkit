@@ -9,6 +9,8 @@ from pydantic import BaseModel, Field
 from xaikit import MockChatProvider, XaiClient, default_retry_policy
 from xaikit.provider import (
     _build_sdk_messages,
+    _normalize_tool_calls,
+    _parse_tool_arguments,
     _sdk_chat_kwargs,
     _sdk_response_format,
 )
@@ -302,3 +304,19 @@ def test_sdk_response_format_json_object_and_pydantic() -> None:
     fmt = _sdk_response_format(openai_style)
     assert fmt.format_type == chat_pb2.FORMAT_TYPE_JSON_SCHEMA
     assert json.loads(fmt.schema) == {"type": "object"}
+
+
+def test_parse_tool_arguments_blank_stays_string_not_empty_object() -> None:
+    assert _parse_tool_arguments(None) == ""
+    assert _parse_tool_arguments("") == ""
+    assert _parse_tool_arguments("   ") == ""
+    assert _parse_tool_arguments("{}") == {}
+    assert _parse_tool_arguments('{"city":') == '{"city":'
+    assert _parse_tool_arguments({"city": "NYC"}) == {"city": "NYC"}
+
+
+def test_normalize_incomplete_stream_tool_call_keeps_blank_arguments() -> None:
+    out = _normalize_tool_calls(
+        [{"id": "c1", "name": "get_weather", "arguments": ""}]
+    )
+    assert out == [{"id": "c1", "name": "get_weather", "arguments": ""}]

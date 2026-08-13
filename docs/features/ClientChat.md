@@ -26,7 +26,7 @@ When a `UsageMeter` is attached, `purpose` is required. Without a meter, purpose
 - `chat_stream` retries only **opening** the iterator; mid-stream failures are not retried; usage recorded once when the stream completes (not on `GeneratorExit`).
 - Client default `thought_level` applies unless the call passes `thought_level` or `effort`.
 - Missing credentials without a mock provider raises (pass `api_key`, `CredentialStore`, or `provider=`).
-- `chat` / `chat_stream` accept tool definitions (`name`, `description`, `parameters` JSON Schema) and optional `tool_choice` (`"auto"` \| `"none"` \| `"required"` \| `{"name": "..."}`) and `parallel_tool_calls`. Responses expose `tool_calls` as `[{id, name, arguments}]` with **parsed JSON arguments** (typically a dict; invalid JSON stays a string). The app runs tools and sends `role="tool"` results (`content`, `tool_call_id`) plus the assistant turn’s `tool_calls` on the next request.
+- `chat` / `chat_stream` accept tool definitions (`name`, `description`, `parameters` JSON Schema) and optional `tool_choice` (`"auto"` \| `"none"` \| `"required"` \| `{"name": "..."}`) and `parallel_tool_calls`. Responses expose `tool_calls` as `[{id, name, arguments}]` with **parsed JSON arguments** (typically a dict; invalid JSON stays a string; missing/blank arguments stay `""` so incomplete stream deltas are not `{}`). The app runs tools and sends `role="tool"` results (`content`, `tool_call_id`) plus the assistant turn’s `tool_calls` on the next request.
 - Stream: tool-call deltas are on `StreamChunk.tool_call_delta` when the SDK yields them; `tool_calls` on a chunk is the accumulation so far (last chunk has the full list).
 - Message `content` may be `str` or a list of parts: `{"type": "text", "text": "..."}`, `{"type": "image_url", "url": "..."}` (also `image_url` key / data URI / OpenAI nested `{url, detail}`), `{"type": "file", "file_id": "..."}` (or `url` / inline `data`). Optional `video_url` parts map to SDK file content. `MockChatProvider` records parts as given.
 - `MockChatProvider` records `tools`, `tool_choice`, `parallel_tool_calls`, `response_format`, and message parts on `calls`. A scripted dict with a `tool_calls` key is a structured reply (not JSON content); any other dict is JSON-encoded as content.
@@ -38,7 +38,7 @@ When a `UsageMeter` is attached, `purpose` is required. Without a meter, purpose
 | 2026-08-12 | Library-only prove-out via mock + tests | Wiring, not UX; no playground UI |
 | 2026-08-12 | `effort` aliases `thought_level` | Product wording vs xAI `reasoning_effort` |
 | 2026-08-12 | Tools, vision, structured outputs stay on this client | Final kit — not a second chat stack ([ApiCoverage](ApiCoverage.md)) |
-| 2026-08-13 | Tool `arguments` are parsed JSON (dict when the model returns an object); invalid JSON stays a string | JSON-dict public API; callers should not import `xai_sdk.chat` protos |
+| 2026-08-13 | Tool `arguments` are parsed JSON (dict when the model returns an object); invalid JSON stays a string; blank/missing stay `""` | JSON-dict public API; callers should not import `xai_sdk.chat` protos; stream deltas must not look like a finished `{}` call |
 | 2026-08-13 | `chat_json(schema=)` aliases `response_format=`; `schema=` wins if both are set | Convenience for JSON Schema / pydantic; still one provider knob |
 | 2026-08-13 | Mock dict replies with a `tool_calls` key are structured (not `json.dumps`’d) | Lets tests script tool calls without breaking existing `chat_json` dict replies |
 
