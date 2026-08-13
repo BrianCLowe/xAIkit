@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: PyPI package (xaikit-py)
+    url: https://pypi.org/project/xaikit-py/
+    about: Install the published alpha; the import is still `xaikit`.

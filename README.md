@@ -4,7 +4,7 @@
 
 # xAIkit
 
-**Early testing release (`0.1.0a1`).** Not an official xAI package. The API may change; expect rough edges. A non-alpha release will follow after more testing.
+**Early testing release (`0.1.0a1`).** Not an official xAI package. The API may change; expect rough edges. A non-alpha release will follow after more testing. Problems or feedback: [open an issue](https://github.com/BrianCLowe/xAIkit/issues).
 
 Extractable **xAI transport + living model catalog + connect + usage metering** as a library-first Python kit.
 
@@ -44,6 +44,10 @@ uv add "xaikit-py @ git+https://github.com/BrianCLowe/xAIkit@v0.1.0a1"
 # Editable neighbor checkout
 uv add --editable ../xAIkit
 ```
+
+## Problems and feedback
+
+This is an early alpha. If something breaks, the docs are wrong, or an API is missing, [open an issue](https://github.com/BrianCLowe/xAIkit/issues). Include the package version (`python -c "import xaikit; print(xaikit.__version__)"`), how you installed (PyPI / git / editable), and a short repro. Redact API keys.
 
 ## Quick usage
 

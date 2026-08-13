@@ -1,0 +1,63 @@
+name: Bug
+description: Crash, wrong result, or install failure
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying xAIkit — this is an early alpha. Redact API keys.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you tried and what you got. Paste the error if there is one.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Package version
+      description: >
+        python -c "import xaikit; print(xaikit.__version__)"
+      placeholder: 0.1.0a1
+    validations:
+      required: false
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How you installed
+      options:
+        - PyPI (pip install --pre xaikit-py / uv add xaikit-py --prerelease allow)
+        - Git tag
+        - Editable checkout
+        - Other
+    validations:
+      required: false
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal repro
+      description: Shortest snippet or commands that show the problem.
+      render: python
+    validations:
+      required: false
+
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: OS and `python --version` (plus pip/uv if install-related).
+    validations:
+      required: false
