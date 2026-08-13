@@ -9,7 +9,7 @@ import json
 import logging
 import re
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from typing import Any
 
 import httpx
@@ -31,6 +31,14 @@ from xaikit.realtime import (
     RealtimeSession,
     connect_realtime_websocket,
     realtime_session_url,
+)
+from xaikit.stt_stream import (
+    DEFAULT_STT_ENCODING,
+    DEFAULT_STT_SAMPLE_RATE,
+    XAI_STT_WS_URL,
+    SttSession,
+    connect_stt_websocket,
+    stt_session_url,
 )
 from xaikit.retry import RetryPolicy, call_with_retry, default_retry_policy
 from xaikit.traces import CompletionTracer
@@ -1458,6 +1466,101 @@ class XaiClient:
         )
         rt.update_session(session_body)
         return rt
+
+    def open_stt_session(
+        self,
+        *,
+        sample_rate: int = DEFAULT_STT_SAMPLE_RATE,
+        encoding: str = DEFAULT_STT_ENCODING,
+        interim_results: bool | None = None,
+        endpointing: int | None = None,
+        language: str | None = None,
+        diarize: bool | None = None,
+        filler_words: bool | None = None,
+        multichannel: bool | None = None,
+        channels: int | None = None,
+        keyterm: str | Sequence[str] | None = None,
+        smart_turn: float | None = None,
+        smart_turn_timeout: int | None = None,
+        vad_threshold: float | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> SttSession:
+        """Open a streaming speech-to-text WebSocket (not speech-to-speech).
+
+        Connects to ``wss://api.x.ai/v1/stt`` with query knobs and
+        ``Authorization: Bearer <api_key>``, then waits for
+        ``transcript.created`` before the caller sends audio. REST file
+        transcription stays on :meth:`transcribe`. STS stays on
+        :meth:`open_realtime_session`.
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        key = self._require_stt_api_key()
+        url = stt_session_url(
+            base=XAI_STT_WS_URL,
+            sample_rate=sample_rate,
+            encoding=encoding,
+            interim_results=interim_results,
+            endpointing=endpointing,
+            language=language,
+            diarize=diarize,
+            filler_words=filler_words,
+            multichannel=multichannel,
+            channels=channels,
+            keyterm=keyterm,
+            smart_turn=smart_turn,
+            smart_turn_timeout=smart_turn_timeout,
+            vad_threshold=vad_threshold,
+        )
+        headers = {"Authorization": f"Bearer {key}"}
+
+        try:
+            ws = connect_stt_websocket(
+                url,
+                additional_headers=headers,
+                open_timeout=_REALTIME_OPEN_TIMEOUT,
+                close_timeout=_REALTIME_CLOSE_TIMEOUT,
+            )
+        except Exception as exc:
+            self._record(
+                purpose=tag,
+                usage=None,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                thought_level=None,
+                error=_error_class(exc),
+                modality="stt",
+                model="stt",
+            )
+            logger.exception("xAI STT stream connect failed")
+            raise RuntimeError(f"STT session connect failed: {exc}") from exc
+
+        session = SttSession(
+            ws,
+            purpose=tag,
+            parent_id=parent_id,
+            labels=labels,
+            record=self._record,
+            error_class=_error_class,
+            model="stt",
+        )
+        try:
+            session.wait_ready(timeout=_REALTIME_OPEN_TIMEOUT)
+        except Exception:
+            session.close(success=False)
+            raise
+        return session
+
+    def _require_stt_api_key(self) -> str:
+        key = (self.api_key or "").strip()
+        if not key:
+            raise RuntimeError(
+                "xAI credentials not configured. Pass api_key= or inject a "
+                "CredentialStore before opening an STT session."
+            )
+        return key
 
     def _start_and_maybe_wait_video(
         self,

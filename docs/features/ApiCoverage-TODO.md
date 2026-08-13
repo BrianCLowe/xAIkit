@@ -1,6 +1,6 @@
 # ApiCoverage — TODO
 
-**Last Updated**: 2026-08-13 *(ClientChat tools / vision / schema)*  
+**Last Updated**: 2026-08-13 *(streaming STT homed on MediaRest)*  
 **Related Spec**: [ApiCoverage.md](ApiCoverage.md)
 
 ---
@@ -21,7 +21,6 @@
 
 *(no order — pick when a caller needs the surface; **homes** on [ApiCoverage.md](ApiCoverage.md))*
 
-- [ ] Streaming STT — home: [MediaRest-TODO.md](MediaRest-TODO.md)
 - [ ] Built-in agent tools / Responses API — additive; do not replace `chat`
 - [ ] Batch
 - [ ] Collections / documents
@@ -51,3 +50,4 @@
 - [x] Chat tools / function calling — home: [ClientChat-TODO.md](ClientChat-TODO.md) (2026-08-13)
 - [x] Vision / multimodal messages — home: [ClientChat-TODO.md](ClientChat-TODO.md) (2026-08-13)
 - [x] Native structured outputs — home: [ClientChat-TODO.md](ClientChat-TODO.md) (2026-08-13)
+- [x] Streaming STT — home: [MediaRest-TODO.md](MediaRest-TODO.md) (2026-08-13)
