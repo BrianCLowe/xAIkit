@@ -73,6 +73,7 @@ XAI_FILES_URL = "https://api.x.ai/v1/files"
 XAI_EMBEDDINGS_URL = "https://api.x.ai/v1/embeddings"
 XAI_TOKENIZE_URL = "https://api.x.ai/v1/tokenize-text"
 XAI_RESPONSES_URL = "https://api.x.ai/v1/responses"
+XAI_REALTIME_CLIENT_SECRETS_URL = "https://api.x.ai/v1/realtime/client_secrets"
 XAI_VIDEOS_URL = "https://api.x.ai/v1/videos/generations"
 XAI_VIDEO_EXTENSIONS_URL = "https://api.x.ai/v1/videos/extensions"
 XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos/{request_id}"
@@ -89,6 +90,7 @@ _FILES_EXPIRES_AFTER_MAX = 2_592_000
 DEFAULT_FILE_PURPOSE = "assistants"
 _REALTIME_OPEN_TIMEOUT = 30.0
 _REALTIME_CLOSE_TIMEOUT = 10.0
+_REALTIME_CLIENT_SECRETS_TIMEOUT = 30.0
 
 _VIDEO_ASPECT_RATIOS = frozenset({"1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"})
 _VIDEO_RESOLUTIONS = frozenset({"480p", "720p", "1080p"})
@@ -2403,7 +2405,7 @@ class XaiClient:
         if not key:
             raise RuntimeError(
                 "xAI credentials not configured. Pass api_key= or inject a "
-                "CredentialStore before opening a realtime session."
+                "CredentialStore before realtime API calls."
             )
         return key
 
@@ -2477,6 +2479,114 @@ class XaiClient:
         )
         rt.update_session(session_body)
         return rt
+
+    def _record_realtime_client_secret(
+        self,
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        success: bool,
+        error: str | None = None,
+    ) -> None:
+        # Mint is not an STS audio-minute. Purpose/success only — no duration,
+        # no tokens, no price table (estimates stay None).
+        self._record(
+            purpose=tag,
+            usage=None,
+            parent_id=parent_id,
+            labels=labels,
+            success=success,
+            thought_level=None,
+            error=error,
+            modality="realtime",
+            model=self.voice_model or DEFAULT_VOICE_MODEL,
+            apply_price_table=False,
+        )
+
+    def create_realtime_client_secret(
+        self,
+        *,
+        expires_after: int = 300,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Mint a short-lived realtime client secret (server-side).
+
+        ``POST /v1/realtime/client_secrets`` with the long-lived API key so
+        browsers/mobile never see it. Returns upstream JSON as-is (callers
+        typically read ``value``). Does not send ``session`` or
+        ``expires_after.anchor`` (unsupported by xAI).
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        key = self._require_realtime_api_key()
+        seconds = _normalize_realtime_client_secret_expires_after(expires_after)
+        headers = {
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+        }
+        # Documented body only — do not invent session / anchor fields.
+        body: dict[str, Any] = {"expires_after": {"seconds": seconds}}
+        try:
+            response = httpx.post(
+                XAI_REALTIME_CLIENT_SECRETS_URL,
+                headers=headers,
+                json=body,
+                timeout=_REALTIME_CLIENT_SECRETS_TIMEOUT,
+            )
+        except httpx.HTTPError as exc:
+            self._record_realtime_client_secret(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            logger.exception("xAI realtime client secret request failed")
+            raise RuntimeError(
+                f"Realtime client secret request failed: {exc}"
+            ) from exc
+
+        if response.status_code == 401:
+            raise RuntimeError(
+                "xAI realtime client secret unauthorized — check API key"
+            )
+        if response.status_code >= 400:
+            detail = response.text[:500] if response.text else response.reason_phrase
+            logger.error(
+                "xAI realtime client secret error %s: %s",
+                response.status_code,
+                detail,
+            )
+            self._record_realtime_client_secret(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=f"HTTP{response.status_code}",
+            )
+            raise RuntimeError(
+                f"Realtime client secret failed ({response.status_code}): {detail}"
+            )
+
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                "Realtime client secret returned non-JSON response"
+            ) from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError(
+                "Realtime client secret returned non-object JSON"
+            )
+        self._record_realtime_client_secret(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return payload
 
     def open_stt_session(
         self,
@@ -2789,6 +2899,21 @@ def _response_resource_url(response_id: str) -> str:
     if not cleaned:
         raise RuntimeError("Response id is empty")
     return f"{XAI_RESPONSES_URL}/{cleaned}"
+
+
+def _normalize_realtime_client_secret_expires_after(expires_after: Any) -> int:
+    """Reject empty / non-positive TTL before HTTP. Default is 300 seconds."""
+    if expires_after is None or expires_after == "":
+        raise ValueError("expires_after is required")
+    try:
+        seconds = int(expires_after)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "expires_after must be a positive number of seconds"
+        ) from exc
+    if seconds <= 0:
+        raise ValueError("expires_after must be a positive number of seconds")
+    return seconds
 
 
 def _normalize_response_input(value: Any) -> str | list[Any]:

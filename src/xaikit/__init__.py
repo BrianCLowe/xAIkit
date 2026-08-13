@@ -21,6 +21,7 @@ from xaikit.client import (
     XAI_EMBEDDINGS_URL,
     XAI_TOKENIZE_URL,
     XAI_RESPONSES_URL,
+    XAI_REALTIME_CLIENT_SECRETS_URL,
     XAI_IMAGES_URL,
     XAI_IMAGE_EDITS_URL,
     XAI_STT_URL,
@@ -61,6 +62,7 @@ from xaikit.realtime import (
     XAI_REALTIME_URL,
     RealtimeSession,
     decode_realtime_audio,
+    realtime_client_secret_protocol,
 )
 from xaikit.retry import RetryPolicy, call_with_retry, default_retry_policy
 from xaikit.stt_stream import XAI_STT_WS_URL, SttClosed, SttSession
@@ -95,6 +97,7 @@ __all__ = [
     "XAI_EMBEDDINGS_URL",
     "XAI_TOKENIZE_URL",
     "XAI_RESPONSES_URL",
+    "XAI_REALTIME_CLIENT_SECRETS_URL",
     "XAI_IMAGES_URL",
     "XAI_IMAGE_EDITS_URL",
     "XAI_REALTIME_URL",
@@ -148,6 +151,7 @@ __all__ = [
     "build_oauth_authorize_url",
     "call_with_retry",
     "decode_realtime_audio",
+    "realtime_client_secret_protocol",
     "default_price_table",
     "default_retry_policy",
     "effort_options",
