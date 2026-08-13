@@ -6,7 +6,7 @@
 
 **Early testing release (`0.1.0a1`).** Not an official xAI package. The API may change; expect rough edges. A non-alpha release will follow after more testing. Problems or feedback: [open an issue](https://github.com/BrianCLowe/xAIkit/issues).
 
-Extractable **xAI transport + living model catalog + connect + usage metering** as a library-first Python kit.
+**Unofficial** Python kit for the **xAI (Grok) API** — one typed client, living model catalog, usage metering, media, and realtime voice. Not a multi-provider SDK.
 
 Requires **Python 3.10+**, the same floor as the official [xAI Python SDK](https://github.com/xai-org/xai-sdk-python).
 

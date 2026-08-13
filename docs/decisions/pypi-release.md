@@ -27,3 +27,4 @@ Pre-releases hide work-in-progress from a plain `pip install`. Hyphenating `xai-
 - Pending publisher project name must be `xaikit-py` (account [BrianCLowe](https://pypi.org/user/BrianCLowe/)).
 - CI builds the wheel on every PR and pytest-installs it (not only `pythonpath = src`).
 - Wheel stays code-only (`docs/` excluded). Extra install: `xaikit-py[otel]`.
+- PyPI **summary** is consumer-facing (“Unofficial Python kit for the xAI (Grok) API…”), not the old “extractable transport” line. Keywords lead with `grok` / `grok-api`; keep `xai` on PyPI (pip search) but **do not** use GitHub topic `xai` (that tag is explainable-AI). GitHub About / website / topics are a Human-TODO (repo settings).
