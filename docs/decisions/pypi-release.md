@@ -13,8 +13,8 @@ xAIkit is installable from git. The first PyPI upload should not imply a finishe
 ## Decision
 
 - PyPI / pip name is **`xaikit-py`**. Import and display stay **`xaikit` / xAIkit**.
-- First public version is **`0.1.0a1`** (PEP 440 pre-release) with classifier **Alpha**.
-- Publish via **Trusted Publishing** (GitHub Actions OIDC) on tags `v*`. No long-lived PyPI token in the repo.
+- First public version was **`0.1.0a1`**. Consumer-facing README/summary updates that should reach PyPI go out as the next pre-release (**`0.1.0a2`**, then `a3`…). Classifier stays **Alpha**.
+- Publish via **Trusted Publishing** (GitHub Actions OIDC) on tags `v*`. Merging to master does **not** publish. No long-lived PyPI token in the repo.
 - Default installs skip alphas; testers opt in with `--pre` / `--prerelease allow`.
 - A later non-alpha (`0.1.0` or `0.2.0`) is the “post-testing” release. Do not reuse a version number.
 

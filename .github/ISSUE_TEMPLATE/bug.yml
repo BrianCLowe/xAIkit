@@ -29,7 +29,7 @@ body:
       label: Package version
       description: >
         python -c "import xaikit; print(xaikit.__version__)"
-      placeholder: 0.1.0a1
+      placeholder: 0.1.0a2
     validations:
       required: false
 
