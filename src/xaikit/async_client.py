@@ -307,8 +307,16 @@ class AsyncXaiClient(XaiClient):
         if callable(fn):
             return fn(**kwargs)
         stream = getattr(provider, "stream", None)
+        if not callable(stream):
+            raise TypeError(
+                "AsyncXaiClient requires a provider with async_stream or async stream()"
+            )
         if _is_async_callable(stream) or inspect.isasyncgenfunction(stream):
             return stream(**kwargs)
+        # AsyncChatProvider types stream as a plain def returning AsyncIterator.
+        result = stream(**kwargs)
+        if hasattr(result, "__aiter__"):
+            return result
         raise TypeError(
             "AsyncXaiClient requires a provider with async_stream or async stream()"
         )

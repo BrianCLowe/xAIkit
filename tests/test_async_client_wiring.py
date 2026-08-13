@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+from collections.abc import AsyncIterator
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
@@ -21,6 +22,7 @@ from xaikit import (
     XAI_STT_WS_URL,
     default_retry_policy,
 )
+from xaikit.provider import ProviderResponse, ProviderStreamChunk
 
 PUBLIC_ASYNC_METHODS = (
     "chat",
@@ -135,6 +137,42 @@ def test_async_chat_stream_yields_chunks() -> None:
             chunks.append(piece.delta)
         assert "".join(chunks) == "streamed"
         assert provider.calls[0]["kind"] == "stream"
+
+    asyncio.run(_run())
+
+
+class _ProtocolAsyncProvider:
+    """Matches AsyncChatProvider: plain def stream() -> AsyncIterator."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    async def complete(self, **kwargs: Any) -> ProviderResponse:
+        self.calls.append("complete")
+        return ProviderResponse(content="ok")
+
+    def stream(self, **kwargs: Any) -> AsyncIterator[ProviderStreamChunk]:
+        self.calls.append("stream")
+
+        async def _gen() -> AsyncIterator[ProviderStreamChunk]:
+            yield ProviderStreamChunk(delta="hi", accumulated="hi")
+
+        return _gen()
+
+
+def test_async_chat_stream_accepts_protocol_def_stream() -> None:
+    async def _run() -> None:
+        provider = _ProtocolAsyncProvider()
+        client = AsyncXaiClient(
+            provider=provider,
+            model="grok-3-mini",
+            retry_policy=default_retry_policy(max_attempts=1),
+        )
+        chunks = []
+        async for piece in client.chat_stream([{"role": "user", "content": "hi"}]):
+            chunks.append(piece.delta)
+        assert chunks == ["hi"]
+        assert provider.calls == ["stream"]
 
     asyncio.run(_run())
 
