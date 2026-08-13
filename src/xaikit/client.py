@@ -45,10 +45,16 @@ XAI_STT_URL = "https://api.x.ai/v1/stt"
 XAI_TTS_URL = "https://api.x.ai/v1/tts"
 XAI_IMAGES_URL = "https://api.x.ai/v1/images/generations"
 XAI_IMAGE_EDITS_URL = "https://api.x.ai/v1/images/edits"
+XAI_FILES_URL = "https://api.x.ai/v1/files"
 XAI_VIDEOS_URL = "https://api.x.ai/v1/videos/generations"
 XAI_VIDEO_EXTENSIONS_URL = "https://api.x.ai/v1/videos/extensions"
 XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos/{request_id}"
 DEFAULT_TTS_VOICE_ID = "eve"
+XAI_FILE_MAX_BYTES = 50 * 1024 * 1024
+_FILES_TIMEOUT = 120.0
+_FILES_EXPIRES_AFTER_MIN = 3600
+_FILES_EXPIRES_AFTER_MAX = 2_592_000
+DEFAULT_FILE_PURPOSE = "assistants"
 _REALTIME_OPEN_TIMEOUT = 30.0
 _REALTIME_CLOSE_TIMEOUT = 10.0
 
@@ -751,6 +757,221 @@ class XaiClient:
         )
         return audio, content_type
 
+    def _record_files(
+        self,
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        success: bool,
+        error: str | None = None,
+    ) -> None:
+        self._record(
+            purpose=tag,
+            usage=None,
+            parent_id=parent_id,
+            labels=labels,
+            success=success,
+            thought_level=None,
+            error=error,
+            modality="files",
+            model="files",
+        )
+
+    def _files_http(
+        self,
+        method: str,
+        url: str,
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        extra_headers = kwargs.pop("headers", None)
+        if extra_headers:
+            headers.update(extra_headers)
+        http_fn = {"POST": httpx.post, "GET": httpx.get, "DELETE": httpx.delete}[method]
+        try:
+            response = http_fn(
+                url,
+                headers=headers,
+                timeout=_FILES_TIMEOUT,
+                **kwargs,
+            )
+        except httpx.HTTPError as exc:
+            self._record_files(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            logger.exception("xAI Files request failed")
+            raise RuntimeError(f"Files request failed: {exc}") from exc
+
+        if response.status_code == 401:
+            raise RuntimeError("xAI Files unauthorized — check API key")
+        if response.status_code == 413:
+            self._record_files(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error="HTTP413",
+            )
+            raise RuntimeError("File too large for Files API")
+        if response.status_code >= 400:
+            detail = response.text[:500] if response.text else response.reason_phrase
+            logger.error("xAI Files error %s: %s", response.status_code, detail)
+            self._record_files(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=f"HTTP{response.status_code}",
+            )
+            raise RuntimeError(f"Files failed ({response.status_code}): {detail}")
+        return response
+
+    def upload_file(
+        self,
+        data: bytes,
+        filename: str,
+        *,
+        purpose: str | None = None,
+        content_type: str | None = None,
+        file_purpose: str = DEFAULT_FILE_PURPOSE,
+        expires_after: int | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Upload bytes via xAI Files REST (multipart). Returns metadata including ``id``."""
+        tag = self._require_purpose_if_metered(purpose)
+        name = (filename or "").strip()
+        if not name:
+            raise RuntimeError("Filename is empty")
+        if not data:
+            raise RuntimeError("File data is empty")
+        if len(data) > XAI_FILE_MAX_BYTES:
+            raise RuntimeError(
+                f"File exceeds {XAI_FILE_MAX_BYTES} byte Files API limit"
+            )
+        if expires_after is not None and not (
+            _FILES_EXPIRES_AFTER_MIN <= expires_after <= _FILES_EXPIRES_AFTER_MAX
+        ):
+            raise RuntimeError(
+                "expires_after must be between 3600 and 2592000 seconds"
+            )
+
+        # Dict (not a list of tuples): httpx multipart encoding calls `.items()`
+        # on `data` when `files` is also set. Insertion order keeps expires_after
+        # before purpose; httpx then appends the file part.
+        form: dict[str, str] = {}
+        if expires_after is not None:
+            form["expires_after"] = str(expires_after)
+        form["purpose"] = (file_purpose or "").strip() or DEFAULT_FILE_PURPOSE
+        files = {
+            "file": (
+                name,
+                data,
+                content_type or "application/octet-stream",
+            ),
+        }
+        response = self._files_http(
+            "POST",
+            XAI_FILES_URL,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            data=form,
+            files=files,
+        )
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Files upload returned non-JSON response") from exc
+        out = _parse_file_metadata(payload)
+        self._record_files(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return out
+
+    def get_file(
+        self,
+        file_id: str,
+        *,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Fetch Files metadata for an opaque ``file_id`` (GET /v1/files/{id})."""
+        tag = self._require_purpose_if_metered(purpose)
+        url = _file_resource_url(file_id)
+        response = self._files_http(
+            "GET",
+            url,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+        )
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Files get returned non-JSON response") from exc
+        out = _parse_file_metadata(payload)
+        self._record_files(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return out
+
+    def delete_file(
+        self,
+        file_id: str,
+        *,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Delete a stored file (DELETE /v1/files/{id})."""
+        tag = self._require_purpose_if_metered(purpose)
+        url = _file_resource_url(file_id)
+        response = self._files_http(
+            "DELETE",
+            url,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+        )
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Files delete returned non-JSON response") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError("Files delete returned unexpected payload")
+        deleted = payload.get("deleted")
+        raw_id = payload.get("id")
+        out: dict[str, Any] = {
+            "id": str(raw_id).strip() if raw_id is not None else (file_id or "").strip(),
+            "deleted": bool(deleted) if deleted is not None else True,
+        }
+        if "object" in payload:
+            out["object"] = payload.get("object")
+        self._record_files(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return out
+
     def _submit_imagine(
         self,
         endpoint: str,
@@ -1391,6 +1612,34 @@ class XaiClient:
         if not isinstance(payload, dict):
             raise RuntimeError("Video poll returned unexpected payload")
         return payload
+
+
+def _file_resource_url(file_id: str) -> str:
+    cleaned = (file_id or "").strip()
+    if not cleaned:
+        raise RuntimeError("file_id is empty")
+    return f"{XAI_FILES_URL}/{cleaned}"
+
+
+def _parse_file_metadata(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise RuntimeError("Files response is not a JSON object")
+    raw_id = payload.get("id")
+    if raw_id is None or not str(raw_id).strip():
+        raise RuntimeError("Files response missing id")
+    out: dict[str, Any] = {
+        "id": str(raw_id).strip(),
+        "filename": payload.get("filename"),
+        "bytes": payload.get("bytes"),
+        "created_at": payload.get("created_at"),
+        "expires_at": payload.get("expires_at"),
+        "object": payload.get("object"),
+        "purpose": payload.get("purpose"),
+    }
+    for key in ("public_url", "public_url_expires_at"):
+        if key in payload:
+            out[key] = payload[key]
+    return out
 
 
 def _imagine_file_id(

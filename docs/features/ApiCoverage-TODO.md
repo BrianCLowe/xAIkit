@@ -1,15 +1,15 @@
 # ApiCoverage — TODO
 
-**Last Updated**: 2026-08-13 *(kit-coverage: image edit done on MediaRest; streaming STT leftover)*  
+**Last Updated**: 2026-08-13 *(Files upload / get / delete on XaiClient)*  
 **Related Spec**: [ApiCoverage.md](ApiCoverage.md)
 
 ---
 
 ## Current focus *(session handoff)*
 
-**Active task:** Target spec locked on [ApiCoverage.md](ApiCoverage.md). Wait for video, then [RealtimeVoice](RealtimeVoice-TODO.md). Remainder unordered — implement against that spec, do not invent a second client.  
+**Active task:** Remainder unordered — implement against [ApiCoverage.md](ApiCoverage.md); do not invent a second client.  
 **Blocked by:** —  
-**Last session:** 2026-08-12 — target kit spec locked (homes + shared rules)
+**Last session:** 2026-08-13 — Files API (`upload_file` / `get_file` / `delete_file`) on `XaiClient`
 
 ---
 
@@ -21,7 +21,6 @@
 
 *(no order — pick when a caller needs the surface; **homes** on [ApiCoverage.md](ApiCoverage.md))*
 
-- [ ] Files API (upload / `file_id`) — `XaiClient` files helpers; unblocks video/image `file_id`
 - [ ] Chat tools / function calling — home: [ClientChat-TODO.md](ClientChat-TODO.md)
 - [ ] Vision / multimodal messages — home: [ClientChat-TODO.md](ClientChat-TODO.md)
 - [ ] Native structured outputs — home: [ClientChat-TODO.md](ClientChat-TODO.md)
@@ -51,3 +50,4 @@
 - [x] Target kit spec (homes + shared rules) (2026-08-12)
 - [x] Role-filtered catalog (image / video / voice) — home: [Catalog-TODO.md](Catalog-TODO.md) (2026-08-13)
 - [x] Image edit — home: [MediaRest-TODO.md](MediaRest-TODO.md) (2026-08-13)
+- [x] Files API (upload / `file_id`) — `XaiClient` files helpers; unblocks video/image `file_id` (2026-08-13)
