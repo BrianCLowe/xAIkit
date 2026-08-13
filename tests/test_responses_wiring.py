@@ -370,3 +370,55 @@ def test_get_response_requires_purpose_when_metered() -> None:
     client = _client(usage_meter=UsageMeter(sink=InMemoryUsageSink()))
     with pytest.raises(ValueError, match="purpose"):
         client.get_response("resp_abc123")
+
+
+def test_create_response_includes_service_tier_when_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _Capture()
+    cap.install_post(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json=_response_json(),
+            request=httpx.Request("POST", XAI_RESPONSES_URL),
+        ),
+    )
+    client.create_response("hello", service_tier="priority")
+    assert cap.posts[0]["json"]["service_tier"] == "priority"
+
+
+def test_create_response_omits_service_tier_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _Capture()
+    cap.install_post(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json=_response_json(),
+            request=httpx.Request("POST", XAI_RESPONSES_URL),
+        ),
+    )
+    client.create_response("hello")
+    assert "service_tier" not in cap.posts[0]["json"]
+
+
+def test_create_response_rejects_invalid_service_tier_without_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _Capture()
+    cap.install_post(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json=_response_json(),
+            request=httpx.Request("POST", XAI_RESPONSES_URL),
+        ),
+    )
+    with pytest.raises(ValueError, match="service_tier"):
+        client.create_response("hello", service_tier="turbo")
+    assert cap.posts == []

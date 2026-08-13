@@ -82,6 +82,8 @@ XAI_FILES_URL = "https://api.x.ai/v1/files"
 XAI_EMBEDDINGS_URL = "https://api.x.ai/v1/embeddings"
 XAI_TOKENIZE_URL = "https://api.x.ai/v1/tokenize-text"
 XAI_RESPONSES_URL = "https://api.x.ai/v1/responses"
+XAI_CHAT_COMPLETIONS_URL = "https://api.x.ai/v1/chat/completions"
+XAI_DEFERRED_CHAT_URL = "https://api.x.ai/v1/chat/deferred-completion"
 XAI_REALTIME_CLIENT_SECRETS_URL = "https://api.x.ai/v1/realtime/client_secrets"
 XAI_VIDEOS_URL = "https://api.x.ai/v1/videos/generations"
 XAI_VIDEO_EXTENSIONS_URL = "https://api.x.ai/v1/videos/extensions"
@@ -93,7 +95,9 @@ _FILES_TIMEOUT = 120.0
 _EMBED_TIMEOUT = 120.0
 _TOKENIZE_TIMEOUT = 60.0
 _RESPONSES_TIMEOUT = 120.0
+_DEFERRED_CHAT_TIMEOUT = 120.0
 XAI_RESPONSES_MAX_TOOLS = 128
+_SERVICE_TIERS = frozenset({"default", "priority"})
 _FILES_EXPIRES_AFTER_MIN = 3600
 _FILES_EXPIRES_AFTER_MAX = 2_592_000
 DEFAULT_FILE_PURPOSE = "assistants"
@@ -131,6 +135,18 @@ def _is_unauthorized_status(exc: BaseException) -> bool:
         if code == 401:
             return True
     return False
+
+
+def _normalize_service_tier(value: str | None) -> str | None:
+    """``None`` / blank → omit. Only ``default`` | ``priority``; never invent other values."""
+    if value is None:
+        return None
+    raw = str(value).strip().lower()
+    if not raw:
+        return None
+    if raw not in _SERVICE_TIERS:
+        raise ValueError(f"service_tier must be one of {sorted(_SERVICE_TIERS)}")
+    return raw
 
 
 class XaiClient:
@@ -246,6 +262,7 @@ class XaiClient:
         tool_choice: str | dict[str, Any] | None = None,
         parallel_tool_calls: bool | None = None,
         response_format: Any = None,
+        service_tier: str | None = None,
     ):
         def _call():
             return self._provider.complete(
@@ -259,6 +276,7 @@ class XaiClient:
                 tool_choice=tool_choice,
                 parallel_tool_calls=parallel_tool_calls,
                 response_format=response_format,
+                service_tier=service_tier,
             )
 
         return call_with_retry(
@@ -279,6 +297,7 @@ class XaiClient:
         tool_choice: str | dict[str, Any] | None = None,
         parallel_tool_calls: bool | None = None,
         response_format: Any = None,
+        service_tier: str | None = None,
     ):
         def _call():
             return self._provider.stream(
@@ -292,6 +311,7 @@ class XaiClient:
                 tool_choice=tool_choice,
                 parallel_tool_calls=parallel_tool_calls,
                 response_format=response_format,
+                service_tier=service_tier,
             )
 
         # Retry only opening the iterator — mid-stream failures are not retried.
@@ -383,6 +403,7 @@ class XaiClient:
         tools: list[dict[str, Any]] | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         parallel_tool_calls: bool | None = None,
+        service_tier: str | None = None,
     ) -> CompletionResponse:
         """Non-streaming chat completion.
 
@@ -390,9 +411,11 @@ class XaiClient:
         The kit returns ``tool_calls`` on the response; the app runs tools and sends
         ``role="tool"`` follow-up messages. The kit does not execute tools.
         Message ``content`` may be a string or a list of parts (text / image_url / file).
+        ``service_tier`` is ``default`` | ``priority``; omit for default.
         """
         tag = self._require_purpose_if_metered(purpose)
         level = self._effective_thought_level(thought_level, effort=effort)
+        tier = _normalize_service_tier(service_tier)
         usage: dict[str, Any] | None = None
         try:
             resp = self._complete(
@@ -404,6 +427,7 @@ class XaiClient:
                 tools=tools,
                 tool_choice=tool_choice,
                 parallel_tool_calls=parallel_tool_calls,
+                service_tier=tier,
             )
             text = resp.content or ""
             usage = resp.usage
@@ -433,6 +457,7 @@ class XaiClient:
                 reasoning_content=getattr(resp, "reasoning_content", None),
                 finish_reason=getattr(resp, "finish_reason", None),
                 tool_calls=getattr(resp, "tool_calls", None),
+                service_tier=getattr(resp, "service_tier", None) or tier,
             )
         except Exception as exc:
             err = _error_class(exc)
@@ -473,6 +498,7 @@ class XaiClient:
         effort: str | None = None,
         schema: Any = None,
         response_format: Any = None,
+        service_tier: str | None = None,
     ) -> dict[str, Any]:
         """Return a parsed JSON object from a JSON-only model response.
 
@@ -488,6 +514,7 @@ class XaiClient:
             "You return ONLY valid JSON (no markdown fences) matching the requested shape."
         )
         fmt = schema if schema is not None else response_format
+        tier = _normalize_service_tier(service_tier)
         usage: dict[str, Any] | None = None
         try:
             resp = self._complete(
@@ -496,6 +523,7 @@ class XaiClient:
                 thought_level=level,
                 system_prompt=sys,
                 response_format=fmt,
+                service_tier=tier,
             )
             text = resp.content or ""
             usage = resp.usage
@@ -614,6 +642,7 @@ class XaiClient:
         tools: list[dict[str, Any]] | None = None,
         tool_choice: str | dict[str, Any] | None = None,
         parallel_tool_calls: bool | None = None,
+        service_tier: str | None = None,
     ) -> Iterator[StreamChunk]:
         """Incremental chat completion — yields deltas as the provider streams them.
 
@@ -624,6 +653,7 @@ class XaiClient:
         """
         tag = self._require_purpose_if_metered(purpose)
         level = self._effective_thought_level(thought_level, effort=effort)
+        tier = _normalize_service_tier(service_tier)
         usage: dict[str, Any] | None = None
         accumulated = ""
         try:
@@ -636,6 +666,7 @@ class XaiClient:
                 tools=tools,
                 tool_choice=tool_choice,
                 parallel_tool_calls=parallel_tool_calls,
+                service_tier=tier,
             )
             for piece in stream:
                 accumulated = piece.accumulated
@@ -698,6 +729,207 @@ class XaiClient:
             )
             logger.exception("xAI chat stream failed")
             raise RuntimeError(f"xAI stream request failed: {exc}") from exc
+
+    def _record_deferred_chat(
+        self,
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        success: bool,
+        usage: dict[str, Any] | None = None,
+        error: str | None = None,
+        model: str | None = None,
+    ) -> None:
+        self._record(
+            purpose=tag,
+            usage=usage,
+            parent_id=parent_id,
+            labels=labels,
+            success=success,
+            thought_level=None,
+            error=error,
+            modality="chat",
+            model=model,
+            apply_price_table=False,
+        )
+
+    def _deferred_chat_http(
+        self,
+        method: str,
+        url: str,
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        model: str | None = None,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        if "json" in kwargs:
+            headers["Content-Type"] = "application/json"
+        extra_headers = kwargs.pop("headers", None)
+        if extra_headers:
+            headers.update(extra_headers)
+        http_fn = {"POST": httpx.post, "GET": httpx.get}[method]
+        try:
+            response = http_fn(
+                url,
+                headers=headers,
+                timeout=_DEFERRED_CHAT_TIMEOUT,
+                **kwargs,
+            )
+        except httpx.HTTPError as exc:
+            self._record_deferred_chat(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+                model=model,
+            )
+            logger.exception("xAI deferred chat request failed")
+            raise RuntimeError(f"Deferred chat request failed: {exc}") from exc
+
+        if response.status_code == 401:
+            raise RuntimeError("xAI deferred chat unauthorized — check API key")
+        if response.status_code >= 400:
+            detail = response.text[:500] if response.text else response.reason_phrase
+            logger.error("xAI deferred chat error %s: %s", response.status_code, detail)
+            self._record_deferred_chat(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=f"HTTP{response.status_code}",
+                model=model,
+            )
+            raise RuntimeError(f"Deferred chat failed ({response.status_code}): {detail}")
+        return response
+
+    def create_deferred_chat(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+        model: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+        system_prompt: str | None = None,
+        thought_level: str | None = None,
+        effort: str | None = None,
+        service_tier: str | None = None,
+    ) -> dict[str, Any]:
+        """Start a deferred chat completion (REST ``POST /v1/chat/completions``).
+
+        Sends ``deferred: true`` and returns ``{request_id}``. Poll with
+        :meth:`get_deferred_chat`. Empty messages are rejected before HTTP.
+        The SDK has no ``deferred=`` flag on ``chat.create``, so this path is REST.
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        if not isinstance(messages, list) or not messages:
+            raise RuntimeError("Chat messages are empty")
+        pin = (model or "").strip() or (self.model or "").strip()
+        if not pin:
+            raise RuntimeError("model is required for create_deferred_chat")
+        tier = _normalize_service_tier(service_tier)
+        level = self._effective_thought_level(thought_level, effort=effort)
+        rest_messages = list(messages)
+        if system_prompt:
+            rest_messages.insert(0, {"role": "system", "content": system_prompt})
+        body: dict[str, Any] = {
+            "model": pin,
+            "messages": rest_messages,
+            "deferred": True,
+            "temperature": temperature,
+        }
+        if max_tokens is not None:
+            body["max_tokens"] = max_tokens
+        if level:
+            body["reasoning_effort"] = level
+        if tier is not None:
+            body["service_tier"] = tier
+        response = self._deferred_chat_http(
+            "POST",
+            XAI_CHAT_COMPLETIONS_URL,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            model=pin,
+            json=body,
+        )
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"Deferred chat create failed ({response.status_code})"
+            )
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Deferred chat create returned non-JSON response") from exc
+        out = _parse_deferred_create(payload)
+        self._record_deferred_chat(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+            model=pin,
+        )
+        return out
+
+    def get_deferred_chat(
+        self,
+        request_id: str,
+        *,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Fetch a deferred chat result (REST ``GET /v1/chat/deferred-completion/{id}``).
+
+        200 → ``{status: "complete", …completion}``. 202 → ``{status: "pending"}``
+        so callers can poll without treating not-ready as an exception. Result is
+        available once within 24 hours. Empty ``request_id`` is rejected before HTTP.
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        url = _deferred_chat_resource_url(request_id)
+        pin = (self.model or "").strip() or "chat"
+        response = self._deferred_chat_http(
+            "GET",
+            url,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            model=pin,
+        )
+        if response.status_code == 202:
+            self._record_deferred_chat(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=True,
+                model=pin,
+            )
+            return {"status": "pending"}
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Deferred chat get returned non-JSON response") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError("Deferred chat get returned unexpected payload")
+        usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else None
+        out = dict(payload)
+        out["status"] = "complete"
+        self._record_deferred_chat(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+            usage=usage,
+            model=str(payload.get("model") or pin),
+        )
+        return out
 
     def transcribe(
         self,
@@ -1501,6 +1733,7 @@ class XaiClient:
         *,
         model: str | None = None,
         tools: list[dict[str, Any]] | None = None,
+        service_tier: str | None = None,
         purpose: str | None = None,
         parent_id: str | None = None,
         labels: dict[str, str] | None = None,
@@ -1511,7 +1744,7 @@ class XaiClient:
         path. Built-in tools (web, X, code, collections, image) are opt-in:
         they are sent only when *tools* is passed. Returns the REST JSON
         object. *model* defaults to this client's chat model. Empty input is
-        rejected before HTTP.
+        rejected before HTTP. Optional ``service_tier`` is ``default`` | ``priority``.
         """
         tag = self._require_purpose_if_metered(purpose)
         pin = (model or "").strip() or (self.model or "").strip()
@@ -1522,6 +1755,9 @@ class XaiClient:
         normalized_tools = _normalize_response_tools(tools)
         if normalized_tools is not None:
             body["tools"] = normalized_tools
+        tier = _normalize_service_tier(service_tier)
+        if tier is not None:
+            body["service_tier"] = tier
         response = self._responses_http(
             "POST",
             XAI_RESPONSES_URL,
@@ -3142,6 +3378,22 @@ def _response_resource_url(response_id: str) -> str:
     if not cleaned:
         raise RuntimeError("Response id is empty")
     return f"{XAI_RESPONSES_URL}/{cleaned}"
+
+
+def _deferred_chat_resource_url(request_id: str) -> str:
+    cleaned = (request_id or "").strip()
+    if not cleaned:
+        raise RuntimeError("Deferred chat request_id is empty")
+    return f"{XAI_DEFERRED_CHAT_URL}/{cleaned}"
+
+
+def _parse_deferred_create(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise RuntimeError("Deferred chat create response is not a JSON object")
+    raw_id = payload.get("request_id")
+    if raw_id is None or not str(raw_id).strip():
+        raise RuntimeError("Deferred chat create missing request_id")
+    return {"request_id": str(raw_id).strip()}
 
 
 def _normalize_realtime_client_secret_expires_after(expires_after: Any) -> int:

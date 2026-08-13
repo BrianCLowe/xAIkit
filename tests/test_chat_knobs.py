@@ -180,3 +180,72 @@ def test_sdk_chat_kwargs_maps_thought_level_to_reasoning_effort() -> None:
     )
     assert "max_tokens" not in omitted
     assert "reasoning_effort" not in omitted
+    assert "service_tier" not in omitted
+
+
+def test_chat_forwards_service_tier_to_mock() -> None:
+    provider = MockChatProvider(replies="ok")
+    client = _client(provider)
+
+    resp = client.chat(
+        [{"role": "user", "content": "hi"}],
+        service_tier="priority",
+    )
+
+    assert provider.calls[0]["service_tier"] == "priority"
+    assert resp.service_tier == "priority"
+
+
+def test_chat_omits_service_tier_when_none() -> None:
+    provider = MockChatProvider(replies="ok")
+    client = _client(provider)
+
+    resp = client.chat([{"role": "user", "content": "hi"}])
+
+    assert provider.calls[0]["service_tier"] is None
+    assert resp.service_tier is None
+
+
+def test_chat_json_and_stream_forward_service_tier() -> None:
+    provider = MockChatProvider(replies={"ok": True})
+    client = _client(provider)
+    client.chat_json("return json", service_tier="default")
+    assert provider.calls[0]["service_tier"] == "default"
+
+    provider = MockChatProvider(replies="streamed", stream_chunk_size=4)
+    client = _client(provider)
+    list(
+        client.chat_stream(
+            [{"role": "user", "content": "hi"}],
+            service_tier="priority",
+        )
+    )
+    assert provider.calls[0]["service_tier"] == "priority"
+
+
+def test_invalid_service_tier_rejected_before_provider() -> None:
+    provider = MockChatProvider(replies="ok")
+    client = _client(provider)
+    with pytest.raises(ValueError, match="service_tier"):
+        client.chat([{"role": "user", "content": "hi"}], service_tier="turbo")
+    assert provider.calls == []
+
+
+def test_sdk_chat_kwargs_includes_service_tier_when_set() -> None:
+    kwargs = _sdk_chat_kwargs(
+        model="grok-4.5",
+        temperature=0.5,
+        max_tokens=None,
+        thought_level=None,
+        service_tier="priority",
+    )
+    assert kwargs["service_tier"] == "priority"
+
+    omitted = _sdk_chat_kwargs(
+        model="grok-4.5",
+        temperature=0.7,
+        max_tokens=None,
+        thought_level=None,
+        service_tier=None,
+    )
+    assert "service_tier" not in omitted

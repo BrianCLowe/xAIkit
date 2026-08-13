@@ -24,6 +24,7 @@ class ProviderResponse:
     reasoning_content: str | None = None
     finish_reason: str | None = None
     tool_calls: list[dict[str, Any]] | None = None
+    service_tier: str | None = None
 
 
 @dataclass
@@ -57,6 +58,7 @@ class ChatProvider(Protocol):
         tool_choice: str | dict[str, Any] | None = None,
         parallel_tool_calls: bool | None = None,
         response_format: Any = None,
+        service_tier: str | None = None,
     ) -> ProviderResponse: ...
 
     def stream(
@@ -72,6 +74,7 @@ class ChatProvider(Protocol):
         tool_choice: str | dict[str, Any] | None = None,
         parallel_tool_calls: bool | None = None,
         response_format: Any = None,
+        service_tier: str | None = None,
     ) -> Iterator[ProviderStreamChunk]: ...
 
 
@@ -360,6 +363,7 @@ def _sdk_chat_kwargs(
     tool_choice: str | dict[str, Any] | None = None,
     parallel_tool_calls: bool | None = None,
     response_format: Any = None,
+    service_tier: str | None = None,
 ) -> dict[str, Any]:
     kwargs: dict[str, Any] = {
         "model": model,
@@ -377,6 +381,8 @@ def _sdk_chat_kwargs(
         kwargs["parallel_tool_calls"] = parallel_tool_calls
     if response_format is not None:
         kwargs["response_format"] = _sdk_response_format(response_format)
+    if service_tier is not None:
+        kwargs["service_tier"] = service_tier
     return kwargs
 
 
@@ -420,6 +426,7 @@ class SdkChatProvider:
         tool_choice: str | dict[str, Any] | None = None,
         parallel_tool_calls: bool | None = None,
         response_format: Any = None,
+        service_tier: str | None = None,
     ) -> ProviderResponse:
         chat_messages = _build_sdk_messages(messages, system_prompt=system_prompt)
         kwargs = _sdk_chat_kwargs(
@@ -431,12 +438,15 @@ class SdkChatProvider:
             tool_choice=tool_choice,
             parallel_tool_calls=parallel_tool_calls,
             response_format=response_format,
+            service_tier=service_tier,
         )
         chat = self._client.chat.create(messages=chat_messages, **kwargs)
         response = chat.sample()
         text = _text_from_sdk(getattr(response, "content", ""))
         reasoning = _text_from_sdk(getattr(response, "reasoning_content", None))
         finish = getattr(response, "finish_reason", None)
+        echoed = getattr(response, "service_tier", None)
+        echoed_s = str(echoed).strip() if echoed else None
         return ProviderResponse(
             content=str(text),
             usage=_usage_from_sdk(response),
@@ -445,6 +455,7 @@ class SdkChatProvider:
             reasoning_content=str(reasoning) if reasoning else None,
             finish_reason=str(finish) if finish is not None else None,
             tool_calls=_normalize_tool_calls(getattr(response, "tool_calls", None)),
+            service_tier=echoed_s or None,
         )
 
     def stream(
@@ -460,6 +471,7 @@ class SdkChatProvider:
         tool_choice: str | dict[str, Any] | None = None,
         parallel_tool_calls: bool | None = None,
         response_format: Any = None,
+        service_tier: str | None = None,
     ) -> Iterator[ProviderStreamChunk]:
         chat_messages = _build_sdk_messages(messages, system_prompt=system_prompt)
         kwargs = _sdk_chat_kwargs(
@@ -471,6 +483,7 @@ class SdkChatProvider:
             tool_choice=tool_choice,
             parallel_tool_calls=parallel_tool_calls,
             response_format=response_format,
+            service_tier=service_tier,
         )
         chat = self._client.chat.create(messages=chat_messages, **kwargs)
         for response, chunk in chat.stream():
@@ -581,6 +594,7 @@ class MockChatProvider:
         tool_choice: str | dict[str, Any] | None = None,
         parallel_tool_calls: bool | None = None,
         response_format: Any = None,
+        service_tier: str | None = None,
     ) -> None:
         self.calls.append(
             {
@@ -595,6 +609,7 @@ class MockChatProvider:
                 "tool_choice": tool_choice,
                 "parallel_tool_calls": parallel_tool_calls,
                 "response_format": response_format,
+                "service_tier": service_tier,
             }
         )
 
@@ -611,6 +626,7 @@ class MockChatProvider:
         tool_choice: str | dict[str, Any] | None = None,
         parallel_tool_calls: bool | None = None,
         response_format: Any = None,
+        service_tier: str | None = None,
     ) -> ProviderResponse:
         self._note_call(
             messages,
@@ -624,6 +640,7 @@ class MockChatProvider:
             tool_choice=tool_choice,
             parallel_tool_calls=parallel_tool_calls,
             response_format=response_format,
+            service_tier=service_tier,
         )
 
         if self._fail_remaining > 0:
@@ -641,6 +658,7 @@ class MockChatProvider:
             tool_choice=tool_choice,
             parallel_tool_calls=parallel_tool_calls,
             response_format=response_format,
+            service_tier=service_tier,
         )
         return ProviderResponse(
             content=content,
@@ -648,6 +666,7 @@ class MockChatProvider:
             model=model,
             finish_reason="tool_calls" if tool_calls else "stop",
             tool_calls=tool_calls,
+            service_tier=service_tier,
         )
 
     def stream(
@@ -663,6 +682,7 @@ class MockChatProvider:
         tool_choice: str | dict[str, Any] | None = None,
         parallel_tool_calls: bool | None = None,
         response_format: Any = None,
+        service_tier: str | None = None,
     ) -> Iterator[ProviderStreamChunk]:
         self._note_call(
             messages,
@@ -676,6 +696,7 @@ class MockChatProvider:
             tool_choice=tool_choice,
             parallel_tool_calls=parallel_tool_calls,
             response_format=response_format,
+            service_tier=service_tier,
         )
 
         if self._fail_remaining > 0:
@@ -693,6 +714,7 @@ class MockChatProvider:
             tool_choice=tool_choice,
             parallel_tool_calls=parallel_tool_calls,
             response_format=response_format,
+            service_tier=service_tier,
         )
         finish = "tool_calls" if tool_calls else "stop"
         if not content and tool_calls:

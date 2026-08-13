@@ -1,6 +1,6 @@
 # ApiCoverage
 
-**Last Updated**: 2026-08-13 *(Responses API on XaiClient)*  
+**Last Updated**: 2026-08-13 *(service tier + deferred chat)*  
 **Related TODO**: [ApiCoverage-TODO.md](ApiCoverage-TODO.md)
 
 ## Overview
@@ -34,7 +34,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 | Collections / documents | `XaiClient` (this spec) | Yes |
 | Responses / built-in agent tools | Additive wrap — **do not replace** `chat` | Yes |
 | Async twin | Optional parallel API (`aio`) — **not** a rewrite of sync | No |
-| Service tier / deferred | Pass-through knob when a method already exists | No |
+| Service tier / deferred | Pass-through knob when a method already exists | Yes |
 | Auth subclient / User types | Out of kit — [ConnectAuth](ConnectAuth.md) stays stores + OAuth helpers | N/A |
 
 ## Architecture / Contract
@@ -72,6 +72,8 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 - **Vision**: message content is not only `str` — image (and later video) parts (`url` / `file_id` / data). `MockChatProvider` records parts.
 - **Structured outputs**: `chat_json` uses xAI schema / `response_format`; fence-stripping stays fallback.
 - **Responses API / built-in tools** (web, X, code, collections, image-in-chat): additive. Do **not** migrate the paved path off `chat`.
+- **Service tier**: optional `service_tier=` (`"default"` | `"priority"`) on `chat` / `chat_stream` / `chat_json` and `create_response`. Omit when `None` (same as `"default"`). Invalid values are rejected before the network. Live chat forwards to SDK `chat.create(service_tier=)`. `CompletionResponse.service_tier` echoes the provider/API value when present; Responses JSON is returned as-is.
+- **Deferred chat**: `create_deferred_chat(messages, …)` POST `https://api.x.ai/v1/chat/completions` with `deferred: true` → `{request_id}`. `get_deferred_chat(request_id)` GET `{XAI_DEFERRED_CHAT_URL}/{request_id}` (`https://api.x.ai/v1/chat/deferred-completion`). 200 → `{status: "complete", …completion JSON}`; 202 → `{status: "pending"}` (poll without an exception). Result available once within 24h. SDK has no `deferred=` on `chat.create` and no getter — REST via httpx. Empty messages / empty `request_id` rejected before HTTP. Failures → `RuntimeError`. Purpose required when metered; `modality="chat"`. Create and get-pending (202) meter purpose/success without tokens; 200 may record tokens from `usage`. No invented USD. 401 skips the meter.
 
 ### Media extras *(target — live on MediaRest)*
 
@@ -118,6 +120,8 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 | 2026-08-13 | Batch: JSON dicts on `XaiClient`; wrap `xai_sdk` batch via `call_batch_rpc`; `modality="batch"`; no USD | SDK already models create/add/get/list/cancel/list_results. Callers must not import `batch_pb2`. Public table has no batch rate — meter purpose/success only. |
 | 2026-08-13 | Collections: JSON dicts on `XaiClient`; wrap SDK via `call_collections_rpc`; `modality="collections"`; no USD; not a RAG product | SDK already models create/get/list/delete/upload_document/search. Callers must not import collections protobufs. Management key stays SDK `XAI_MANAGEMENT_KEY` env pass-through — no second kit auth. Public table has no collections rate. |
 | 2026-08-13 | Responses: httpx REST `create_response` / `get_response`; `modality="responses"`; tools opt-in never default-on; do not replace `chat` | Official OpenAPI `POST /v1/responses` + `GET /v1/responses/{response_id}`. Built-in tools stay caller-supplied. Distinct modality so chat metering stays separate. Public table has no Responses/tools rate — no invented USD. `get_response` does not re-count stored generation tokens (same as `get_file` / `get_batch`). |
+| 2026-08-13 | Service tier: pass-through `"default"` \| `"priority"` on chat + Responses; omit when None; never invent other values | Official docs https://docs.x.ai/developers/advanced-api-usage/priority-processing. SDK `chat.create(service_tier=)` already models the knob. |
+| 2026-08-13 | Deferred chat: separate `create_deferred_chat` / `get_deferred_chat` REST helpers; 202 → `{status: "pending"}`; `modality="chat"`; no USD | SDK has no `deferred=` on create. REST matches files/responses. Do not overload `chat` → `CompletionResponse`. 202 is pollable, not an exception. |
 
 ## Dependencies
 
@@ -141,5 +145,5 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 
 ## Current status
 
-- **In progress**: remainder unordered after video + realtime voice + ClientChat extras + Files + embeddings + tokenizer + batch + collections + Responses
+- **In progress**: remainder unordered after video + realtime voice + ClientChat extras + Files + embeddings + tokenizer + batch + collections + Responses + service tier / deferred
 - **Blocked by**: —

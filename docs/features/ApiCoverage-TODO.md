@@ -1,6 +1,6 @@
 # ApiCoverage — TODO
 
-**Last Updated**: 2026-08-13 *(Responses API on XaiClient)*  
+**Last Updated**: 2026-08-13 *(service tier + deferred chat)*  
 **Related Spec**: [ApiCoverage.md](ApiCoverage.md)
 
 ---
@@ -9,7 +9,7 @@
 
 **Active task:** Remainder unordered — implement against [ApiCoverage.md](ApiCoverage.md); do not invent a second client.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — Responses (`XaiClient.create_response` / `get_response`) + UsageObservability `modality="responses"`; chat stays the paved text path
+**Last session:** 2026-08-13 — Service tier (`default`/`priority`) on chat + Responses; deferred chat `create_deferred_chat` / `get_deferred_chat` REST; covering [ClientChat-TODO.md](ClientChat-TODO.md)
 
 ---
 
@@ -26,7 +26,6 @@
 ## Low Priority / Future Ideas
 
 - [ ] Async client
-- [ ] Service tier / deferred APIs
 
 ## Cross-Feature Dependencies & Integration Notes
 
@@ -52,3 +51,4 @@
 - [x] Batch — `XaiClient` create/add/get/list/cancel/list_results via SDK `call_batch_rpc`; meter `modality="batch"` (2026-08-13)
 - [x] Collections / documents — `XaiClient` create/get/list/delete/upload_document/search via SDK `call_collections_rpc`; meter `modality="collections"` (2026-08-13)
 - [x] Built-in agent tools / Responses API — `XaiClient.create_response` / `get_response` REST `/v1/responses`; tools opt-in; meter `modality="responses"`; do not replace `chat` (2026-08-13)
+- [x] Service tier / deferred APIs — `service_tier` on chat + `create_response`; `create_deferred_chat` / `get_deferred_chat` REST; covering [ClientChat-TODO.md](ClientChat-TODO.md) (2026-08-13)
