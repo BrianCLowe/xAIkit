@@ -11,7 +11,6 @@
 
 ## Open
 
-- [ ] **Tag `v0.1.0a3` after the feedback README lands on master** (`procure`) — 2026-08-13 — After [#41](https://github.com/BrianCLowe/xAIkit/pull/41) is on master: `git tag v0.1.0a3 && git push origin v0.1.0a3`. Do not retag `v0.1.0a1` / `v0.1.0a2`. Owner: this file. Blocks: none
 - [ ] **GitHub About + topics** (`procure`) — 2026-08-13 — Cloud Agents cannot write repo settings. On the repo homepage, click the gear next to **About** (or Settings → General). Paste:
 
   - **Description:** `Unofficial Python kit for the xAI (Grok) API — typed client, catalog, usage metering, media, and realtime voice. Not a multi-provider SDK.`
@@ -36,6 +35,7 @@
 - [x] **Confirm Document Map + ship-first prefs** (`decide`) — 2026-08-12 — User confirmed doc shape (map + ship-first). Owner: [Master_Index.md](Master_Index.md)
 - [x] **Priority after video** (`decide`) — 2026-08-12 — Next slice is **realtime voice**; remaining API surfaces have no order preference. Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) · split: [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md)
 - [x] **Optional live xAI key for smoke** (`procure`) — 2026-08-12 — Environment set up; key in local env only (not git)
+- [x] **Tag `v0.1.0a3`** (`procure`) — 2026-08-13 — Pushed on `a859769`; Publish to PyPI succeeded ([run](https://github.com/BrianCLowe/xAIkit/actions/runs/31733361715)). Live: [xaikit-py 0.1.0a3](https://pypi.org/project/xaikit-py/0.1.0a3/). Owner: this file
 - [x] **Tag `v0.1.0a2`** (`procure`) — 2026-08-13 — Pushed on `34835b9`; Publish to PyPI succeeded ([run](https://github.com/BrianCLowe/xAIkit/actions/runs/31730769690)). Live: [xaikit-py 0.1.0a2](https://pypi.org/project/xaikit-py/0.1.0a2/). Owner: this file
 - [x] **PyPI pending Trusted Publisher for `xaikit-py`** (`procure`) — 2026-08-13 — Account [BrianCLowe](https://pypi.org/user/BrianCLowe/). Name `xaikit` was too similar to existing `xai-kit`; pending publisher is **`xaikit-py`** (display xAIkit-py). Owner: this file. First upload still needs tag `v0.1.0a1` after the dist name lands on master.
 
