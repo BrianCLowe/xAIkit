@@ -65,7 +65,7 @@ class CatalogSnapshot(BaseModel):
 
     models: list[ModelInfo] = Field(default_factory=list)
     fetched_at: float = Field(default_factory=time.time)
-    source: str = "unknown"  # sdk | fixture | inject
+    source: str = "unknown"  # sdk | persist | fixture | inject
 
     def age_seconds(self) -> float:
         return max(0.0, time.time() - self.fetched_at)
@@ -178,6 +178,42 @@ def load_fixture_catalog(path: Path | str) -> list[ModelInfo]:
     else:
         raise ValueError(f"Invalid model catalog fixture shape in {p}")
     return [ModelInfo.model_validate(row) for row in rows]
+
+
+def save_catalog_snapshot(path: Path | str, models: Sequence[ModelInfo]) -> Path:
+    """Write ``{models: [...]}`` JSON (same shape ``load_fixture_catalog`` reads).
+
+    Creates parent directories. An empty *models* list is a valid snapshot.
+    Does not choose a default path — callers must pass one. OS errors are
+    wrapped in ``RuntimeError``.
+    """
+    p = Path(path)
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"models": [m.model_dump(mode="json") for m in models]}
+        p.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    except OSError as exc:
+        raise RuntimeError(f"Cannot write catalog snapshot to {p}") from exc
+    return p
+
+
+def _optional_path(value: Path | str | None) -> Path | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    return Path(value)
+
+
+def _try_load_persist(path: Path) -> list[ModelInfo] | None:
+    if not path.is_file():
+        return None
+    try:
+        return load_fixture_catalog(path)
+    except Exception:
+        logger.warning("Catalog persist file unreadable (%s); ignoring", path, exc_info=True)
+        return None
 
 
 def _modality_name(value: Any) -> str:
@@ -409,17 +445,45 @@ def fetch_models_from_sdk(api_key: str) -> list[ModelInfo]:
     return list(by_id.values())
 
 
+def _bootstrap_offline_models() -> list[ModelInfo]:
+    # Two current chat bands so cheapest / economy / best still differ.
+    # Public under-200k rates: https://docs.x.ai/docs/models (fetched 2026-08-13).
+    return [
+        ModelInfo(
+            id=BOOTSTRAP_MODEL,
+            display_name=BOOTSTRAP_MODEL,
+            capabilities=["chat"],
+            input_per_million=2.0,
+            output_per_million=6.0,
+        ),
+        ModelInfo(
+            id="grok-4.3",
+            display_name="grok-4.3",
+            capabilities=["chat"],
+            input_per_million=1.25,
+            output_per_million=2.5,
+        ),
+    ]
+
+
 def list_models(
     *,
     force_refresh: bool = False,
     api_key: str | None = None,
     ttl_seconds: int = 3600,
     fixture_path: Path | str | None = None,
+    persist_path: Path | str | None = None,
     allow_fixture_fallback: bool = True,
 ) -> list[ModelInfo]:
     """Return the model catalog (cached).
 
-    Order: fresh cache → inject → test fetch → SDK → fixture path.
+    Order when no inject/test-fetch: fresh memory cache → SDK if key →
+    ``persist_path`` file if present → ``fixture_path`` → bootstrap.
+
+    After a successful SDK fetch, if ``persist_path`` is set, write
+    ``{models: [...]}`` there (best-effort: disk errors are logged and the
+    live list is still returned). No default path — omit to skip disk.
+    ``clear_catalog_cache`` drops memory only; it does not delete the file.
     """
     with _state.lock:
         if (
@@ -429,9 +493,11 @@ def list_models(
         ):
             return list(_state.snapshot.models)
 
-    models: list[ModelInfo]
-    source: str
+    models: list[ModelInfo] | None = None
+    source: str | None = None
     key = (api_key or "").strip() or None
+    persist = _optional_path(persist_path)
+    sdk_error: BaseException | None = None
 
     if _injected_models is not None:
         models = list(_injected_models)
@@ -439,47 +505,45 @@ def list_models(
     elif _test_fetch is not None:
         models = list(_test_fetch(key or ""))
         source = "inject"
-    elif key:
-        try:
-            models = fetch_models_from_sdk(key)
-            source = "sdk"
-        except Exception as exc:
-            logger.warning(
-                "Model catalog SDK fetch failed (%s); falling back if allowed",
-                type(exc).__name__,
-            )
-            if not allow_fixture_fallback or fixture_path is None:
-                raise
+    else:
+        if key:
+            try:
+                models = fetch_models_from_sdk(key)
+                source = "sdk"
+            except Exception as exc:
+                sdk_error = exc
+                logger.warning(
+                    "Model catalog SDK fetch failed (%s); falling back if allowed",
+                    type(exc).__name__,
+                )
+        if models is None and persist is not None:
+            loaded = _try_load_persist(persist)
+            if loaded is not None:
+                models = loaded
+                source = "persist"
+        if models is None and fixture_path is not None and allow_fixture_fallback:
             models = load_fixture_catalog(fixture_path)
             source = "fixture"
-    elif fixture_path is not None and allow_fixture_fallback:
-        models = load_fixture_catalog(fixture_path)
-        source = "fixture"
-    elif _injected_models is None and allow_fixture_fallback:
-        # Empty offline catalog rather than hard-fail when no key/fixture.
-        # Two current chat bands so cheapest / economy / best still differ.
-        # Public under-200k rates: https://docs.x.ai/docs/models (fetched 2026-08-13).
-        models = [
-            ModelInfo(
-                id=BOOTSTRAP_MODEL,
-                display_name=BOOTSTRAP_MODEL,
-                capabilities=["chat"],
-                input_per_million=2.0,
-                output_per_million=6.0,
-            ),
-            ModelInfo(
-                id="grok-4.3",
-                display_name="grok-4.3",
-                capabilities=["chat"],
-                input_per_million=1.25,
-                output_per_million=2.5,
-            ),
-        ]
-        source = "bootstrap"
-    else:
+        if models is None and key is None and allow_fixture_fallback:
+            models = _bootstrap_offline_models()
+            source = "bootstrap"
+
+    if models is None or source is None:
+        if sdk_error is not None:
+            raise sdk_error
         raise RuntimeError(
             "Cannot list models: no API key, inject, or fixture available"
         )
+
+    if source == "sdk" and persist is not None:
+        try:
+            save_catalog_snapshot(persist, models)
+        except Exception:
+            logger.warning(
+                "Catalog snapshot persist failed for %s; returning live catalog",
+                persist,
+                exc_info=True,
+            )
 
     snap = CatalogSnapshot(models=models, fetched_at=time.time(), source=source)
     with _state.lock:

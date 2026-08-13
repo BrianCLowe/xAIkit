@@ -91,7 +91,7 @@ voice_id = resolve_model(intent="economy", role="voice")
 
 `role` is `chat` | `image` | `video` | `voice`. Offline tests inject fixtures with `inject_catalog` — do not hit the network.
 
-When `model` is omitted, chat resolve falls back to `BOOTSTRAP_MODEL` (`grok-4.6`). Offline with no API key or fixture, `list_models` injects `grok-4.6` plus cheaper-band `grok-4.3`.
+When `model` is omitted, chat resolve falls back to `BOOTSTRAP_MODEL` (`grok-4.6`). Offline with no API key or fixture, `list_models` injects `grok-4.6` plus cheaper-band `grok-4.3`. Pass `persist_path=` to write a JSON snapshot after a live SDK fetch and reload it later; there is no default disk path.
 
 ## Image generation and edit
 
