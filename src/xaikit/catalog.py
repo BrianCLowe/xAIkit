@@ -23,7 +23,7 @@ from xaikit.types import ModelInfo, ModelSelection
 
 logger = logging.getLogger(__name__)
 
-BOOTSTRAP_MODEL = "grok-4.5"
+BOOTSTRAP_MODEL = "grok-4.6"
 DEFAULT_IMAGE_MODEL = "grok-imagine-image-quality"
 DEFAULT_VIDEO_MODEL = "grok-imagine-video-1.5"
 DEFAULT_VOICE_MODEL = "grok-voice-latest"
@@ -456,15 +456,23 @@ def list_models(
         models = load_fixture_catalog(fixture_path)
         source = "fixture"
     elif _injected_models is None and allow_fixture_fallback:
-        # Empty offline catalog rather than hard-fail when no key/fixture
+        # Empty offline catalog rather than hard-fail when no key/fixture.
+        # Two current chat bands so cheapest / economy / best still differ.
+        # Public under-200k rates: https://docs.x.ai/docs/models (fetched 2026-08-13).
         models = [
-            ModelInfo(id=BOOTSTRAP_MODEL, display_name=BOOTSTRAP_MODEL, capabilities=["chat"]),
             ModelInfo(
-                id="grok-3-mini",
-                display_name="grok-3-mini",
+                id=BOOTSTRAP_MODEL,
+                display_name=BOOTSTRAP_MODEL,
                 capabilities=["chat"],
-                input_per_million=0.3,
-                output_per_million=0.5,
+                input_per_million=2.0,
+                output_per_million=6.0,
+            ),
+            ModelInfo(
+                id="grok-4.3",
+                display_name="grok-4.3",
+                capabilities=["chat"],
+                input_per_million=1.25,
+                output_per_million=2.5,
             ),
         ]
         source = "bootstrap"

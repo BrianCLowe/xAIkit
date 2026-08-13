@@ -16,6 +16,7 @@ from xaikit.catalog import (
     clear_catalog_cache,
     economy_model,
     fetch_models_from_sdk,
+    inject_catalog,
     intent_options,
     list_models,
     model_info_from_image_proto,
@@ -30,7 +31,7 @@ from xaikit.catalog import (
 
 def _lm(**kwargs: object) -> SimpleNamespace:
     defaults: dict[str, object] = {
-        "name": "grok-4.5",
+        "name": "grok-4.6",
         "aliases": [],
         "version": "1.0",
         "output_modalities": [1],  # TEXT
@@ -95,11 +96,11 @@ def test_resolve_cheapest_and_best() -> None:
 
 def test_unknown_intent_falls_through_to_prefer_latest() -> None:
     cat = [
-        ModelInfo(id=BOOTSTRAP_MODEL, capabilities=["chat"], created=1),
-        ModelInfo(id="grok-4.6", capabilities=["chat"], created=2),
+        ModelInfo(id="grok-4.5", capabilities=["chat"], created=1),
+        ModelInfo(id=BOOTSTRAP_MODEL, capabilities=["chat"], created=2),
     ]
     sel = resolve_model_selection(intent="nope", catalog=cat)
-    assert sel.model_id == prefer_latest_model(cat) == "grok-4.6"
+    assert sel.model_id == prefer_latest_model(cat) == BOOTSTRAP_MODEL
 
 
 def test_cheapest_ignores_unpriced_when_priced_exist() -> None:
@@ -557,3 +558,43 @@ def test_image_role_ranks_on_public_per_call_not_sdk_token_units() -> None:
     ]
     cheap = resolve_model_selection(intent="cheapest", role="image", catalog=cat)
     assert cheap.model_id == "grok-imagine-image"
+
+
+def test_bootstrap_model_is_current_flagship() -> None:
+    assert BOOTSTRAP_MODEL == "grok-4.6"
+
+
+def test_list_models_offline_bootstrap_has_two_current_chat_bands() -> None:
+    inject_catalog(None)
+    clear_catalog_cache()
+    models = list_models(force_refresh=True, allow_fixture_fallback=True)
+    ids = [m.id for m in models]
+    assert ids == [BOOTSTRAP_MODEL, "grok-4.3"]
+    by_id = {m.id: m for m in models}
+    assert by_id[BOOTSTRAP_MODEL].input_per_million == 2.0
+    assert by_id[BOOTSTRAP_MODEL].output_per_million == 6.0
+    assert by_id["grok-4.3"].input_per_million == 1.25
+    assert by_id["grok-4.3"].output_per_million == 2.5
+    assert resolve_model_selection(intent="cheapest", catalog=models).model_id == "grok-4.3"
+    assert resolve_model_selection(intent="economy", catalog=models).model_id == "grok-4.3"
+    assert resolve_model_selection(intent="best", catalog=models).model_id == BOOTSTRAP_MODEL
+    clear_catalog_cache()
+
+
+def test_default_price_table_current_chat_rates() -> None:
+    from xaikit.pricing import default_price_table
+
+    table = default_price_table()
+    flagship = table.price_for("grok-4.6")
+    assert flagship.input_per_million == 2.0
+    assert flagship.output_per_million == 6.0
+    mid = table.price_for("grok-4.5")
+    assert mid.input_per_million == 2.0
+    assert mid.output_per_million == 6.0
+    cheap = table.price_for("grok-4.3")
+    assert cheap.input_per_million == 1.25
+    assert cheap.output_per_million == 2.5
+    # Retired slugs stay for old event estimates
+    mini = table.price_for("grok-3-mini")
+    assert mini.input_per_million == 0.3
+    assert mini.output_per_million == 0.5

@@ -14,8 +14,13 @@ from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
+# Chat token rates: public under-200k list prices (USD / 1M). Estimates, not billing.
+# https://docs.x.ai/docs/models · https://docs.x.ai/developers/pricing (fetched 2026-08-13)
+# grok-3 / grok-3-mini kept for old event estimates (off the public table).
 _DEFAULT_MODELS: dict[str, dict[str, float]] = {
-    "grok-4.5": {"input_per_million": 3.0, "output_per_million": 15.0},
+    "grok-4.6": {"input_per_million": 2.0, "output_per_million": 6.0},
+    "grok-4.5": {"input_per_million": 2.0, "output_per_million": 6.0},
+    "grok-4.3": {"input_per_million": 1.25, "output_per_million": 2.5},
     "grok-4": {"input_per_million": 3.0, "output_per_million": 15.0},
     "grok-3": {"input_per_million": 3.0, "output_per_million": 15.0},
     "grok-3-mini": {"input_per_million": 0.3, "output_per_million": 0.5},
