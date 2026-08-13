@@ -243,12 +243,25 @@ def _completion_from_result_data(data: Any) -> Any | None:
 
 
 def _completion_text(completion: Any) -> str:
+    """Extract assistant text from a completion proto or SDK Response wrapper.
+
+    Chat ``GetChatCompletionResponse`` uses ``CompletionMessage.content`` as a
+    **string**, not repeated ``Content`` parts (those are on request messages).
+    """
+    direct = getattr(completion, "content", None)
+    if isinstance(direct, str) and direct:
+        return direct
     parts: list[str] = []
     for output in getattr(completion, "outputs", None) or []:
         message = getattr(output, "message", None)
         if message is None:
             continue
-        for item in getattr(message, "content", None) or []:
+        content = getattr(message, "content", None)
+        if isinstance(content, str):
+            if content:
+                parts.append(content)
+            continue
+        for item in content or []:
             text = getattr(item, "text", None)
             if text:
                 parts.append(str(text))

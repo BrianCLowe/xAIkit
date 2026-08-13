@@ -14,7 +14,7 @@ from xaikit import (
     XaiClient,
     default_retry_policy,
 )
-from xaikit.batch import call_batch_rpc
+from xaikit.batch import call_batch_rpc, list_results_to_dict
 
 
 def _client(*, usage_meter: UsageMeter | None = None, **kwargs: Any) -> XaiClient:
@@ -295,3 +295,36 @@ def test_call_batch_rpc_create_and_add_use_sdk_subclient() -> None:
     )
     assert added_out == {"id": "batch_9"}
     assert added == [{"batch_id": "batch_9", "n": 1}]
+
+
+def test_list_results_maps_proto_completion_string_content() -> None:
+    """Live SDK results use CompletionMessage.content as a string, not parts."""
+    from xai_sdk.batch import ListBatchResultsResponse
+    from xai_sdk.proto import batch_pb2, chat_pb2
+
+    completion = chat_pb2.GetChatCompletionResponse(id="cmpl_1", model="grok-3-mini")
+    output = completion.outputs.add()
+    output.message.content = "Paris"
+    completion.usage.prompt_tokens = 4
+    completion.usage.completion_tokens = 1
+    completion.usage.total_tokens = 5
+
+    row = batch_pb2.BatchResult(batch_request_id="fr")
+    row.response.completion_response.CopyFrom(completion)
+    page = batch_pb2.ListBatchResultsResponse()
+    page.results.append(row)
+    page.pagination_token = "next"
+
+    mapped = list_results_to_dict(ListBatchResultsResponse(page))
+    assert mapped["pagination_token"] == "next"
+    result = mapped["results"][0]
+    assert result["batch_request_id"] == "fr"
+    assert result["success"] is True
+    assert result["content"] == "Paris"
+    assert result["model"] == "grok-3-mini"
+    assert result["id"] == "cmpl_1"
+    assert result["usage"] == {
+        "prompt_tokens": 4,
+        "completion_tokens": 1,
+        "total_tokens": 5,
+    }
