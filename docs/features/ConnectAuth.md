@@ -1,6 +1,6 @@
 # ConnectAuth
 
-**Last Updated**: 2026-08-12  
+**Last Updated**: 2026-08-13  
 **Related TODO**: [ConnectAuth-TODO.md](ConnectAuth-TODO.md)
 
 ## Overview
@@ -36,8 +36,8 @@ Credential injection and OAuth helpers with **no User/Session types**. Apps pass
 ## Acceptance *(library stem)*
 
 - [x] Stores + OAuth helpers exist
-- [ ] Focused unit tests for authorize URL / exchange / env store (gap)
+- [x] Focused unit tests for authorize URL / exchange / env store
 
 ## Current status
 
-- **Last reconciled with code**: 2026-08-12
+- **Last reconciled with code**: 2026-08-13
