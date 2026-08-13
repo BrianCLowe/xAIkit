@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import threading
 import time
@@ -188,12 +189,21 @@ def save_catalog_snapshot(path: Path | str, models: Sequence[ModelInfo]) -> Path
     wrapped in ``RuntimeError``.
     """
     p = Path(path)
+    tmp: Path | None = None
     try:
         p.parent.mkdir(parents=True, exist_ok=True)
         payload = {"models": [m.model_dump(mode="json") for m in models]}
-        p.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        # Write beside the target then replace so a failed write cannot
+        # truncate the last good snapshot (in-place write_text would).
+        tmp = p.with_name(f".{p.name}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, p)
+        tmp = None
     except OSError as exc:
         raise RuntimeError(f"Cannot write catalog snapshot to {p}") from exc
+    finally:
+        if tmp is not None:
+            tmp.unlink(missing_ok=True)
     return p
 
 

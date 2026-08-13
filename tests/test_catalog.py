@@ -623,6 +623,21 @@ def test_save_catalog_snapshot_roundtrip(tmp_path) -> None:
     assert load_fixture_catalog(empty) == []
 
 
+def test_save_catalog_snapshot_failed_write_keeps_existing(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "cat.json"
+    save_catalog_snapshot(path, [ModelInfo(id="keep-me", capabilities=["chat"])])
+    original = path.read_text(encoding="utf-8")
+
+    def _boom(self, *_a, **_k):  # noqa: ANN001
+        raise OSError("disk full")
+
+    monkeypatch.setattr("pathlib.Path.write_text", _boom)
+    with pytest.raises(RuntimeError, match="Cannot write catalog snapshot"):
+        save_catalog_snapshot(path, [ModelInfo(id="new", capabilities=["chat"])])
+    assert path.read_text(encoding="utf-8") == original
+    assert load_fixture_catalog(path)[0].id == "keep-me"
+
+
 def test_list_models_sdk_success_writes_persist(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path,
