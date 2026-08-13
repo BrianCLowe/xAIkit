@@ -419,6 +419,26 @@ out = client.create_response(
 
 When a usage meter is attached, `purpose=` is required. Events use `modality="responses"`. The public pricing table has no Responses/tools rate, so the meter records tokens without inventing USD.
 
+## Priority processing and deferred chat
+
+Optional `service_tier="priority"` (or `"default"`) on `chat` / `chat_stream` / `chat_json` and `create_response`. Omit the knob for default. Invalid values are rejected before the network.
+
+Deferred completions are a separate REST pair — not a second return type on `chat`:
+
+```python
+from xaikit import MockChatProvider, XaiClient
+
+client = XaiClient(provider=MockChatProvider(), api_key="test-key")
+# Live: XaiClient(api_key=os.environ["XAI_API_KEY"])
+
+ticket = client.create_deferred_chat([{"role": "user", "content": "126/3=?"}])
+# ticket["request_id"]
+# result = client.get_deferred_chat(ticket["request_id"])
+# result["status"] is "pending" (HTTP 202) or "complete" (HTTP 200 + completion fields)
+```
+
+Create and pending get meter `modality="chat"` without tokens. A complete get may record `usage` tokens. No invented USD.
+
 ## Opt-in dev completion traces *(default off)*
 
 ```python

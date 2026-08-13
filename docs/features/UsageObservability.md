@@ -1,6 +1,6 @@
 # UsageObservability
 
-**Last Updated**: 2026-08-13 *(TTS voice roster listing: same `tts` modality, no USD)*  
+**Last Updated**: 2026-08-13 *(deferred chat get: 202 no tokens; still `chat` modality)*  
 **Related TODO**: [UsageObservability-TODO.md](UsageObservability-TODO.md)
 
 ## Overview
@@ -22,6 +22,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - Minting a realtime client secret meters purpose/success with `modality="realtime"`; no duration and no USD (not an STS audio-minute; session duration stays on `open_realtime_session` close)
 - Streaming TTS sessions use the same `tts` modality as REST `synthesize_speech`; wall-clock `duration` on close; no USD (`apply_price_table=False`)
 - TTS voice roster listing (`list_tts_voices` / `get_tts_voice`) uses the same `tts` modality; no USD (`apply_price_table=False`) — listing is not billed audio
+- Deferred chat get: 202 pending meters purpose/success **without** tokens (like `get_file`); 200 may record tokens from `usage`; still `modality="chat"`; no invented USD (`apply_price_table=False`). Create is purpose/success only. 401 skips the meter.
 - Gap notes scrub secret-ish strings and cap length
 - Meter/trace failures must not break the user-facing call (logged)
 
@@ -41,6 +42,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 | 2026-08-13 | Responses: `modality="responses"`; no default price row | Distinct from `chat`. Public table has no Responses/tools rate. Meter purpose/success/tokens from `input_tokens`/`output_tokens`; `apply_price_table=False` — no invented USD |
 | 2026-08-13 | Realtime client-secret mint: purpose/success only | Same `modality="realtime"` as STS. No duration/tokens; `apply_price_table=False` so estimates stay None — minting is not an audio-minute |
 | 2026-08-13 | Streaming TTS: same `modality="tts"` as REST; no default price row | Public table has no TTS rate. Session records purpose/success + wall-clock duration; `apply_price_table=False` — no invented USD |
+| 2026-08-13 | Deferred chat get 202: purpose/success, no tokens; 200 may record usage tokens; no USD | Same `modality="chat"` as live chat. Pending poll is not a completion. Public priority premium is not estimated. |
 
 ## Dependencies
 
@@ -64,4 +66,4 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 
 ## Current status
 
-- **Last reconciled with code**: 2026-08-13 (`modality="tts"` on streaming TTS sessions and TTS voice roster listing; duration on sessions only; no USD; realtime client-secret mint purpose/success only)
+- **Last reconciled with code**: 2026-08-13 (`modality="chat"` on deferred create/get; 202 pending purpose/success without tokens; 200 may record usage tokens; no USD)

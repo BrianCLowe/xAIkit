@@ -18,6 +18,8 @@ class CompletionResponse(BaseModel):
     finish_reason: str | None = None
     tool_calls: list[dict[str, Any]] | None = None
     """Client-side tool calls: ``{id, name, arguments}``. ``arguments`` is parsed JSON (typically a dict); invalid JSON stays a string. None when the model did not call tools."""
+    service_tier: str | None = None
+    """Echoed processing tier when the provider/API returns it (``default`` | ``priority``)."""
 
 
 class StreamChunk(BaseModel):
