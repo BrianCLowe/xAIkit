@@ -26,7 +26,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 | Streaming STT (non-STS) | [MediaRest](MediaRest.md) | No |
 | Video | [VideoGeneration](VideoGeneration.md) | No |
 | Realtime voice / STS | [RealtimeVoice](RealtimeVoice.md) | Yes |
-| Files upload / `file_id` | `XaiClient` files helpers (this spec until a map row) | No |
+| Files upload / `file_id` | `XaiClient` files helpers (this spec until a map row) | Yes |
 | Embeddings | `XaiClient` (this spec) | No |
 | Tokenizer | `XaiClient` or `xaikit` helper (this spec) | No |
 | Batch | `XaiClient` (this spec) | No |
@@ -55,12 +55,15 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 
 Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `video` \| `voice`). One price band → all three pick flagship. Coding SKUs stay out of general **chat** unless the catalog is coding-only. Image/video/voice pools do not use the chat coding skip. See [Catalog](Catalog.md).
 
-### Files *(target — unblocks `file_id`)*
+### Files *(on `XaiClient` — unblocks `file_id`)*
 
-- `upload_file(data, filename, *, purpose=…, content_type=…)` → `{id, filename, …}` via `POST /v1/files`.
-- Optional get/delete if upstream has them.
+- `upload_file(data, filename, *, purpose=…, content_type=…, file_purpose="assistants", expires_after=…)` → `{id, filename, bytes, created_at, …}` via `POST https://api.x.ai/v1/files` multipart (`file` + upstream `purpose` + optional `expires_after` before `file`). Constant `XAI_FILES_URL`.
+- Kit `purpose=` is the usage-meter tag (required when a meter is attached). `file_purpose=` is the multipart field (default `"assistants"`). Response `purpose` echoes the multipart value, not the meter tag.
+- `get_file(file_id, *, purpose=…)` / `delete_file(file_id, *, purpose=…)` → `GET`/`DELETE /v1/files/{file_id}`.
+- Empty `data` / `filename` / `file_id` and uploads over 50 MB are rejected before HTTP. Failures → `RuntimeError`. Meter success and failure with `modality="files"`.
 - Video and image **accept** `url` **or** `file_id`. Text-to-video / text-to-image must not wait on Files. I2V/edit may take URL first, `file_id` when Files exists.
 - Imagine `storage_options` / `file_output.file_id` on generate/edit is in-scope for MediaRest/Video when wrapping those response fields.
+- Chat-with-files / vision attachments stay on [ClientChat](ClientChat.md) — not this slice.
 
 ### Chat extras *(target — live on ClientChat)*
 
@@ -104,6 +107,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 | 2026-08-12 | Files is not a gate for T2V / T2I | URL/data-URL first; `file_id` when Files exists |
 | 2026-08-12 | Catalog intents per role, same cheapest/economy/best rules | Image/voice/video lineups stay thin; overlap already specified |
 | 2026-08-12 | Split a map row at implement time, not for every inventory line | User: no empty spec/TODO pile; contract lives here |
+| 2026-08-13 | Files: kit `purpose=` is the meter tag; `file_purpose=` (default `"assistants"`) is the REST multipart field | xAI Files also names a multipart field `purpose` (OpenAI compat). Do not collide with UsageMeter |
 
 ## Dependencies
 
@@ -127,5 +131,5 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 
 ## Current status
 
-- **In progress**: target spec locked; code remainder unordered after video + realtime voice
+- **In progress**: Files helpers on `XaiClient`; remainder unordered after video + realtime voice
 - **Blocked by**: —

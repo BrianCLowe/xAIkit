@@ -62,7 +62,7 @@ voice_id = resolve_model(intent="economy", role="voice")
 
 ## Image generation and edit
 
-REST Imagine images on `XaiClient` (mocked HTTP in tests; live calls need `XAI_API_KEY`). `edit_image` posts JSON to `/v1/images/edits` (not OpenAI multipart). Source image is a public URL, data URI, or `file_id` passthrough — this kit does not upload files.
+REST Imagine images on `XaiClient` (mocked HTTP in tests; live calls need `XAI_API_KEY`). `edit_image` posts JSON to `/v1/images/edits` (not OpenAI multipart). Source image is a public URL, data URI, or a `file_id` from `upload_file`.
 
 ```python
 from xaikit import MockChatProvider, XaiClient
@@ -79,6 +79,22 @@ edited = client.edit_image(
 ```
 
 Default model is `grok-imagine-image-quality`. When Imagine returns `file_output.file_id`, both methods surface it as `file_id`.
+
+## Files
+
+REST Files on `XaiClient` (mocked HTTP in tests). `upload_file` posts multipart to `/v1/files` and returns `{id, filename, bytes, created_at, …}`. Kit `purpose=` is the usage-meter tag; `file_purpose=` (default `"assistants"`) is the upstream multipart field. Optional `get_file` / `delete_file` hit `/v1/files/{file_id}`.
+
+```python
+from xaikit import MockChatProvider, XaiClient
+
+client = XaiClient(provider=MockChatProvider(), api_key="test-key")
+meta = client.upload_file(b"hello", "note.txt", content_type="text/plain")
+# meta["id"] is the opaque file_id
+# client.get_file(meta["id"])
+# client.delete_file(meta["id"])
+```
+
+Uploads larger than 50 MB are rejected before HTTP.
 
 ## Video generation
 

@@ -17,6 +17,7 @@ from xaikit.catalog import (
 from xaikit.client import (
     DEFAULT_IMAGE_MODEL,
     DEFAULT_TTS_VOICE_ID,
+    XAI_FILES_URL,
     XAI_IMAGES_URL,
     XAI_IMAGE_EDITS_URL,
     XAI_STT_URL,
@@ -86,6 +87,7 @@ __all__ = [
     "DEFAULT_TTS_VOICE_ID",
     "DEFAULT_VIDEO_MODEL",
     "DEFAULT_VOICE_MODEL",
+    "XAI_FILES_URL",
     "XAI_IMAGES_URL",
     "XAI_IMAGE_EDITS_URL",
     "XAI_REALTIME_URL",
