@@ -7,7 +7,7 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Stem shipped — Catalog High / Medium / Low drained  
+**Active task:** Stem shipped — Catalog High / Medium / Low drained. Human verify look-list is open.  
 **Blocked by:** —  
 **Last session:** 2026-08-13 — opt-in `persist_path` + `save_catalog_snapshot` (memory cache still wins; write failure does not fail `list_models`)
 
@@ -24,6 +24,16 @@
 ## Low Priority / Future Ideas
 
 *(none)*
+
+## Human verify (orchestration 2026-08-13)
+
+Library-only look-list — reply in chat when done (do not mark this row yourself).
+
+- **Surfaces:** `role=` resolve; `BOOTSTRAP_MODEL` (`grok-4.6`); `list_models(..., persist_path=)` / `save_catalog_snapshot`
+- **Placement:** `src/xaikit/catalog.py`; default prices in `pricing.py`
+- **Copy:** README bootstrap slug + persist_path one-liner
+- **Happy path:** `uv run pytest tests/test_catalog.py`
+- **Rough edges:** persist is opt-in (no default path); mock HTTP tests may still pin dummy `grok-3-mini`
 
 ## Completed
 

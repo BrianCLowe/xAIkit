@@ -7,7 +7,7 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Stem shipped — High / Medium / Low drained  
+**Active task:** Stem shipped — High / Medium / Low drained. Human verify look-list is open.  
 **Blocked by:** —  
 **Last session:** 2026-08-13 — Voice roster helper (`list_tts_voices` / `get_tts_voice`) over `GET /v1/tts/voices` (not custom-voices clone)
 
@@ -24,6 +24,16 @@
 ## Low Priority / Future Ideas
 
 *(none)*
+
+## Human verify (orchestration 2026-08-13)
+
+Library-only look-list — reply in chat when done (do not mark this row yourself).
+
+- **Surfaces:** `edit_image`; `open_stt_session` / `SttSession`; `open_tts_session` / `TtsSession`; `list_tts_voices` / `get_tts_voice`; README streaming STT/TTS + voice roster
+- **Placement:** `src/xaikit/client.py`, `stt_stream.py`, `tts_stream.py`
+- **Copy:** streaming TTS is `wss://api.x.ai/v1/tts`, not STS; roster is built-in voices only
+- **Happy path:** `uv run pytest tests/test_media_wiring.py tests/test_stt_stream_wiring.py tests/test_tts_stream_wiring.py tests/test_tts_voices_wiring.py`
+- **Rough edges:** custom-voice clone is out of kit; live STT needs `XAITKIT_LIVE_STT=1`
 
 ## Cross-Feature Dependencies
 

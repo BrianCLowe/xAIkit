@@ -7,7 +7,7 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Stem shipped — High/Medium/Low empty.  
+**Active task:** Stem shipped — High/Medium/Low empty. Human verify look-list is open.  
 **Blocked by:** —  
 **Last session:** 2026-08-13 — `OpenTelemetryUsageSink` (optional `xaikit[otel]`; counters `xaikit.usage.calls` / `xaikit.usage.tokens`; tests mock OTel)
 
@@ -24,6 +24,16 @@
 ## Low Priority / Future Ideas
 
 *(none)*
+
+## Human verify (orchestration 2026-08-13)
+
+Library-only look-list — reply in chat when done (do not mark this row yourself).
+
+- **Surfaces:** `OpenTelemetryUsageSink`; modalities for files/embed/tokenize/batch/collections/responses/realtime mint/tts roster
+- **Placement:** `src/xaikit/usage.py`; extra `xaikit[otel]`
+- **Copy:** README optional OTel one-liner; counters `xaikit.usage.calls` / `xaikit.usage.tokens`
+- **Happy path:** `uv run pytest tests/test_otel_usage_sink.py tests/test_meter_mock.py`
+- **Rough edges:** `iter_events()` is export-only; pair with `InMemoryUsageSink`; no invented USD on new modalities
 
 ## Cross-Feature Dependencies & Integration Notes
 

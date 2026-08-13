@@ -7,7 +7,7 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Stem shipped (library-only). Next product work is [RealtimeVoice](RealtimeVoice-TODO.md).  
+**Active task:** Stem shipped (library-only). Human verify look-list is open. Agent TODOs on the map are drained.  
 **Blocked by:** —  
 **Last session:** 2026-08-12 — shipped T2V / I2V / R2V / extend / poll-wait / download / meter+prices / prefer_latest_video_model with mocked contract tests
 

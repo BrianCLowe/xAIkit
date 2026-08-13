@@ -7,7 +7,7 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Chat extras + async twin shipped. Next library work is not on this stem — remainder lives on [ApiCoverage-TODO.md](ApiCoverage-TODO.md) (unordered).  
+**Active task:** Chat extras + async twin shipped. Human verify look-list is open.  
 **Blocked by:** —  
 **Last session:** 2026-08-13 — `AsyncXaiClient` same-name twin (covering [ApiCoverage-TODO.md](ApiCoverage-TODO.md) async client)
 
@@ -24,6 +24,16 @@
 ## Low Priority / Future Ideas
 
 *(none)*
+
+## Human verify (orchestration 2026-08-13)
+
+Library-only look-list — reply in chat when done (do not mark this row yourself).
+
+- **Surfaces:** `chat` / `chat_stream` / `chat_json` tools + vision parts + `schema=`; `service_tier`; `AsyncXaiClient`
+- **Placement:** `src/xaikit/client.py`, `provider.py`, `async_client.py`
+- **Copy:** README tools/vision/schema + async example; blank tool args stay `""` not `{}`
+- **Happy path:** `uv run pytest tests/test_chat_knobs.py tests/test_chat_tools.py tests/test_async_client_wiring.py`
+- **Rough edges:** app owns the tool loop; Responses API does not replace `chat`
 
 ## Cross-Feature Dependencies & Integration Notes
 

@@ -11,7 +11,7 @@
 **Blocked by:** —  
 **Last session:** 2026-08-13 — Custom `voice_id` on realtime `voice=` (forwarded unchanged; no clone wrap)
 
-*Next product work is [MediaRest-TODO.md](MediaRest-TODO.md) Low voice roster (`GET /v1/tts/voices`) or [Catalog-TODO.md](Catalog-TODO.md) Medium bootstrap/fixture refresh. Do not add a recorder UI.*
+*Human verify look-list is open (orchestration 2026-08-13). Do not add a recorder UI.*
 
 ---
 
@@ -26,6 +26,16 @@
 ## Low Priority / Future Ideas
 
 *(drained — 2026-08-13)*
+
+## Human verify (orchestration 2026-08-13)
+
+Library-only look-list — reply in chat when done (do not mark this row yourself).
+
+- **Surfaces:** `open_realtime_session` / `RealtimeSession`; `create_realtime_client_secret`; `realtime_client_secret_protocol`; README **Realtime voice**
+- **Placement:** `src/xaikit/client.py`, `src/xaikit/realtime.py`
+- **Copy:** mint example uses `secret["value"]`; custom `voice=` ids work like `eve`
+- **Happy path:** `uv run pytest tests/test_realtime_wiring.py tests/test_realtime_client_secrets.py`. Optional live: `XAITKIT_LIVE=1 XAITKIT_LIVE_VOICE=1`
+- **Rough edges:** no product login / clone API; mint is not an STS audio-minute; `get_response`-style 401 skips the meter
 
 ## Cross-Feature Dependencies & Integration Notes
 

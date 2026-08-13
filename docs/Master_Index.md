@@ -46,7 +46,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 - **README vs docs/** — README for consumers; this tree for agents and contributors; wheel stays code-only.
 - **Orchestrator git:** durable mode is **`milestone-pr`** (per-slice PR → CI/Bugbot → merge → next branch). **Cloud Agent** orchestration uses the same mode.
 - **Kit leftovers:** stay as TODOs on the inventory stem ([ApiCoverage](features/ApiCoverage.md)) until that slice is next; covering TODOs on existing stems (Workflow §5.4); no map rows for vague planned-only items.
-- **Next product work** — remaining API on [ApiCoverage](features/ApiCoverage.md) has no order.
+- **Next product work** — agent TODOs on the map are drained (2026-08-13). Human look-lists are on [Human-TODO.md](Human-TODO.md).
 
 ## 3. Document Map
 
@@ -93,7 +93,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 1. Consumers: `README.md`.
 2. Agents: this map → the stem spec + TODO.
 3. Workflow: [`templates/agent/Modular_Docs_Workflow.md`](templates/agent/Modular_Docs_Workflow.md) (ship-first: no Understanding gate).
-4. Current focus: [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md).
+4. Current focus: [Human-TODO.md](Human-TODO.md) (orchestration look-lists).
 
 ---
 
