@@ -44,6 +44,7 @@ _JSON_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 XAI_STT_URL = "https://api.x.ai/v1/stt"
 XAI_TTS_URL = "https://api.x.ai/v1/tts"
 XAI_IMAGES_URL = "https://api.x.ai/v1/images/generations"
+XAI_IMAGE_EDITS_URL = "https://api.x.ai/v1/images/edits"
 XAI_VIDEOS_URL = "https://api.x.ai/v1/videos/generations"
 XAI_VIDEO_EXTENSIONS_URL = "https://api.x.ai/v1/videos/extensions"
 XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos/{request_id}"
@@ -750,6 +751,85 @@ class XaiClient:
         )
         return audio, content_type
 
+    def _submit_imagine(
+        self,
+        endpoint: str,
+        body: dict[str, Any],
+        *,
+        image_model: str,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        request_failed: str,
+        http_failed: str,
+    ) -> dict[str, Any]:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        try:
+            response = httpx.post(
+                endpoint,
+                headers=headers,
+                json=body,
+                timeout=180.0,
+            )
+        except httpx.HTTPError as exc:
+            self._record(
+                purpose=tag,
+                usage=None,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                thought_level=None,
+                error=_error_class(exc),
+                modality="imagine",
+                model=image_model,
+            )
+            logger.exception("xAI Imagine request failed")
+            raise RuntimeError(f"{request_failed}: {exc}") from exc
+
+        if response.status_code == 401:
+            raise RuntimeError("xAI Imagine unauthorized — check API key")
+        if response.status_code >= 400:
+            detail = response.text[:500] if response.text else response.reason_phrase
+            logger.error("xAI Imagine error %s: %s", response.status_code, detail)
+            self._record(
+                purpose=tag,
+                usage=None,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                thought_level=None,
+                error=f"HTTP{response.status_code}",
+                modality="imagine",
+                model=image_model,
+            )
+            raise RuntimeError(f"{http_failed} ({response.status_code}): {detail}")
+
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Imagine returned non-JSON response") from exc
+
+        url, b64, file_id = _parse_imagine_result(payload)
+        self._record(
+            purpose=tag,
+            usage=None,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+            thought_level=None,
+            modality="imagine",
+            model=image_model,
+        )
+        return {
+            "url": url,
+            "b64_json": b64,
+            "model": image_model,
+            "file_id": file_id,
+        }
+
     def generate_image(
         self,
         prompt: str,
@@ -768,10 +848,6 @@ class XaiClient:
             raise RuntimeError("Image prompt is empty")
 
         image_model = (model or self.image_model or DEFAULT_IMAGE_MODEL).strip()
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
         body: dict[str, Any] = {
             "model": image_model,
             "prompt": cleaned,
@@ -780,78 +856,63 @@ class XaiClient:
         if aspect_ratio:
             body["aspect_ratio"] = aspect_ratio
 
-        try:
-            response = httpx.post(
-                XAI_IMAGES_URL,
-                headers=headers,
-                json=body,
-                timeout=180.0,
-            )
-        except httpx.HTTPError as exc:
-            self._record(
-                purpose=tag,
-                usage=None,
-                parent_id=parent_id,
-                labels=labels,
-                success=False,
-                thought_level=None,
-                error=_error_class(exc),
-                modality="imagine",
-                model=image_model,
-            )
-            logger.exception("xAI Imagine request failed")
-            raise RuntimeError(f"Image generation request failed: {exc}") from exc
-
-        if response.status_code == 401:
-            raise RuntimeError("xAI Imagine unauthorized — check API key")
-        if response.status_code >= 400:
-            detail = response.text[:500] if response.text else response.reason_phrase
-            logger.error("xAI Imagine error %s: %s", response.status_code, detail)
-            self._record(
-                purpose=tag,
-                usage=None,
-                parent_id=parent_id,
-                labels=labels,
-                success=False,
-                thought_level=None,
-                error=f"HTTP{response.status_code}",
-                modality="imagine",
-                model=image_model,
-            )
-            raise RuntimeError(
-                f"Image generation failed ({response.status_code}): {detail}"
-            )
-
-        try:
-            payload = response.json()
-        except json.JSONDecodeError as exc:
-            raise RuntimeError("Imagine returned non-JSON response") from exc
-
-        data = payload.get("data") if isinstance(payload, dict) else None
-        if not isinstance(data, list) or not data:
-            raise RuntimeError("Imagine response missing data")
-
-        first = data[0] if isinstance(data[0], dict) else {}
-        url = first.get("url")
-        b64 = first.get("b64_json")
-        if not url and not b64:
-            raise RuntimeError("Imagine response missing url and b64_json")
-
-        self._record(
-            purpose=tag,
-            usage=None,
+        return self._submit_imagine(
+            XAI_IMAGES_URL,
+            body,
+            image_model=image_model,
+            tag=tag,
             parent_id=parent_id,
             labels=labels,
-            success=True,
-            thought_level=None,
-            modality="imagine",
-            model=image_model,
+            request_failed="Image generation request failed",
+            http_failed="Image generation failed",
         )
-        return {
-            "url": str(url) if url else None,
-            "b64_json": str(b64) if b64 else None,
+
+    def edit_image(
+        self,
+        prompt: str,
+        image: str | dict[str, Any] | None = None,
+        *,
+        image_url: str | None = None,
+        image_file_id: str | None = None,
+        model: str | None = None,
+        aspect_ratio: str | None = None,
+        n: int = 1,
+        response_format: str | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Edit an image via xAI Imagine JSON ``POST /v1/images/edits`` (not multipart)."""
+        tag = self._require_purpose_if_metered(purpose)
+        cleaned = (prompt or "").strip()
+        if not cleaned:
+            raise RuntimeError("Image prompt is empty")
+
+        image_obj = _imagine_edit_image_ref(
+            image, url=image_url, file_id=image_file_id
+        )
+        image_model = (model or self.image_model or DEFAULT_IMAGE_MODEL).strip()
+        body: dict[str, Any] = {
             "model": image_model,
+            "prompt": cleaned,
+            "n": max(1, min(int(n or 1), 4)),
+            "image": image_obj,
         }
+        if aspect_ratio:
+            body["aspect_ratio"] = aspect_ratio
+        if response_format:
+            body["response_format"] = response_format
+
+        return self._submit_imagine(
+            XAI_IMAGE_EDITS_URL,
+            body,
+            image_model=image_model,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            request_failed="Image edit request failed",
+            http_failed="Image edit failed",
+        )
 
     def _video_headers(self) -> dict[str, str]:
         return {
@@ -1330,6 +1391,67 @@ class XaiClient:
         if not isinstance(payload, dict):
             raise RuntimeError("Video poll returned unexpected payload")
         return payload
+
+
+def _imagine_file_id(
+    item: dict[str, Any], payload: dict[str, Any] | None = None
+) -> str | None:
+    sources: list[dict[str, Any]] = [item]
+    if isinstance(payload, dict):
+        sources.append(payload)
+    for source in sources:
+        raw = source.get("file_id")
+        if raw is not None and str(raw).strip():
+            return str(raw).strip()
+        output = source.get("file_output")
+        if isinstance(output, dict):
+            nested = output.get("file_id")
+            if nested is not None and str(nested).strip():
+                return str(nested).strip()
+    return None
+
+
+def _parse_imagine_result(payload: Any) -> tuple[str | None, str | None, str | None]:
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, list) or not data:
+        raise RuntimeError("Imagine response missing data")
+    first = data[0] if isinstance(data[0], dict) else {}
+    url = first.get("url")
+    b64 = first.get("b64_json")
+    file_id = _imagine_file_id(first, payload if isinstance(payload, dict) else None)
+    if not url and not b64 and not file_id:
+        raise RuntimeError("Imagine response missing url and b64_json")
+    return (
+        str(url) if url else None,
+        str(b64) if b64 else None,
+        file_id,
+    )
+
+
+def _imagine_edit_image_ref(
+    explicit: str | dict[str, Any] | None,
+    *,
+    url: str | None = None,
+    file_id: str | None = None,
+) -> dict[str, Any]:
+    source: dict[str, Any] = dict(explicit) if isinstance(explicit, dict) else {}
+    if isinstance(explicit, str):
+        raw = explicit.strip()
+        if raw.startswith(("http://", "https://", "data:")):
+            url = url or raw
+        elif raw:
+            file_id = file_id or raw
+    url_val = url or source.get("url") or source.get("image_url")
+    file_val = file_id or source.get("file_id")
+    url_s = str(url_val).strip() if url_val else ""
+    file_s = str(file_val).strip() if file_val else ""
+    if url_s and file_s:
+        raise ValueError("url and file_id are mutually exclusive")
+    if url_s:
+        return {"url": url_s, "type": "image_url"}
+    if file_s:
+        return {"file_id": file_s}
+    raise RuntimeError("Image url or file_id is empty")
 
 
 def _optional_aspect_ratio(value: str | None) -> str | None:

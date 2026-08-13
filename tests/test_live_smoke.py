@@ -199,6 +199,18 @@ def test_live_generate_image_returns_url_or_b64(client: XaiClient) -> None:
     assert out.get("url") or out.get("b64_json")
 
 
+def test_live_edit_image_returns_url_or_b64_or_file_id(client: XaiClient) -> None:
+    """Uses a public docs URL — no local image file required."""
+    out = client.edit_image(
+        "Render this as a simple pencil sketch",
+        image_url="https://docs.x.ai/assets/api-examples/images/style-realistic.png",
+        model="grok-imagine-image",
+        n=1,
+    )
+    assert out.get("model") == "grok-imagine-image"
+    assert out.get("url") or out.get("b64_json") or out.get("file_id")
+
+
 _RUN_LIVE_VIDEO = os.environ.get("XAITKIT_LIVE_VIDEO", "").strip().lower() in {
     "1",
     "true",

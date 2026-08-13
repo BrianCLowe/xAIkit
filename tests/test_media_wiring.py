@@ -14,6 +14,7 @@ from xaikit import (
     MockChatProvider,
     UsageMeter,
     XAI_IMAGES_URL,
+    XAI_IMAGE_EDITS_URL,
     XAI_STT_URL,
     XAI_TTS_URL,
     XaiClient,
@@ -201,6 +202,7 @@ def test_generate_image_posts_model_prompt_aspect_and_clamps_n(
     assert out["url"] == "https://example.com/img.png"
     assert out["b64_json"] is None
     assert out["model"] == "client-default-image"
+    assert out["file_id"] is None
 
     call = cap.calls[0]
     assert call["url"] == XAI_IMAGES_URL
@@ -238,6 +240,7 @@ def test_generate_image_per_call_model_override_and_omits_aspect_when_unset(
 
     assert out["b64_json"] == "abc123"
     assert out["url"] is None
+    assert out["file_id"] is None
     body = cap.calls[0]["json"]
     assert body["model"] == "grok-imagine-override"
     assert body["n"] == 1
@@ -277,3 +280,211 @@ def test_media_http_error_records_failed_usage(monkeypatch: pytest.MonkeyPatch) 
     assert ev.success is False
     assert ev.modality == "stt"
     assert ev.purpose == "demo.stt.fail"
+
+
+def test_generate_image_surfaces_file_output_file_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _Capture()
+    cap.install(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "url": "https://example.com/stored.png",
+                        "file_output": {"file_id": "file-imagine-1"},
+                    }
+                ]
+            },
+            request=httpx.Request("POST", XAI_IMAGES_URL),
+        ),
+    )
+
+    out = client.generate_image("a cube")
+    assert out["file_id"] == "file-imagine-1"
+    assert out["url"] == "https://example.com/stored.png"
+
+
+def test_edit_image_posts_json_url_auth_and_meters(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sink = InMemoryUsageSink()
+    meter = UsageMeter(sink=sink)
+    client = _client(usage_meter=meter, image_model="client-default-image")
+    cap = _Capture()
+    cap.install(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json={"data": [{"url": "https://example.com/edited.png"}]},
+            request=httpx.Request("POST", XAI_IMAGE_EDITS_URL),
+        ),
+    )
+
+    out = client.edit_image(
+        "  make it a sketch  ",
+        image_url="https://example.com/src.png",
+        aspect_ratio="16:9",
+        n=99,
+        response_format="url",
+        purpose="demo.imagine.edit",
+        labels={"request_id": "edit1"},
+    )
+
+    assert out["url"] == "https://example.com/edited.png"
+    assert out["b64_json"] is None
+    assert out["model"] == "client-default-image"
+    assert out["file_id"] is None
+
+    assert len(cap.calls) == 1
+    call = cap.calls[0]
+    assert call["url"] == XAI_IMAGE_EDITS_URL
+    assert call["headers"]["Authorization"] == "Bearer test-key"
+    assert call["headers"]["Content-Type"] == "application/json"
+    assert call["json"] == {
+        "model": "client-default-image",
+        "prompt": "make it a sketch",
+        "n": 4,
+        "image": {
+            "url": "https://example.com/src.png",
+            "type": "image_url",
+        },
+        "aspect_ratio": "16:9",
+        "response_format": "url",
+    }
+    assert call["timeout"] == 180.0
+    assert "files" not in call
+    assert "data" not in call
+
+    ev = list(sink.iter_events())[0]
+    assert ev.purpose == "demo.imagine.edit"
+    assert ev.modality == "imagine"
+    assert ev.model == "client-default-image"
+    assert ev.success is True
+    assert ev.labels["request_id"] == "edit1"
+
+
+def test_edit_image_file_id_passthrough_and_file_output(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _Capture()
+    cap.install(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "b64_json": "abc123",
+                        "file_output": {"file_id": "file-out-9"},
+                    }
+                ]
+            },
+            request=httpx.Request("POST", XAI_IMAGE_EDITS_URL),
+        ),
+    )
+
+    out = client.edit_image("sketch", image_file_id="file-in-3")
+
+    assert out["b64_json"] == "abc123"
+    assert out["file_id"] == "file-out-9"
+    assert cap.calls[0]["json"]["image"] == {"file_id": "file-in-3"}
+    assert cap.calls[0]["url"] == XAI_IMAGE_EDITS_URL
+
+
+def test_edit_image_positional_url_and_data_uri(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _Capture()
+    cap.install(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json={"data": [{"url": "https://example.com/out.png"}]},
+            request=httpx.Request("POST", XAI_IMAGE_EDITS_URL),
+        ),
+    )
+
+    client.edit_image("sketch", "https://example.com/pos.png")
+    assert cap.calls[0]["json"]["image"] == {
+        "url": "https://example.com/pos.png",
+        "type": "image_url",
+    }
+
+    cap.calls.clear()
+    client.edit_image("sketch", "data:image/png;base64,abc")
+    assert cap.calls[0]["json"]["image"] == {
+        "url": "data:image/png;base64,abc",
+        "type": "image_url",
+    }
+
+
+def test_edit_image_rejects_empty_prompt_without_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _Capture()
+    cap.install(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json={"data": [{"url": "https://example.com/x.png"}]},
+            request=httpx.Request("POST", XAI_IMAGE_EDITS_URL),
+        ),
+    )
+    with pytest.raises(RuntimeError, match="empty"):
+        client.edit_image("  ", image_url="https://example.com/src.png")
+    assert cap.calls == []
+
+
+def test_edit_image_rejects_empty_image_without_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _Capture()
+    cap.install(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json={"data": [{"url": "https://example.com/x.png"}]},
+            request=httpx.Request("POST", XAI_IMAGE_EDITS_URL),
+        ),
+    )
+    with pytest.raises(RuntimeError, match="empty"):
+        client.edit_image("sketch")
+    assert cap.calls == []
+
+
+def test_edit_image_requires_purpose_when_metered() -> None:
+    client = _client(usage_meter=UsageMeter(sink=InMemoryUsageSink()))
+    with pytest.raises(ValueError, match="purpose"):
+        client.edit_image("sketch", image_url="https://example.com/src.png")
+
+
+def test_edit_image_http_error_records_failed_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sink = InMemoryUsageSink()
+    meter = UsageMeter(sink=sink)
+    client = _client(usage_meter=meter)
+
+    def _boom(*_a: Any, **_k: Any) -> httpx.Response:
+        raise httpx.ConnectError("offline")
+
+    monkeypatch.setattr("xaikit.client.httpx.post", _boom)
+    with pytest.raises(RuntimeError, match="Image edit request failed"):
+        client.edit_image(
+            "sketch",
+            image_url="https://example.com/src.png",
+            purpose="demo.imagine.edit.fail",
+        )
+
+    ev = list(sink.iter_events())[0]
+    assert ev.success is False
+    assert ev.modality == "imagine"
+    assert ev.purpose == "demo.imagine.edit.fail"
