@@ -1,6 +1,6 @@
 # UsageObservability
 
-**Last Updated**: 2026-08-13 *(streaming STT `stt` price row)*  
+**Last Updated**: 2026-08-13 *(embeddings `embed` modality)*  
 **Related TODO**: [UsageObservability-TODO.md](UsageObservability-TODO.md)
 
 ## Overview
@@ -18,8 +18,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 ## Behavior (stable)
 
 - Usage events: purpose, model, tokens, estimated USD, success, thought_level, modality, labels, parent_id
-- Modalities used today: `chat`, `stt`, `tts`, `imagine`, `video`, `realtime`, `files`
-- **Target modalities still open:** `embed` — same purpose/labels/success rules
+- Modalities used today: `chat`, `stt`, `tts`, `imagine`, `video`, `realtime`, `files`, `embed`
 - Gap notes scrub secret-ish strings and cap length
 - Meter/trace failures must not break the user-facing call (logged)
 
@@ -32,6 +31,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 | 2026-08-13 | Realtime voice: `modality="realtime"`; `ModelPrice.per_minute_usd` | STS is billed per audio minute on the public table ($0.05 / $0.08). Text-input `$0.004` unit is undocumented — not estimated. Estimates, not a billing authority |
 | 2026-08-13 | Files: `modality="files"`; no default price row | Upload is metered for purpose/success; public table has no per-file rate to estimate |
 | 2026-08-13 | Streaming STT: same `modality="stt"` as REST; default `stt` row `$0.20/hour` (`per_minute_usd`) | Public Voice table Streaming Speech to Text. REST `$0.10/hr` not estimated. Estimates, not billing. Cite: https://docs.x.ai/developers/pricing |
+| 2026-08-13 | Embeddings: `modality="embed"`; no default price row | Public table https://docs.x.ai/developers/pricing has no embeddings rate. OpenAPI `prompt_text_token_price` examples conflict (10 vs 100 cents/M) — do not invent USD. Meter purpose/success/tokens; `apply_price_table=False` |
 
 ## Dependencies
 
@@ -47,8 +47,8 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - [x] Video modality on meter when video ships
 - [x] Realtime-voice modality when realtime ships
 - [x] Files modality when Files methods ship
-- [ ] Embed modality when embed ships
+- [x] Embed modality when embed ships
 
 ## Current status
 
-- **Last reconciled with code**: 2026-08-13 (`modality="files"`; streaming STT default `stt` price row; embed still open)
+- **Last reconciled with code**: 2026-08-13 (`modality="embed"`; no default embed price row)

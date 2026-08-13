@@ -54,7 +54,7 @@ class UsageEvent(BaseModel):
     )
     modality: str | None = Field(
         default=None,
-        description="Optional modality tag e.g. chat, stt, tts, imagine, video, realtime, files",
+        description="Optional modality tag e.g. chat, stt, tts, imagine, video, realtime, files, embed",
     )
 
     def model_post_init(self, __context: Any) -> None:
@@ -229,11 +229,13 @@ class UsageMeter:
         timestamp: datetime | None = None,
         estimated_usd: float | None = None,
         modality: str | None = None,
+        apply_price_table: bool = True,
     ) -> UsageEvent:
         """Build, price, append, and return a UsageEvent.
 
         *purpose* is required (fail loud). Prefer *usage* dict from the API;
-        explicit token kwargs override it.
+        explicit token kwargs override it. Set *apply_price_table* False to
+        record tokens without inventing USD when the public table has no rate.
         """
         tag = (purpose or "").strip()
         if not tag:
@@ -250,7 +252,7 @@ class UsageMeter:
             if ticks is not None:
                 estimated_usd = _usd_from_ticks(ticks)
 
-        if estimated_usd is None:
+        if estimated_usd is None and apply_price_table:
             duration = _duration_seconds_from_usage(usage)
             resolution = None
             if usage:

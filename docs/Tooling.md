@@ -1,6 +1,6 @@
 # XaiKit — Tooling
 
-**Last Updated**: 2026-08-12  
+**Last Updated**: 2026-08-13  
 **Related**: [Master_Index.md](Master_Index.md)
 
 ---
@@ -45,7 +45,7 @@ Do not commit `.env` / API keys. Live xAI calls are optional and not default CI.
 | **Touched package** | Library modules only | `uv run pytest tests/` | Same suite today |
 | **Full handoff** | Claiming the kit works | `uv run pytest` and `uv run python scripts/smoke_meter_mock.py` | Still offline |
 | **Tests** | Always for Python changes | `uv run pytest` | Canonical wiring prove-out |
-| **Live (optional)** | Key present + explicit opt-in | `XAITKIT_LIVE=1 uv run pytest tests/test_live_smoke.py -m live -v` | Needs `XAI_API_KEY`; not CI. Video also needs `XAITKIT_LIVE_VIDEO=1`; realtime voice also needs `XAITKIT_LIVE_VOICE=1`; streaming STT also needs `XAITKIT_LIVE_STT=1`. |
+| **Live (optional)** | Key present + explicit opt-in | `XAITKIT_LIVE=1 uv run pytest tests/test_live_smoke.py -m live -v` | Needs `XAI_API_KEY`; not CI. Video also needs `XAITKIT_LIVE_VIDEO=1`; realtime voice also needs `XAITKIT_LIVE_VOICE=1`; streaming STT also needs `XAITKIT_LIVE_STT=1`; embeddings also need `XAITKIT_LIVE_EMBED=1`. |
 
 ## Instructions for AI Agents
 
