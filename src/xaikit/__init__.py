@@ -15,6 +15,7 @@ from xaikit.catalog import (
     resolve_model_selection,
     save_catalog_snapshot,
 )
+from xaikit.async_client import AsyncXaiClient
 from xaikit.client import (
     DEFAULT_IMAGE_MODEL,
     DEFAULT_TTS_VOICE_ID,
@@ -55,6 +56,8 @@ from xaikit.gaps import (
 )
 from xaikit.pricing import PriceTable, default_price_table, load_price_table
 from xaikit.provider import (
+    AsyncChatProvider,
+    AsyncSdkChatProvider,
     ChatProvider,
     MockChatProvider,
     ProviderResponse,
@@ -64,14 +67,16 @@ from xaikit.provider import (
 from xaikit.realtime import (
     DEFAULT_VOICE_MODEL,
     XAI_REALTIME_URL,
+    AsyncRealtimeSession,
     RealtimeSession,
     decode_realtime_audio,
     realtime_client_secret_protocol,
 )
-from xaikit.retry import RetryPolicy, call_with_retry, default_retry_policy
-from xaikit.stt_stream import XAI_STT_WS_URL, SttClosed, SttSession
+from xaikit.retry import RetryPolicy, async_call_with_retry, call_with_retry, default_retry_policy
+from xaikit.stt_stream import XAI_STT_WS_URL, AsyncSttSession, SttClosed, SttSession
 from xaikit.tts_stream import (
     XAI_TTS_WS_URL,
+    AsyncTtsSession,
     TtsClosed,
     TtsSession,
     decode_tts_audio,
@@ -122,6 +127,12 @@ __all__ = [
     "XAI_VIDEO_EXTENSIONS_URL",
     "XAI_VIDEO_STATUS_URL",
     "XAI_VIDEOS_URL",
+    "AsyncChatProvider",
+    "AsyncRealtimeSession",
+    "AsyncSdkChatProvider",
+    "AsyncSttSession",
+    "AsyncTtsSession",
+    "AsyncXaiClient",
     "ChatProvider",
     "CompletionResponse",
     "CompletionTrace",
@@ -164,6 +175,7 @@ __all__ = [
     "UsageRollup",
     "UsageSink",
     "XaiClient",
+    "async_call_with_retry",
     "build_completion_tracer",
     "build_gap_log",
     "build_oauth_authorize_url",

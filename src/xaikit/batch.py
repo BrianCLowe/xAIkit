@@ -7,6 +7,7 @@ fake by monkeypatching :func:`call_batch_rpc`.
 
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 _BATCH_OPS = frozenset(
@@ -70,6 +71,72 @@ def call_batch_rpc(
         kwargs["batch_id"],
         limit=kwargs.get("limit"),
         pagination_token=kwargs.get("pagination_token"),
+    )
+    return list_results_to_dict(raw)
+
+
+async def _await_rpc(result: Any) -> Any:
+    if inspect.isawaitable(result):
+        return await result
+    return result
+
+
+async def call_batch_rpc_async(
+    operation: str,
+    *,
+    sdk_client: Any = None,
+    **kwargs: Any,
+) -> Any:
+    """Async twin of :func:`call_batch_rpc`. Tests monkeypatch this."""
+    op = (operation or "").strip()
+    if op not in _BATCH_OPS:
+        raise RuntimeError(f"Unknown batch operation: {operation!r}")
+    if sdk_client is None:
+        raise RuntimeError(
+            "Batch SDK client is not available. Pass api_key= (not only "
+            "provider=) or monkeypatch call_batch_rpc_async for offline tests."
+        )
+    batch_api = getattr(sdk_client, "batch", None)
+    if batch_api is None:
+        raise RuntimeError("SDK client has no batch subclient")
+
+    if op == "create":
+        name = kwargs.get("name")
+        input_file_id = kwargs.get("input_file_id")
+        if input_file_id is not None:
+            raw = await _await_rpc(batch_api.create(name, input_file_id=input_file_id))
+        else:
+            raw = await _await_rpc(batch_api.create(name))
+        return batch_to_dict(raw)
+
+    if op == "add":
+        batch_id = kwargs["batch_id"]
+        requests = kwargs.get("requests") or []
+        chats = [_chat_request_to_sdk(sdk_client, row) for row in requests]
+        await _await_rpc(batch_api.add(batch_id, chats))
+        return {"id": batch_id}
+
+    if op == "get":
+        return batch_to_dict(await _await_rpc(batch_api.get(kwargs["batch_id"])))
+
+    if op == "cancel":
+        return batch_to_dict(await _await_rpc(batch_api.cancel(kwargs["batch_id"])))
+
+    if op == "list":
+        raw = await _await_rpc(
+            batch_api.list(
+                limit=kwargs.get("limit"),
+                pagination_token=kwargs.get("pagination_token"),
+            )
+        )
+        return list_batches_to_dict(raw)
+
+    raw = await _await_rpc(
+        batch_api.list_batch_results(
+            kwargs["batch_id"],
+            limit=kwargs.get("limit"),
+            pagination_token=kwargs.get("pagination_token"),
+        )
     )
     return list_results_to_dict(raw)
 

@@ -6,10 +6,11 @@ does not retry validation or JSON-parse errors raised after a successful sample.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import TypeVar
 
@@ -149,6 +150,68 @@ def call_with_retry(
             )
             if sleep_for > 0:
                 sleep(sleep_for)
+            delay = min(delay * pol.backoff_multiplier, pol.max_backoff_seconds)
+
+    assert last_exc is not None
+    raise last_exc
+
+
+async def async_call_with_retry(
+    fn: Callable[[], Awaitable[T]],
+    *,
+    policy: RetryPolicy | None = None,
+    sleep: Callable[[float], Awaitable[None]] | None = None,
+    is_retryable_fn: Callable[[BaseException], bool] = is_retryable,
+    label: str = "xai",
+) -> T:
+    """Invoke async *fn* with retries on transient failures (``asyncio.sleep``)."""
+
+    async def _default_sleep(seconds: float) -> None:
+        await asyncio.sleep(seconds)
+
+    sleeper = sleep if sleep is not None else _default_sleep
+    pol = policy or default_retry_policy()
+    started = time.monotonic()
+    last_exc: BaseException | None = None
+    delay = pol.backoff_seconds
+
+    for attempt in range(1, pol.max_attempts + 1):
+        if pol.timeout_seconds > 0:
+            elapsed = time.monotonic() - started
+            if elapsed >= pol.timeout_seconds:
+                if last_exc is not None:
+                    raise TimeoutError(
+                        f"{label}: overall timeout {pol.timeout_seconds}s exceeded"
+                    ) from last_exc
+                raise TimeoutError(
+                    f"{label}: overall timeout {pol.timeout_seconds}s exceeded"
+                )
+        try:
+            return await fn()
+        except Exception as exc:
+            last_exc = exc
+            retryable = is_retryable_fn(exc)
+            if not retryable or attempt >= pol.max_attempts:
+                raise
+            if pol.timeout_seconds > 0:
+                remaining = pol.timeout_seconds - (time.monotonic() - started)
+                if remaining <= 0:
+                    raise TimeoutError(
+                        f"{label}: overall timeout {pol.timeout_seconds}s exceeded"
+                    ) from exc
+                sleep_for = min(delay, remaining, pol.max_backoff_seconds)
+            else:
+                sleep_for = min(delay, pol.max_backoff_seconds)
+            logger.warning(
+                "%s attempt %d/%d failed (%s); retry in %.2fs",
+                label,
+                attempt,
+                pol.max_attempts,
+                type(exc).__name__,
+                sleep_for,
+            )
+            if sleep_for > 0:
+                await sleeper(sleep_for)
             delay = min(delay * pol.backoff_multiplier, pol.max_backoff_seconds)
 
     assert last_exc is not None
