@@ -27,7 +27,8 @@ standing:
     - Live docs under docs/ and docs/templates/ stay in git; they must not ship in the installed wheel.
     - Prove library wiring with offline contract tests (mock provider + mocked HTTP). Do not add a playground UI for knob/media verification.
     - Keep examples and tests generic — no private consumer project names.
-  recorded: 2026-08-12
+    - Keep xaikit requires-python in lockstep with xai-sdk (currently >=3.10). Do not raise the floor above the SDK; pin transitive deps so they still install on that floor.
+  recorded: 2026-08-13
   source: user
 
 tools:

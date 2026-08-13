@@ -49,7 +49,7 @@ Mint body is documented only: `{"expires_after": {"seconds": N}}`. Default `N=30
 | 2026-08-12 | Split off ApiCoverage into this map row | Workflow: winner gets its own spec + TODO before implement |
 | 2026-08-12 | Library-only prove-out | Standing: mock + tests, no playground UI |
 | 2026-08-13 | Frozen names: `open_realtime_session` → `RealtimeSession`; `XAI_REALTIME_URL`; `DEFAULT_VOICE_MODEL`; ctor `voice_model=` | Same kit shape as video on `XaiClient` |
-| 2026-08-13 | Wrap documented WS protocol (`websockets` sync client), not `xai_sdk` | Installed SDK has no voice/realtime modules; xAI samples use `websockets` |
+| 2026-08-13 | Wrap documented WS protocol (`websockets` sync client), not `xai_sdk` | Installed SDK has no voice/realtime modules; xAI samples use `websockets`. Pin `<17` so the kit stays on Python 3.10 with the SDK ([python-version](../decisions/python-version.md)). |
 | 2026-08-13 | Meter modality is `realtime` (not `voice`) | Distinguishes STS from REST TTS; files/embed stay unclaimed |
 | 2026-08-13 | `ModelPrice.per_minute_usd` for STS audio-minute list rates | Public table: $0.05/min (think-fast-1.0), $0.08/min (think-fast-2.0 / `grok-voice-latest`). Text-input `$0.004` has no documented unit — not estimated. Estimates, not a billing authority |
 | 2026-08-13 | Wrap documented ephemeral-token mint; do not add product login | xAI `POST /v1/realtime/client_secrets`; long-lived key stays server-side. No FastAPI session server, no User types. Body is `expires_after.seconds` only (no `session` / `anchor`). Mint meters purpose/success with `modality="realtime"` and `apply_price_table=False` so estimates stay None |

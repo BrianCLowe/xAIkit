@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Iterable
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def _utc_now() -> datetime:
-    return datetime.now(UTC)
+    return datetime.now(timezone.utc)
 
 
 class CompletionTrace(BaseModel):

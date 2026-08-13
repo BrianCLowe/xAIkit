@@ -4,12 +4,13 @@ version = "0.1.0"
 description = "Extractable xAI transport + catalog + connect + usage metering kit"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.14,<4.0"
+requires-python = ">=3.10,<4.0"
 authors = [{ name = "Brian Lowe" }]
 dependencies = [
     "httpx>=0.27.0",
     "pydantic>=2.0",
-    "websockets>=14.0",
+    # 17.x dropped 3.10; stay on the SDK floor until xai-sdk raises it.
+    "websockets>=14.0,<17",
     "xai-sdk>=1.17.0",
 ]
 
