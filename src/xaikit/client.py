@@ -1418,14 +1418,13 @@ class XaiClient:
         except json.JSONDecodeError as exc:
             raise RuntimeError("Responses get returned non-JSON response") from exc
         out = _parse_response_payload(payload)
-        usage = out.get("usage") if isinstance(out.get("usage"), dict) else None
+        # GET is a fetch, not a generation — do not re-count stored usage tokens.
         self._record_responses(
             tag=tag,
             model=str(out.get("model") or pin),
             parent_id=parent_id,
             labels=labels,
             success=True,
-            usage=usage,
         )
         return out
 

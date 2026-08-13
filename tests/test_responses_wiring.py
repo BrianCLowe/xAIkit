@@ -344,6 +344,8 @@ def test_get_response_gets_by_id_and_meters(
     assert ev.modality == "responses"
     assert ev.success is True
     assert ev.estimated_usd is None
+    assert ev.prompt_tokens is None
+    assert ev.completion_tokens is None
 
 
 def test_get_response_rejects_empty_id_without_http(
