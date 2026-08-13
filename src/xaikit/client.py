@@ -2449,7 +2449,9 @@ class XaiClient:
 
         Connects to ``wss://api.x.ai/v1/realtime?model=…`` with
         ``Authorization: Bearer <api_key>``, then sends ``session.update``.
-        REST STT/TTS stay on :meth:`transcribe` / :meth:`synthesize_speech`.
+        ``voice`` is a built-in id (``eve``, ``ara``, …) or an opaque custom
+        ``voice_id``; empty/whitespace keeps the default. REST STT/TTS stay on
+        :meth:`transcribe` / :meth:`synthesize_speech`.
         """
         tag = self._require_purpose_if_metered(purpose)
         key = self._require_realtime_api_key()
@@ -3439,6 +3441,7 @@ def _realtime_session_body(
     if "turn_detection" not in extras and turn_detection is ...:
         body["turn_detection"] = {"type": "server_vad"}
     body.update(extras)
+    # No allowlist: built-in names and opaque custom voice_id strings both pass through.
     if voice is not None:
         cleaned = str(voice).strip()
         if cleaned:

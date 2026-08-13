@@ -20,7 +20,7 @@ from xaikit import (
     default_price_table,
     default_retry_policy,
 )
-from xaikit.realtime import RealtimeClosed
+from xaikit.realtime import DEFAULT_REALTIME_VOICE, RealtimeClosed
 
 
 def _client(*, usage_meter: UsageMeter | None = None, **kwargs: Any) -> XaiClient:
@@ -129,6 +129,34 @@ def test_open_realtime_connects_with_auth_header_and_session_update(
     assert ev.labels["request_id"] == "r1"
     assert ev.estimated_usd is not None
     assert ws.closed is True
+
+
+def test_open_realtime_forwards_opaque_custom_voice_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _WsCapture()
+    ws = cap.install(monkeypatch)
+
+    session = client.open_realtime_session(voice="nlbqfwie")
+    body = _sent_events(ws)[0]["session"]
+    assert body["voice"] == "nlbqfwie"
+    session.close()
+
+
+@pytest.mark.parametrize("voice", ["", "   "])
+def test_open_realtime_empty_voice_keeps_default(
+    monkeypatch: pytest.MonkeyPatch,
+    voice: str,
+) -> None:
+    client = _client()
+    cap = _WsCapture()
+    ws = cap.install(monkeypatch)
+
+    session = client.open_realtime_session(voice=voice)
+    body = _sent_events(ws)[0]["session"]
+    assert body["voice"] == DEFAULT_REALTIME_VOICE
+    session.close()
 
 
 def test_open_realtime_rejects_empty_credentials_before_connect(

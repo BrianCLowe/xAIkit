@@ -7,11 +7,11 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Low — Custom voice `voice_id` on the realtime path  
+**Active task:** *(stem shipped — High/Medium/Low drained)*  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — Streaming TTS-only WS home is [MediaRest-TODO.md](MediaRest-TODO.md) (`open_tts_session`; `wss://api.x.ai/v1/tts`, not STS)
+**Last session:** 2026-08-13 — Custom `voice_id` on realtime `voice=` (forwarded unchanged; no clone wrap)
 
-*Next agent: library-only · exercise path: pytest + optional `XAITKIT_LIVE=1` + `XAITKIT_LIVE_VOICE=1` smoke. Do not add a recorder UI.*
+*Next product work is [MediaRest-TODO.md](MediaRest-TODO.md) Low voice roster (`GET /v1/tts/voices`) or [Catalog-TODO.md](Catalog-TODO.md) Medium bootstrap/fixture refresh. Do not add a recorder UI.*
 
 ---
 
@@ -25,7 +25,7 @@
 
 ## Low Priority / Future Ideas
 
-- [ ] Custom voice `voice_id` on the realtime path
+*(drained — 2026-08-13)*
 
 ## Cross-Feature Dependencies & Integration Notes
 
@@ -44,3 +44,4 @@
 - [x] Streaming TTS-only over WS if distinct from STS — home: [MediaRest-TODO.md](MediaRest-TODO.md) (`open_tts_session` / `TtsSession` on `wss://api.x.ai/v1/tts`; not STS) (2026-08-13)
 - [x] **Ephemeral tokens for client-side connect** — `create_realtime_client_secret` wraps `POST /v1/realtime/client_secrets`; `realtime_client_secret_protocol`; mocked HTTP; no product login (2026-08-13)
 - [x] Catalog: voice models in resolve helpers — shipped on [Catalog-TODO.md](Catalog-TODO.md) (`role=voice`; 2026-08-13); closed here as a stale pointer (not this slice)
+- [x] Custom voice `voice_id` on the realtime path — `voice=` forwards opaque ids unchanged on `session.update`; empty/whitespace keeps default; no allowlist; clone/roster not this stem (2026-08-13)
