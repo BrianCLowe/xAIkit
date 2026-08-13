@@ -1,8 +1,29 @@
+<p align="center">
+  <img src="docs/readme-header.jpg" alt="xAIkit — kit for interacting with xAI models and APIs" width="100%" />
+</p>
+
 # xAIkit
 
 Extractable **xAI transport + living model catalog + connect + usage metering** as a library-first Python kit.
 
 Built for apps that want a typed Grok/xAI client with purpose-tagged usage events, catalog resolve (`cheapest` / `economy` / `best`), inject credential stores, and a mock provider for CI — without pulling in a multi-provider marketplace.
+
+## What it does
+
+A **Python library for the Grok / xAI API** — one typed client so your app can chat, generate images and video, speak, search collections, and meter what each feature costs. Not a chatbot UI. Not LiteLLM, OpenRouter, or another multi-provider gateway. Just xAI, as a kit you drop into an existing codebase.
+
+| You want to… | xAIkit gives you |
+| --- | --- |
+| **Call Grok from Python** (chat, stream, tools, vision, structured JSON) | `XaiClient` and `AsyncXaiClient` — same method names; JSON dicts, not protobuf |
+| **Generate or edit images**, make video, or do speech on xAI | Imagine generate/edit, video + extend, REST + streaming STT/TTS, realtime speech-to-speech |
+| **Pick a model** without hardcoding IDs that churn | `resolve_model("cheapest" \| "economy" \| "best")` per role (`chat` / `image` / `video` / `voice`); `pin=` still wins |
+| **See what a feature costs** (tokens, estimated USD, OpenTelemetry) | Purpose-tagged `UsageMeter` — `purpose=` is required when a meter is attached |
+| **Test without an API key** or live spend | `MockChatProvider` + `inject_catalog` — CI stays offline |
+| **Keep keys out of the browser** for realtime voice | Server-side `create_realtime_client_secret` (and the `sec-websocket-protocol` helper) |
+| **Bring your own credentials / IdP** | `api_key=` or a `CredentialStore`; OAuth URLs are caller-supplied, never hardcoded |
+| **Use the rest of the xAI surface** | Files, embeddings, tokenize, batch, collections, Responses, priority and deferred chat |
+
+Not an official xAI package. Domain schemas and the tool loop stay in your app.
 
 ## Install
 
