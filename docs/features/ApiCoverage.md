@@ -1,6 +1,6 @@
 # ApiCoverage
 
-**Last Updated**: 2026-08-13 *(service tier + deferred chat)*  
+**Last Updated**: 2026-08-13 *(async client twin)*  
 **Related TODO**: [ApiCoverage-TODO.md](ApiCoverage-TODO.md)
 
 ## Overview
@@ -33,7 +33,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 | Batch | `XaiClient` (this spec) | Yes |
 | Collections / documents | `XaiClient` (this spec) | Yes |
 | Responses / built-in agent tools | Additive wrap — **do not replace** `chat` | Yes |
-| Async twin | Optional parallel API (`aio`) — **not** a rewrite of sync | No |
+| Async twin | Optional parallel API (`aio`) — **not** a rewrite of sync | Yes |
 | Service tier / deferred | Pass-through knob when a method already exists | Yes |
 | Auth subclient / User types | Out of kit — [ConnectAuth](ConnectAuth.md) stays stores + OAuth helpers | N/A |
 
@@ -41,7 +41,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 
 - **Owns**: target shape for unsplit surfaces; inventory vs `xai_sdk` + xAI docs; ranking
 - **Does not own**: shipped chat/media/catalog/connect behavior (those specs); video; realtime voice
-- **Public API (target)**: methods on `XaiClient` or a thin submodule imported from `xaikit`. Same `api_key` / `CredentialStore` / `UsageMeter` / mock-or-httpx-contract tests
+- **Public API (target)**: methods on `XaiClient` / `AsyncXaiClient` or a thin submodule imported from `xaikit`. Same `api_key` / `CredentialStore` / `UsageMeter` / mock-or-httpx-contract tests
 
 ### Shared rules *(every new method)*
 
@@ -99,7 +99,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 - Prefer SDK when it already models the surface; REST/httpx when that is what shipped media uses and the SDK is thin.
 - `file_id` is an opaque string from Files or Imagine `file_output`; do not parse it.
 - Built-in agent tools stay opt-in knobs, never default-on for `chat`.
-- Async, if added, mirrors sync method names on an async client — no split feature set.
+- Async, if added, mirrors sync method names on an async client — no split feature set. `AsyncXaiClient` is that twin: same public method names, all awaitable; REST via `httpx.AsyncClient`; WS via `connect_*_websocket_async`; live chat via `xai_sdk.AsyncClient`. Not `asyncio.to_thread` around sync I/O.
 
 ## Decisions
 
@@ -122,6 +122,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 | 2026-08-13 | Responses: httpx REST `create_response` / `get_response`; `modality="responses"`; tools opt-in never default-on; do not replace `chat` | Official OpenAPI `POST /v1/responses` + `GET /v1/responses/{response_id}`. Built-in tools stay caller-supplied. Distinct modality so chat metering stays separate. Public table has no Responses/tools rate — no invented USD. `get_response` does not re-count stored generation tokens (same as `get_file` / `get_batch`). |
 | 2026-08-13 | Service tier: pass-through `"default"` \| `"priority"` on chat + Responses; omit when None; never invent other values | Official docs https://docs.x.ai/developers/advanced-api-usage/priority-processing. SDK `chat.create(service_tier=)` already models the knob. |
 | 2026-08-13 | Deferred chat: separate `create_deferred_chat` / `get_deferred_chat` REST helpers; 202 → `{status: "pending"}`; `modality="chat"`; no USD | SDK has no `deferred=` on create. REST matches files/responses. Do not overload `chat` → `CompletionResponse`. 202 is pollable, not an exception. |
+| 2026-08-13 | `AsyncXaiClient` same-name twin of the full sync surface (chat + REST + WS + SDK RPC) | No split feature set. Kit httpx paths use `httpx.AsyncClient`; kit WS uses async connect helpers; live chat uses `xai_sdk.AsyncClient`. |
 
 ## Dependencies
 
@@ -140,10 +141,11 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 - [x] Human ranking recorded (Human-TODO)
 - [x] Winner split: [RealtimeVoice](RealtimeVoice.md)
 - [x] Target homes + shared rules recorded (this spec)
+- [x] Async twin `AsyncXaiClient` (same method names; no split feature set)
 - [ ] Each **implemented** slice matches its home spec (or a new map row created the same turn)
 - [ ] No silent “wrap the entire SDK” in one change
 
 ## Current status
 
-- **In progress**: remainder unordered after video + realtime voice + ClientChat extras + Files + embeddings + tokenizer + batch + collections + Responses + service tier / deferred
+- **In progress**: remainder unordered after video + realtime voice + ClientChat extras + Files + embeddings + tokenizer + batch + collections + Responses + service tier / deferred + async twin
 - **Blocked by**: —

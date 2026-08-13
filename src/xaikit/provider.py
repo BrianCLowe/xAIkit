@@ -6,7 +6,7 @@ Live path uses the xAI SDK. Offline tests inject :class:`MockChatProvider`.
 from __future__ import annotations
 
 import json
-from collections.abc import Callable, Iterator
+from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
@@ -76,6 +76,43 @@ class ChatProvider(Protocol):
         response_format: Any = None,
         service_tier: str | None = None,
     ) -> Iterator[ProviderStreamChunk]: ...
+
+
+@runtime_checkable
+class AsyncChatProvider(Protocol):
+    """Async twin of :class:`ChatProvider` — same method names, awaitable."""
+
+    async def complete(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        model: str,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+        thought_level: str | None = None,
+        system_prompt: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        parallel_tool_calls: bool | None = None,
+        response_format: Any = None,
+        service_tier: str | None = None,
+    ) -> ProviderResponse: ...
+
+    def stream(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        model: str,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+        thought_level: str | None = None,
+        system_prompt: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        parallel_tool_calls: bool | None = None,
+        response_format: Any = None,
+        service_tier: str | None = None,
+    ) -> AsyncIterator[ProviderStreamChunk]: ...
 
 
 def _parse_tool_arguments(raw: Any) -> Any:
@@ -739,4 +776,161 @@ class MockChatProvider:
                 finish_reason=finish if is_last else None,
                 tool_call_delta=tool_calls if is_last else None,
                 tool_calls=tool_calls if is_last else None,
+            )
+
+    async def async_complete(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        model: str,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+        thought_level: str | None = None,
+        system_prompt: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        parallel_tool_calls: bool | None = None,
+        response_format: Any = None,
+        service_tier: str | None = None,
+    ) -> ProviderResponse:
+        """In-memory async twin of :meth:`complete` (no thread offload)."""
+        return self.complete(
+            messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            thought_level=thought_level,
+            system_prompt=system_prompt,
+            tools=tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            response_format=response_format,
+            service_tier=service_tier,
+        )
+
+    async def async_stream(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        model: str,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+        thought_level: str | None = None,
+        system_prompt: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        parallel_tool_calls: bool | None = None,
+        response_format: Any = None,
+        service_tier: str | None = None,
+    ) -> AsyncIterator[ProviderStreamChunk]:
+        """In-memory async twin of :meth:`stream` (no thread offload)."""
+        for chunk in self.stream(
+            messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            thought_level=thought_level,
+            system_prompt=system_prompt,
+            tools=tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            response_format=response_format,
+            service_tier=service_tier,
+        ):
+            yield chunk
+
+
+class AsyncSdkChatProvider:
+    """Thin adapter over ``xai_sdk.AsyncClient`` (live async chat path)."""
+
+    def __init__(self, client: Any) -> None:
+        self._client = client
+
+    async def complete(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        model: str,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+        thought_level: str | None = None,
+        system_prompt: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        parallel_tool_calls: bool | None = None,
+        response_format: Any = None,
+        service_tier: str | None = None,
+    ) -> ProviderResponse:
+        chat_messages = _build_sdk_messages(messages, system_prompt=system_prompt)
+        kwargs = _sdk_chat_kwargs(
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            thought_level=thought_level,
+            tools=tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            response_format=response_format,
+            service_tier=service_tier,
+        )
+        chat = self._client.chat.create(messages=chat_messages, **kwargs)
+        response = await chat.sample()
+        text = _text_from_sdk(getattr(response, "content", ""))
+        reasoning = _text_from_sdk(getattr(response, "reasoning_content", None))
+        finish = getattr(response, "finish_reason", None)
+        echoed = getattr(response, "service_tier", None)
+        echoed_s = str(echoed).strip() if echoed else None
+        return ProviderResponse(
+            content=str(text),
+            usage=_usage_from_sdk(response),
+            model=model,
+            raw=response,
+            reasoning_content=str(reasoning) if reasoning else None,
+            finish_reason=str(finish) if finish is not None else None,
+            tool_calls=_normalize_tool_calls(getattr(response, "tool_calls", None)),
+            service_tier=echoed_s or None,
+        )
+
+    async def stream(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        model: str,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+        thought_level: str | None = None,
+        system_prompt: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        parallel_tool_calls: bool | None = None,
+        response_format: Any = None,
+        service_tier: str | None = None,
+    ) -> AsyncIterator[ProviderStreamChunk]:
+        chat_messages = _build_sdk_messages(messages, system_prompt=system_prompt)
+        kwargs = _sdk_chat_kwargs(
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            thought_level=thought_level,
+            tools=tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            response_format=response_format,
+            service_tier=service_tier,
+        )
+        chat = self._client.chat.create(messages=chat_messages, **kwargs)
+        async for response, chunk in chat.stream():
+            delta = _text_from_sdk(getattr(chunk, "content", ""))
+            reasoning_delta = _text_from_sdk(getattr(chunk, "reasoning_content", None))
+            accumulated = _text_from_sdk(getattr(response, "content", ""))
+            finish = getattr(response, "finish_reason", None)
+            yield ProviderStreamChunk(
+                delta=str(delta),
+                accumulated=str(accumulated),
+                usage=_usage_from_sdk(response) or _usage_from_sdk(chunk),
+                finish_reason=str(finish) if finish is not None else None,
+                reasoning_delta=str(reasoning_delta) if reasoning_delta else None,
+                raw=(response, chunk),
+                tool_call_delta=_normalize_tool_calls(getattr(chunk, "tool_calls", None)),
+                tool_calls=_normalize_tool_calls(getattr(response, "tool_calls", None)),
             )

@@ -1,11 +1,11 @@
 # ClientChat
 
-**Last Updated**: 2026-08-13 *(service tier + deferred helpers)*  
+**Last Updated**: 2026-08-13 *(async client twin)*  
 **Related TODO**: [ClientChat-TODO.md](ClientChat-TODO.md)
 
 ## Overview
 
-Typed chat transport: `XaiClient.chat`, `chat_json`, and `chat_stream`. Live path uses `SdkChatProvider` over `xai_sdk.Client`; tests inject `MockChatProvider`. Domain schemas stay in consuming apps.
+Typed chat transport: `XaiClient.chat`, `chat_json`, and `chat_stream`, plus the async twin `AsyncXaiClient` with the same method names. Live path uses `SdkChatProvider` over `xai_sdk.Client` (sync) or `AsyncSdkChatProvider` over `xai_sdk.AsyncClient` (async); tests inject `MockChatProvider` (sync `complete`/`stream` plus `async_complete`/`async_stream`). Domain schemas stay in consuming apps.
 
 The same methods accept tool defs, multimodal content parts, and native structured outputs on `chat_json`. Do not add a second chat client or replace `chat` with the Responses API.
 
@@ -13,7 +13,7 @@ The same methods accept tool defs, multimodal content parts, and native structur
 
 - **Owns**: message list → completion/stream; knob forwarding; retry on open; optional usage/trace hooks; tool defs + tool-result turns; image/video message parts; schema structured outputs on `chat_json`; `service_tier`; deferred chat create/get helpers
 - **Does not own**: product prompts, the app’s tool *loop* (kit never executes tools), UI, media REST (see [MediaRest](MediaRest.md)), Responses-as-default / built-in agent tools
-- **Public API**: `XaiClient`, `ChatProvider`, `MockChatProvider`, `SdkChatProvider`, `CompletionResponse`, `StreamChunk`
+- **Public API**: `XaiClient`, `AsyncXaiClient`, `ChatProvider`, `AsyncChatProvider`, `MockChatProvider`, `SdkChatProvider`, `AsyncSdkChatProvider`, `CompletionResponse`, `StreamChunk`
 
 Knobs forwarded to the provider: `model`, `temperature`, `max_tokens`, `thought_level`, `system_prompt`, `tools` / `tool_choice` / `parallel_tool_calls`, multimodal `content` parts, `chat_json` `schema` / `response_format`, `service_tier` (`"default"` | `"priority"`; omit when `None`). `effort` is an alias for `thought_level`. `thought_level` maps to xAI `reasoning_effort` (`low` \| `high`; `med`/`medium`/`mid` → `low`).
 
@@ -46,6 +46,7 @@ When a `UsageMeter` is attached, `purpose` is required. Without a meter, purpose
 | 2026-08-13 | `chat_json(schema=)` aliases `response_format=`; `schema=` wins if both are set | Convenience for JSON Schema / pydantic; still one provider knob |
 | 2026-08-13 | Mock dict replies with a `tool_calls` key are structured (not `json.dumps`’d) | Lets tests script tool calls without breaking existing `chat_json` dict replies |
 | 2026-08-13 | Deferred chat is `create_deferred_chat` + `get_deferred_chat`, not a `chat(..., deferred=True)` return-type fork | `CompletionResponse` would lie for `{request_id}`; matches files/responses helpers. SDK has no `deferred=` on create. |
+| 2026-08-13 | `AsyncXaiClient` is a same-name async twin (not chat-only; REST/WS included) | ApiCoverage: no split feature set. Real `httpx.AsyncClient` / async websockets / `xai_sdk.AsyncClient` — not `asyncio.to_thread` around sync I/O. |
 
 ## Dependencies
 
@@ -66,8 +67,9 @@ When a `UsageMeter` is attached, `purpose` is required. Without a meter, purpose
 - [x] Native structured outputs on `chat_json`
 - [x] `service_tier` on `chat` / `chat_stream` / `chat_json` (`default` \| `priority`)
 - [x] Deferred chat helpers (`create_deferred_chat` / `get_deferred_chat`)
+- [x] Async twin `AsyncXaiClient` with the same chat method names (`chat` / `chat_json` / `chat_stream`)
 
 ## Current status
 
-- **In progress**: none on chat path (service tier + deferred covering shipped)
+- **In progress**: none on chat path (async twin shipped)
 - **Last reconciled with code**: 2026-08-13

@@ -1,21 +1,21 @@
 # ClientChat — TODO
 
-**Last Updated**: 2026-08-13 *(service tier + deferred covering)*  
+**Last Updated**: 2026-08-13 *(async client twin)*  
 **Related Spec**: [ClientChat.md](ClientChat.md)
 
 ---
 
 ## Current focus *(session handoff)*
 
-**Active task:** Chat extras shipped (tools, vision parts, `chat_json` schema, `service_tier`, deferred helpers). Next library work is not on this stem — remainder lives on [ApiCoverage-TODO.md](ApiCoverage-TODO.md) (unordered) or Low (async twin).  
+**Active task:** Chat extras + async twin shipped. Next library work is not on this stem — remainder lives on [ApiCoverage-TODO.md](ApiCoverage-TODO.md) (unordered).  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — covering service tier + deferred chat helpers from [ApiCoverage-TODO.md](ApiCoverage-TODO.md)
+**Last session:** 2026-08-13 — `AsyncXaiClient` same-name twin (covering [ApiCoverage-TODO.md](ApiCoverage-TODO.md) async client)
 
 ---
 
 ## High Priority / Next Actions
 
-*(none — text path + tools/vision/schema/service_tier/deferred shipped.)*
+*(none — text path + tools/vision/schema/service_tier/deferred + async twin shipped.)*
 
 ## Medium Priority
 
@@ -23,7 +23,7 @@
 
 ## Low Priority / Future Ideas
 
-- [ ] Async `XaiClient` twin if callers need it (xai-sdk has `aio`)
+*(none)*
 
 ## Cross-Feature Dependencies & Integration Notes
 
@@ -39,3 +39,4 @@
 - [x] Multimodal chat messages — image (and later video) parts, not only `list[dict[str, str]]` (2026-08-13)
 - [x] Native structured outputs — `chat_json` uses xAI schema / `response_format` (fence-strip fallback) (2026-08-13)
 - [x] Service tier / deferred chat helpers — covering [ApiCoverage-TODO.md](ApiCoverage-TODO.md) (`service_tier` on chat; `create_deferred_chat` / `get_deferred_chat`) (2026-08-13)
+- [x] Async `XaiClient` twin if callers need it (xai-sdk has `aio`) — `AsyncXaiClient`; covering [ApiCoverage-TODO.md](ApiCoverage-TODO.md) (2026-08-13)

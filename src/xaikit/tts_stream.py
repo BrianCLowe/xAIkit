@@ -12,7 +12,9 @@ import base64
 import json
 import logging
 import time
-from collections.abc import Callable, Iterator, Mapping
+import asyncio
+import inspect
+from collections.abc import AsyncIterator, Callable, Iterator, Mapping
 from typing import Any, NoReturn
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
@@ -142,6 +144,13 @@ def connect_tts_websocket(uri: str, **kwargs: Any) -> Any:
     from websockets.sync.client import connect
 
     return connect(uri, **kwargs)
+
+
+async def connect_tts_websocket_async(uri: str, **kwargs: Any) -> Any:
+    """Open an async WebSocket. Tests monkeypatch this (like ``httpx.AsyncClient``)."""
+    from websockets.asyncio.client import connect
+
+    return await connect(uri, **kwargs)
 
 
 def decode_tts_audio(event: dict[str, Any]) -> bytes | None:
@@ -326,6 +335,213 @@ class TtsSession:
                 closer = getattr(self._ws, "close", None)
                 if callable(closer):
                     closer()
+            except Exception:
+                logger.exception("TTS websocket close failed after send/recv error")
+        raise RuntimeError(f"{prefix}: {exc}") from exc
+
+    def _finish_meter(
+        self,
+        *,
+        success: bool,
+        error: str | None,
+        duration: float,
+    ) -> None:
+        if self._metered:
+            return
+        self._metered = True
+        self._record(
+            purpose=self._purpose,
+            usage={"duration": duration},
+            parent_id=self._parent_id,
+            labels=self._labels,
+            success=success,
+            thought_level=None,
+            error=error,
+            modality="tts",
+            model=self.model,
+            apply_price_table=False,
+        )
+
+
+async def _await_maybe(result: Any) -> Any:
+    if inspect.isawaitable(result):
+        return await result
+    return result
+
+
+async def _ws_recv(ws: Any, *, timeout: float | None) -> Any:
+    recv = ws.recv
+    used_native_timeout = False
+    if timeout is None:
+        result = recv()
+    else:
+        try:
+            result = recv(timeout=timeout)
+            used_native_timeout = True
+        except TypeError:
+            result = recv()
+    if inspect.isawaitable(result):
+        if timeout is not None and not used_native_timeout:
+            return await asyncio.wait_for(result, timeout=timeout)
+        return await result
+    return result
+
+
+class AsyncTtsSession:
+    """One streaming-TTS connection (async, async-context-manager). Not STS."""
+
+    def __init__(
+        self,
+        ws: Any,
+        *,
+        purpose: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        record: Callable[..., None],
+        error_class: Callable[[BaseException], str],
+        model: str = "tts",
+    ) -> None:
+        self._ws = ws
+        self.model = model
+        self._purpose = purpose
+        self._parent_id = parent_id
+        self._labels = labels
+        self._record = record
+        self._error_class = error_class
+        self._t0 = time.monotonic()
+        self._closed = False
+        self._metered = False
+
+    async def __aenter__(self) -> AsyncTtsSession:
+        return self
+
+    async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+        closed_ok = exc_type is not None and issubclass(exc_type, TtsClosed)
+        ok = exc_type is None or closed_ok
+        err = None if ok else (self._error_class(exc) if exc is not None else None)
+        try:
+            await self.close(success=ok, error=err)
+        except Exception:
+            if ok:
+                raise
+            logger.exception("TTS session close failed after error")
+        return closed_ok
+
+    async def send_text(self, delta: str) -> None:
+        """Send a ``text.delta`` JSON frame. Individual deltas cap at 15,000 chars."""
+        if not isinstance(delta, str):
+            raise RuntimeError("TTS text must be a string")
+        if not delta:
+            raise RuntimeError("TTS text is empty")
+        if len(delta) > TTS_MAX_DELTA_CHARS:
+            raise RuntimeError(
+                f"TTS text.delta exceeds {TTS_MAX_DELTA_CHARS} characters"
+            )
+        await self._send_json({"type": "text.delta", "delta": delta})
+
+    async def text_done(self) -> None:
+        """Signal end of the current utterance (``text.done``)."""
+        await self._send_json({"type": "text.done"})
+
+    async def text_clear(self) -> None:
+        """Cancel the current utterance (``text.clear``)."""
+        await self._send_json({"type": "text.clear"})
+
+    async def update_session(self, replace: Mapping[str, str]) -> None:
+        """Send ``session.update`` with a pronunciation ``replace`` map."""
+        if not isinstance(replace, Mapping) or not replace:
+            raise RuntimeError("TTS replace map is empty")
+        payload = {str(k): str(v) for k, v in replace.items()}
+        await self._send_json({"type": "session.update", "replace": payload})
+
+    async def recv(self, *, timeout: float | None = None) -> dict[str, Any]:
+        """Receive the next server JSON event."""
+        return await self._recv_raw(timeout=timeout)
+
+    async def events(self) -> AsyncIterator[dict[str, Any]]:
+        """Yield server JSON events until the socket closes (normal close is success)."""
+        while True:
+            try:
+                yield await self.recv()
+            except TtsClosed:
+                return
+
+    async def close(
+        self,
+        *,
+        success: bool = True,
+        error: str | None = None,
+    ) -> None:
+        """Close the socket and record usage once (success or failure)."""
+        if self._closed:
+            return
+        self._closed = True
+        duration = max(0.0, time.monotonic() - self._t0)
+        original_success = success
+        close_exc: BaseException | None = None
+        try:
+            closer = getattr(self._ws, "close", None)
+            if callable(closer):
+                await _await_maybe(closer())
+        except Exception as exc:
+            close_exc = exc
+            logger.exception("TTS websocket close failed")
+            if success:
+                success = False
+                error = error or self._error_class(exc)
+        self._finish_meter(success=success, error=error, duration=duration)
+        if close_exc is not None and original_success:
+            raise RuntimeError(f"TTS session close failed: {close_exc}") from close_exc
+
+    async def _send_json(self, event: dict[str, Any]) -> None:
+        try:
+            await _await_maybe(self._ws.send(json.dumps(event)))
+        except Exception as exc:
+            await self._fail(exc, "TTS send failed")
+
+    async def _recv_raw(self, timeout: float | None = None) -> dict[str, Any]:
+        try:
+            message = await _ws_recv(self._ws, timeout=timeout)
+        except TimeoutError:
+            raise
+        except TtsClosed:
+            raise
+        except Exception as exc:
+            if _is_timeout(exc):
+                raise TimeoutError(str(exc) or "TTS recv timed out") from exc
+            if _is_normal_close(exc):
+                raise TtsClosed(str(exc) or "TTS connection closed") from exc
+            await self._fail(exc, "TTS recv failed")
+        if isinstance(message, bytes):
+            try:
+                message = message.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                await self._fail(exc, "TTS recv returned non-JSON")
+        if isinstance(message, dict):
+            payload = message
+        else:
+            try:
+                payload = json.loads(message)
+            except (TypeError, json.JSONDecodeError) as exc:
+                await self._fail(exc, "TTS recv returned non-JSON")
+        if not isinstance(payload, dict):
+            raise RuntimeError("TTS recv returned unexpected payload")
+        kind = payload.get("type")
+        if kind == "error":
+            detail = payload.get("message") or payload.get("error") or "unknown error"
+            await self._fail(RuntimeError(str(detail)), "TTS stream error")
+        return payload
+
+    async def _fail(self, exc: BaseException, prefix: str) -> NoReturn:
+        err = self._error_class(exc)
+        duration = max(0.0, time.monotonic() - self._t0)
+        self._finish_meter(success=False, error=err, duration=duration)
+        if not self._closed:
+            self._closed = True
+            try:
+                closer = getattr(self._ws, "close", None)
+                if callable(closer):
+                    await _await_maybe(closer())
             except Exception:
                 logger.exception("TTS websocket close failed after send/recv error")
         raise RuntimeError(f"{prefix}: {exc}") from exc

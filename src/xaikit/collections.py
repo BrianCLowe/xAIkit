@@ -12,6 +12,7 @@ reads ``XAI_MANAGEMENT_KEY`` from the environment when constructing
 
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 _COLLECTION_OPS = frozenset(
@@ -90,6 +91,83 @@ def call_collections_rpc(
         kwargs["query"],
         kwargs["collection_ids"],
         limit=kwargs.get("limit"),
+    )
+    return search_to_dict(raw)
+
+
+async def _await_rpc(result: Any) -> Any:
+    if inspect.isawaitable(result):
+        return await result
+    return result
+
+
+async def call_collections_rpc_async(
+    operation: str,
+    *,
+    sdk_client: Any = None,
+    **kwargs: Any,
+) -> Any:
+    """Async twin of :func:`call_collections_rpc`. Tests monkeypatch this."""
+    op = (operation or "").strip()
+    if op not in _COLLECTION_OPS:
+        raise RuntimeError(f"Unknown collections operation: {operation!r}")
+    if sdk_client is None:
+        raise RuntimeError(
+            "Collections SDK client is not available. Pass api_key= (not only "
+            "provider=) or monkeypatch call_collections_rpc_async for offline tests."
+        )
+    collections_api = getattr(sdk_client, "collections", None)
+    if collections_api is None:
+        raise RuntimeError("SDK client has no collections subclient")
+
+    if op == "create":
+        create_kwargs: dict[str, Any] = {"name": kwargs.get("name")}
+        if kwargs.get("model_name"):
+            create_kwargs["model_name"] = kwargs["model_name"]
+        if kwargs.get("chunk_configuration") is not None:
+            create_kwargs["chunk_configuration"] = kwargs["chunk_configuration"]
+        if kwargs.get("description"):
+            create_kwargs["description"] = kwargs["description"]
+        return collection_to_dict(
+            await _await_rpc(collections_api.create(**create_kwargs))
+        )
+
+    if op == "get":
+        return collection_to_dict(
+            await _await_rpc(collections_api.get(kwargs["collection_id"]))
+        )
+
+    if op == "list":
+        raw = await _await_rpc(
+            collections_api.list(
+                limit=kwargs.get("limit"),
+                pagination_token=kwargs.get("pagination_token"),
+            )
+        )
+        return list_collections_to_dict(raw)
+
+    if op == "delete":
+        collection_id = kwargs["collection_id"]
+        await _await_rpc(collections_api.delete(collection_id))
+        return {"id": collection_id, "deleted": True}
+
+    if op == "upload_document":
+        raw = await _await_rpc(
+            collections_api.upload_document(
+                kwargs["collection_id"],
+                kwargs["name"],
+                kwargs["data"],
+                fields=kwargs.get("fields"),
+            )
+        )
+        return document_to_dict(raw)
+
+    raw = await _await_rpc(
+        collections_api.search(
+            kwargs["query"],
+            kwargs["collection_ids"],
+            limit=kwargs.get("limit"),
+        )
     )
     return search_to_dict(raw)
 

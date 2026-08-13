@@ -35,6 +35,20 @@ client = XaiClient(
 resp = client.chat([{"role": "user", "content": "hello"}], purpose="demo.chat")
 ```
 
+Async twin (`AsyncXaiClient`) uses the same method names; REST uses `httpx.AsyncClient` and live chat uses `xai_sdk.AsyncClient`. `MockChatProvider` works with both clients:
+
+```python
+import asyncio
+from xaikit import AsyncXaiClient, MockChatProvider
+
+async def main() -> None:
+    client = AsyncXaiClient(provider=MockChatProvider(replies="hi"), model="grok-4.5")
+    resp = await client.chat([{"role": "user", "content": "hello"}])
+    print(resp.content)
+
+asyncio.run(main())
+```
+
 When `usage_meter` is attached, **purpose is required**. Without a meter, purpose is optional.
 
 Optional OpenTelemetry export (`pip install xaikit[otel]`): `OpenTelemetryUsageSink` increments `xaikit.usage.calls` / `xaikit.usage.tokens` (attributes: purpose, model, modality, success). It is export-only — pair with `InMemoryUsageSink` via `CompositeUsageSink` to inspect events.

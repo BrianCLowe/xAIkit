@@ -1,6 +1,6 @@
 # ApiCoverage — TODO
 
-**Last Updated**: 2026-08-13 *(service tier + deferred chat)*  
+**Last Updated**: 2026-08-13 *(async client twin)*  
 **Related Spec**: [ApiCoverage.md](ApiCoverage.md)
 
 ---
@@ -9,7 +9,7 @@
 
 **Active task:** Remainder unordered — implement against [ApiCoverage.md](ApiCoverage.md); do not invent a second client.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — Service tier (`default`/`priority`) on chat + Responses; deferred chat `create_deferred_chat` / `get_deferred_chat` REST; covering [ClientChat-TODO.md](ClientChat-TODO.md)
+**Last session:** 2026-08-13 — Async twin `AsyncXaiClient` (same method names; REST `httpx.AsyncClient`; WS `connect_*_websocket_async`; live chat `xai_sdk.AsyncClient`); covering [ClientChat-TODO.md](ClientChat-TODO.md)
 
 ---
 
@@ -25,7 +25,7 @@
 
 ## Low Priority / Future Ideas
 
-- [ ] Async client
+*(none)*
 
 ## Cross-Feature Dependencies & Integration Notes
 
@@ -52,3 +52,4 @@
 - [x] Collections / documents — `XaiClient` create/get/list/delete/upload_document/search via SDK `call_collections_rpc`; meter `modality="collections"` (2026-08-13)
 - [x] Built-in agent tools / Responses API — `XaiClient.create_response` / `get_response` REST `/v1/responses`; tools opt-in; meter `modality="responses"`; do not replace `chat` (2026-08-13)
 - [x] Service tier / deferred APIs — `service_tier` on chat + `create_response`; `create_deferred_chat` / `get_deferred_chat` REST; covering [ClientChat-TODO.md](ClientChat-TODO.md) (2026-08-13)
+- [x] Async client — `AsyncXaiClient` same-name twin of the full sync surface; covering [ClientChat-TODO.md](ClientChat-TODO.md) (2026-08-13)
