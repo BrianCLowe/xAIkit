@@ -1,6 +1,6 @@
 # UsageObservability — TODO
 
-**Last Updated**: 2026-08-13 *(OpenTelemetry export sink shipped)*  
+**Last Updated**: 2026-08-13 *(price-table provenance)*  
 **Related Spec**: [UsageObservability.md](UsageObservability.md)
 
 ---
@@ -9,7 +9,7 @@
 
 **Active task:** Stem shipped — High/Medium/Low empty. Human verify look-list is open.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — `OpenTelemetryUsageSink` (optional `xaikit[otel]`; counters `xaikit.usage.calls` / `xaikit.usage.tokens`; tests mock OTel)
+**Last session:** 2026-08-13 — `PriceTable.source_url` / `fetched`; `save_price_table_template`; README pricing provenance (no auto-fetch; no invented USD)
 
 ---
 
@@ -58,3 +58,4 @@ Library-only look-list — reply in chat when done (do not mark this row yoursel
 - [x] **`modality="responses"`** on create_response/get_response — same purpose/labels/success rules; no invented USD (2026-08-13)
 - [x] Realtime client-secret mint — purpose/success, `modality="realtime"`, no duration/USD (`apply_price_table=False`) (2026-08-13)
 - [x] OpenTelemetry export sink (2026-08-13)
+- [x] Price table provenance (`source_url` / `fetched`) + overlay template (2026-08-13)

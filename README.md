@@ -4,7 +4,7 @@
 
 # xAIkit
 
-**Early testing release (`0.1.0a2`).** Not an official xAI package. The API may change; expect rough edges. A non-alpha release will follow after more testing. Problems or feedback: [open an issue](https://github.com/BrianCLowe/xAIkit/issues).
+**Early testing release (`0.1.0a3`).** Not an official xAI package. The API may change; expect rough edges. A non-alpha release will follow after more testing. Problems or feedback: [open an issue](https://github.com/BrianCLowe/xAIkit/issues).
 
 **Unofficial** Python kit for the **xAI (Grok) API** — one typed client, living model catalog, usage metering, media, and realtime voice. Not a multi-provider SDK.
 
@@ -29,6 +29,22 @@ A **Python library for the Grok / xAI API** — one typed client so your app can
 
 Not an official xAI package. Domain schemas and the tool loop stay in your app.
 
+## How this differs from the official SDK
+
+The official [xAI Python SDK](https://github.com/xai-org/xai-sdk-python) (`xai_sdk`) is the gRPC client xAI ships. xAIkit **uses it for live chat** and adds a kit around it:
+
+| | Official SDK | xAIkit |
+| --- | --- | --- |
+| Status | Official | Unofficial kit (this repo / `xaikit-py`) |
+| Chat live path | `xai_sdk.Client` / protobuf | Same SDK under `XaiClient`; you see **JSON dicts**, not protobuf |
+| Tests without a key | You mock gRPC | `MockChatProvider` + `inject_catalog` |
+| Model pick | You hardcode ids | `resolve_model("cheapest" \| "economy" \| "best")` per role |
+| Cost | None | Purpose-tagged `UsageMeter` + a copied public price table (estimates, not invoices) |
+| REST / WS extras | Separate HTTP/WS samples | Image, video, STT/TTS, realtime voice, Files, batch, collections on the same client |
+| Auth | API key | API key, `CredentialStore`, or **caller-supplied** OAuth URLs — no User types, no grok.com login |
+
+Install stays `xaikit-py`; `import xaikit`. You can use both packages in one app.
+
 ## Install
 
 This is a **pre-release**. A plain `pip install xaikit-py` / `uv add xaikit-py` will not pick it up until a non-alpha version exists. The import stays `xaikit` (the PyPI name is `xaikit-py` because `xaikit` was too close to an existing explainable-AI project).
@@ -39,7 +55,7 @@ uv add xaikit-py --prerelease allow
 # or: pip install --pre xaikit-py
 
 # From a git tag
-uv add "xaikit-py @ git+https://github.com/BrianCLowe/xAIkit@v0.1.0a2"
+uv add "xaikit-py @ git+https://github.com/BrianCLowe/xAIkit@v0.1.0a3"
 
 # Editable neighbor checkout
 uv add --editable ../xAIkit
@@ -84,6 +100,24 @@ asyncio.run(main())
 
 When `usage_meter` is attached, **purpose is required**. Without a meter, purpose is optional.
 
+### Pricing estimates *(not invoices)*
+
+`UsageMeter` can attach a `PriceTable`. The bootstrap table is a **manual copy** of xAI’s public list prices — not a live billing feed and not an invoice.
+
+- **Source:** [docs.x.ai/developers/pricing](https://docs.x.ai/developers/pricing) (chat also [docs.x.ai/docs/models](https://docs.x.ai/docs/models))
+- **Last copied into the kit:** `default_price_table().fetched` (also `PRICE_TABLE_FETCHED`)
+- **Refresh:** re-read those pages and update the dicts in `src/xaikit/pricing.py` (kit release), **or** overlay JSON with `load_price_table("prices.json")` / `save_price_table_template("prices.json")` without waiting on a kit bump. There is no auto-fetch on import.
+- **No public rate → no invented USD.** Embeddings, tokenizer, batch, collections, Responses, Files, REST TTS, and similar still record purpose/tokens/success; `estimated_usd` stays unset.
+
+```python
+from xaikit import PRICE_TABLE_FETCHED, PRICE_TABLE_SOURCE_URL, default_price_table
+
+table = default_price_table()
+assert table.source_url == PRICE_TABLE_SOURCE_URL
+assert table.fetched == PRICE_TABLE_FETCHED
+# table.price_for("grok-4.6").input_per_million
+```
+
 Optional OpenTelemetry export (`pip install 'xaikit-py[otel]'`): `OpenTelemetryUsageSink` increments `xaikit.usage.calls` / `xaikit.usage.tokens` (attributes: purpose, model, modality, success). It is export-only — pair with `InMemoryUsageSink` via `CompositeUsageSink` to inspect events.
 
 ## Credentials and OAuth
@@ -116,6 +150,8 @@ url = build_oauth_authorize_url(
 #     token_url=token,
 # )
 ```
+
+This is **not** grok.com / SuperGrok login. A Grok subscription’s **weekly usage pool** (Settings → Usage in the Grok app) has no public API. The kit does not scrape it, does not show “how much you have left,” and does not mint User/Session objects. `UsageMeter` only records calls **your app** made through `XaiClient`. Team API prepaid remaining lives in the [xAI Console](https://console.x.ai) Usage Explorer (a management-key billing API, not OAuth).
 
 ## Catalog resolve
 
@@ -251,9 +287,14 @@ client = XaiClient(provider=MockChatProvider(), api_key="test-key")
 # Live: XaiClient(api_key=os.environ["XAI_API_KEY"])  # plus XAI_MANAGEMENT_KEY in env
 
 coll = client.create_collection("docs")
+# coll["id"] / coll["name"]
+listed = client.list_collections()
+# listed["collections"]
+got = client.get_collection(coll["id"])
 client.upload_document(coll["id"], "note.txt", b"hello world")
 hits = client.search_collections("hello", coll["id"])
 # hits["matches"][0]["chunk_content"] / file_id / score
+# client.delete_collection(coll["id"])
 ```
 
 When a usage meter is attached, `purpose=` is required. Events use `modality="collections"`. The public pricing table has no collections rate, so the meter records purpose/success without inventing USD.
@@ -296,9 +337,12 @@ with client.open_realtime_session(
     instructions="You are a helpful assistant.",
 ) as session:
     session.send_text("Hello!")
-    event = session.recv(timeout=30)
-    # audio bytes: decode_realtime_audio(event)  # when type is response.output_audio.delta
-    # session.send_audio(pcm16_bytes)
+    for _ in range(8):
+        event = session.recv(timeout=30)
+        pcm = decode_realtime_audio(event) if isinstance(event, dict) else None
+        if pcm:
+            break  # app owns playback; this library has no speaker
+    # session.send_audio(pcm16_bytes)  # app owns capture; this library has no mic
 ```
 
 Default model is `grok-voice-latest`. Constructor `voice_model=` overrides like `video_model=`. Custom `voice_id` strings on `voice=` work the same as built-in names like `eve`. REST STT/TTS stay on `transcribe` / `synthesize_speech`. Streaming STT is `open_stt_session`; streaming TTS is `open_tts_session` (not speech-to-speech).
