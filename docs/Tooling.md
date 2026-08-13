@@ -34,8 +34,9 @@ Machine / workflow tools to **develop this library** — not the package depende
 1. `uv sync --group dev`
 2. `uv run pytest`
 3. Optional: `uv run python scripts/smoke_meter_mock.py`
+4. Optional packaging: `uv build` then install the wheel (see Project verify)
 
-Do not commit `.env` / API keys. Live xAI calls are optional and not default CI.
+Do not commit `.env` / API keys. Live xAI calls are optional and not default CI. Do not store PyPI tokens in git — publish uses Trusted Publishing.
 
 ## Project verify *(agent handoff)*
 
@@ -44,10 +45,12 @@ Do not commit `.env` / API keys. Live xAI calls are optional and not default CI.
 | **Cheap / default** | Most code changes | `uv run pytest` | Offline; no API key. Live smokes stay skipped. |
 | **Touched package** | Library modules only | `uv run pytest tests/` | Same suite today |
 | **Full handoff** | Claiming the kit works | `uv run pytest` and `uv run python scripts/smoke_meter_mock.py` | Still offline |
+| **Package** | Wheel / PyPI / hatchling changes | `uv build`; `uv run --isolated --no-project --with dist/*.whl python -c "import xaikit; print(xaikit.__version__)"`; `uv run --isolated --no-project --with dist/*.whl --with pytest pytest tests -o pythonpath= -m "not live"` | Tests the artifact, not `src/` on `PYTHONPATH`. Wheel must not contain `docs/`. |
 | **Tests** | Always for Python changes | `uv run pytest` | Canonical wiring prove-out |
 | **Live (optional)** | Key present + explicit opt-in | `XAITKIT_LIVE=1 uv run pytest tests/test_live_smoke.py -m live -v` | Needs `XAI_API_KEY`; not CI. Video also needs `XAITKIT_LIVE_VIDEO=1`; realtime voice also needs `XAITKIT_LIVE_VOICE=1`; streaming STT also needs `XAITKIT_LIVE_STT=1`; embeddings also need `XAITKIT_LIVE_EMBED=1`. |
 
 ## Instructions for AI Agents
 
-- Before claiming code is good, run **Cheap / default**.
+- Before claiming code is good, run **Cheap / default**. After packaging/PyPI edits, also run **Package**.
 - Do not invent extra required tools. Live-key smokes stay optional and env-gated (`XAITKIT_LIVE=1` plus `XAI_API_KEY` — see Human-TODO Done).
+- First PyPI upload: human adds a pending Trusted Publisher (Human-TODO), then tag `v0.1.0a1`. Do not put PyPI tokens in the repo.

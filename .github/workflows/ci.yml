@@ -36,3 +36,45 @@ jobs:
 
       - name: Smoke (metered mock)
         run: uv run --python ${{ matrix.python-version }} python scripts/smoke_meter_mock.py
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Wheel has package, not docs/
+        run: |
+          uv run python - <<'PY'
+          import glob, zipfile
+          wheels = glob.glob("dist/*.whl")
+          assert wheels, "no wheel"
+          names = zipfile.ZipFile(wheels[0]).namelist()
+          assert any(n.startswith("xaikit/") for n in names), names[:20]
+          assert any(n.endswith("xaikit/py.typed") for n in names), names
+          leaked = [n for n in names if n.startswith("docs/") or "/templates/" in n]
+          assert not leaked, leaked
+          print("wheel ok:", wheels[0], "files", len(names))
+          PY
+
+      - name: Import from installed wheel
+        run: |
+          wheel=$(ls dist/*.whl)
+          uv run --isolated --no-project --with "$wheel" \
+            python -c "import xaikit; from xaikit import XaiClient; print(xaikit.__version__)"
+
+      - name: Pytest against installed wheel
+        run: |
+          wheel=$(ls dist/*.whl)
+          uv run --isolated --no-project --with "$wheel" --with pytest \
+            pytest tests -o pythonpath= -m "not live"
