@@ -1,15 +1,15 @@
 # UsageObservability — TODO
 
-**Last Updated**: 2026-08-13 *(realtime client-secret mint: purpose/success, no duration/USD)*  
+**Last Updated**: 2026-08-13 *(OpenTelemetry export sink shipped)*  
 **Related Spec**: [UsageObservability.md](UsageObservability.md)
 
 ---
 
 ## Current focus *(session handoff)*
 
-**Active task:** OpenTelemetry export sink (Low).  
+**Active task:** Stem shipped — High/Medium/Low empty.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — `modality="responses"` on `XaiClient.create_response` / `get_response`; no default USD row (public table has no Responses/tools rate)
+**Last session:** 2026-08-13 — `OpenTelemetryUsageSink` (optional `xaikit[otel]`; counters `xaikit.usage.calls` / `xaikit.usage.tokens`; tests mock OTel)
 
 ---
 
@@ -23,7 +23,7 @@
 
 ## Low Priority / Future Ideas
 
-- [ ] OpenTelemetry export sink
+*(none)*
 
 ## Cross-Feature Dependencies & Integration Notes
 
@@ -47,3 +47,4 @@
 - [x] **`modality="collections"`** on create/get/list/delete/upload_document/search — same purpose/labels/success rules; no invented USD (2026-08-13)
 - [x] **`modality="responses"`** on create_response/get_response — same purpose/labels/success rules; no invented USD (2026-08-13)
 - [x] Realtime client-secret mint — purpose/success, `modality="realtime"`, no duration/USD (`apply_price_table=False`) (2026-08-13)
+- [x] OpenTelemetry export sink (2026-08-13)

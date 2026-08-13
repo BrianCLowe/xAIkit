@@ -20,6 +20,9 @@ Repository = "https://github.com/BrianCLowe/xAIkit"
 [project.scripts]
 xaikit-gaps = "xaikit.gaps:main"
 
+[project.optional-dependencies]
+otel = ["opentelemetry-api>=1.20"]
+
 [dependency-groups]
 dev = [
     "pytest>=9.0.0",

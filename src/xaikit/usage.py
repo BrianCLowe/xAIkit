@@ -6,6 +6,7 @@ and require a purpose tag. Attribution is generic (parent_id + labels dict).
 
 from __future__ import annotations
 
+import importlib
 import json
 import logging
 import threading
@@ -150,6 +151,74 @@ class CompositeUsageSink:
         if not self.sinks:
             return []
         return self.sinks[0].iter_events()
+
+
+def _opentelemetry_metrics() -> Any:
+    """Import ``opentelemetry.metrics`` only when an OTel sink needs a default meter."""
+    try:
+        return importlib.import_module("opentelemetry.metrics")
+    except ImportError as exc:
+        raise RuntimeError(
+            "OpenTelemetryUsageSink requires OpenTelemetry. "
+            "Install with: pip install xaikit[otel] or opentelemetry-api"
+        ) from exc
+
+
+class OpenTelemetryUsageSink:
+    """Export-only ``UsageSink`` that records OpenTelemetry counters.
+
+    Instrumentation scope (when ``meter`` is omitted): ``get_meter("xaikit")``.
+
+    Mapping (one boring counter pair — not spans or histograms):
+
+    - ``xaikit.usage.calls`` — +1 per event
+    - ``xaikit.usage.tokens`` — +``total_tokens`` when known (skipped if None/0)
+
+    Attributes on both: ``purpose``, ``model``, ``modality``, ``success``.
+    Prompts and secrets are never attributes (``UsageEvent`` has no prompts;
+    ``error`` is class-only and is omitted here).
+
+    ``iter_events()`` raises ``NotImplementedError`` — this sink does not store
+    events. Inspect via ``CompositeUsageSink(InMemoryUsageSink(), …)`` (put the
+    memory sink first so ``UsageMeter.events()`` reads it).
+    """
+
+    def __init__(self, meter: Any | None = None) -> None:
+        if meter is None:
+            meter = _opentelemetry_metrics().get_meter("xaikit")
+        self._calls = meter.create_counter(
+            "xaikit.usage.calls",
+            unit="1",
+            description="Count of XaiKit usage events",
+        )
+        self._tokens = meter.create_counter(
+            "xaikit.usage.tokens",
+            unit="1",
+            description="Token counts from XaiKit usage events",
+        )
+
+    @staticmethod
+    def _attributes(event: UsageEvent) -> dict[str, str | bool]:
+        return {
+            "purpose": event.purpose,
+            "model": event.model or "",
+            "modality": event.modality or "",
+            "success": event.success,
+        }
+
+    def append(self, event: UsageEvent) -> None:
+        attrs = self._attributes(event)
+        self._calls.add(1, attributes=attrs)
+        tokens = event.total_tokens
+        if tokens:
+            self._tokens.add(tokens, attributes=attrs)
+
+    def iter_events(self) -> Iterable[UsageEvent]:
+        raise NotImplementedError(
+            "OpenTelemetryUsageSink is export-only; iter_events is not supported. "
+            "Use CompositeUsageSink(InMemoryUsageSink(), OpenTelemetryUsageSink()) "
+            "to inspect events in tests."
+        )
 
 
 # xAI video usage: 1 USD = 10_000_000_000 ticks (1 cent = 100_000_000 ticks).

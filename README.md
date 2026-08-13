@@ -37,6 +37,8 @@ resp = client.chat([{"role": "user", "content": "hello"}], purpose="demo.chat")
 
 When `usage_meter` is attached, **purpose is required**. Without a meter, purpose is optional.
 
+Optional OpenTelemetry export (`pip install xaikit[otel]`): `OpenTelemetryUsageSink` increments `xaikit.usage.calls` / `xaikit.usage.tokens` (attributes: purpose, model, modality, success). It is export-only — pair with `InMemoryUsageSink` via `CompositeUsageSink` to inspect events.
+
 ## Credentials and OAuth
 
 Pass `api_key=` or a `CredentialStore` (`EnvCredentialStore` / `DictCredentialStore`). The kit does **not** hardcode xAI portal URLs. OAuth helpers take **caller-supplied** `authorize_url` and `token_url`.
