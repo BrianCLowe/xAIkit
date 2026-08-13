@@ -1,27 +1,25 @@
 # MediaRest — TODO
 
-**Last Updated**: 2026-08-12 *(kit-coverage: Imagine `file_id` on generate/edit)*  
+**Last Updated**: 2026-08-13 *(image edit + Imagine `file_id` on generate/edit)*  
 **Related Spec**: [MediaRest.md](MediaRest.md)
 
 ---
 
 ## Current focus *(session handoff)*
 
-**Active task:** Image edit / streaming STT are target on this spec; video then realtime voice are the next **implement** slices.  
+**Active task:** Streaming STT — only if still unary-transcribe; STS is [RealtimeVoice-TODO.md](RealtimeVoice-TODO.md)  
 **Blocked by:** —  
-**Last session:** 2026-08-12 — live TTS / STT round-trip / Imagine smokes
+**Last session:** 2026-08-13 — `edit_image` JSON `/v1/images/edits`; surface `file_output.file_id` on generate/edit
 
 ---
 
 ## High Priority / Next Actions
 
-*(none blocking — shipped REST trio. Image edit / streaming STT: Medium, home on this spec.)*
+*(none blocking — REST generate/edit shipped. Streaming STT: Medium, home on this spec.)*
 
 ## Medium Priority
 
-- [ ] **Image edit / i2i** — `edit_image` per [MediaRest.md](MediaRest.md) (`POST /v1/images/edits` or SDK)
 - [ ] **Streaming STT** — only if still unary-transcribe; STS is [RealtimeVoice-TODO.md](RealtimeVoice-TODO.md)
-- [ ] Surface Imagine `file_output.file_id` on generate/edit when upstream returns it (target: [MediaRest.md](MediaRest.md))
 
 ## Low Priority / Future Ideas
 
@@ -30,9 +28,12 @@
 ## Cross-Feature Dependencies
 
 - **library-only** — mocked HTTP tests, not a recorder UI.
+- Files upload / `file_id` minting stays on [ApiCoverage-TODO.md](ApiCoverage-TODO.md); this stem forwards `file_id` on the wire and surfaces Imagine `file_output.file_id`.
 
 ## Completed
 
 - [x] `transcribe` / `synthesize_speech` / `generate_image` (2026-08-12 — in tree)
 - [x] Media REST wiring tests (PR #2; 2026-08-12)
 - [x] Env-gated live TTS / STT / Imagine smokes (2026-08-12)
+- [x] **Image edit / i2i** — `edit_image` per [MediaRest.md](MediaRest.md) (`POST /v1/images/edits` JSON, not multipart) (2026-08-13)
+- [x] Surface Imagine `file_output.file_id` on generate/edit when upstream returns it (2026-08-13)

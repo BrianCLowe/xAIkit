@@ -60,6 +60,26 @@ voice_id = resolve_model(intent="economy", role="voice")
 
 `role` is `chat` | `image` | `video` | `voice`. Offline tests inject fixtures with `inject_catalog` — do not hit the network.
 
+## Image generation and edit
+
+REST Imagine images on `XaiClient` (mocked HTTP in tests; live calls need `XAI_API_KEY`). `edit_image` posts JSON to `/v1/images/edits` (not OpenAI multipart). Source image is a public URL, data URI, or `file_id` passthrough — this kit does not upload files.
+
+```python
+from xaikit import MockChatProvider, XaiClient
+
+client = XaiClient(provider=MockChatProvider(), api_key="test-key")
+# Live: XaiClient(api_key=os.environ["XAI_API_KEY"])
+
+out = client.generate_image("A red cube on a table", aspect_ratio="1:1")
+edited = client.edit_image(
+    "Make it a pencil sketch",
+    image_url=out["url"],  # or image_file_id="file-..."
+)
+# edited["url"] / edited["b64_json"] / edited["file_id"]
+```
+
+Default model is `grok-imagine-image-quality`. When Imagine returns `file_output.file_id`, both methods surface it as `file_id`.
+
 ## Video generation
 
 REST Imagine video on `XaiClient` (mocked HTTP in tests; live calls need `XAI_API_KEY`). Default `wait=True` polls until the clip is ready; `wait=False` returns `request_id` for `poll_video`.

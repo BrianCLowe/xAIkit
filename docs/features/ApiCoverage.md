@@ -21,7 +21,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 | Native structured outputs | [ClientChat](ClientChat.md) — `chat_json` grows to schema/SDK | Partial (`chat_json` fences) |
 | Catalog resolve | [Catalog](Catalog.md) — `cheapest` / `economy` / `best` per **role** | Yes |
 | Image generate | [MediaRest](MediaRest.md) | Yes |
-| Image edit / i2i | [MediaRest](MediaRest.md) — `edit_image` beside generate | No |
+| Image edit / i2i | [MediaRest](MediaRest.md) — `edit_image` beside generate | Yes |
 | STT / TTS (REST) | [MediaRest](MediaRest.md) | Yes |
 | Streaming STT (non-STS) | [MediaRest](MediaRest.md) | No |
 | Video | [VideoGeneration](VideoGeneration.md) | No |
@@ -71,7 +71,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 
 ### Media extras *(target — live on MediaRest)*
 
-- **Image edit**: `POST /v1/images/edits` (or SDK `image.sample` with `image_file_id` / URL). Knobs: model, prompt, source image, `n`, aspect/response_format as upstream allows. Same return shape as `generate_image` plus `file_id` when present.
+- **Image edit**: `POST /v1/images/edits` JSON (not multipart) on [MediaRest](MediaRest.md). Knobs: model, prompt, source image, `n`, aspect/response_format as upstream allows. Same return shape as `generate_image` plus `file_id` when present.
 - **Streaming STT**: only if it is still “transcribe a stream,” not speech-to-speech (that is RealtimeVoice).
 
 ### Other `XaiClient` surfaces *(target — this spec)*
