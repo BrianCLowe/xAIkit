@@ -5,14 +5,14 @@
 
 ## Overview
 
-Library-only **realtime voice** (speech-to-speech) on `XaiClient`: documented xAI WebSocket, purpose-tagged metering, offline contract tests (mocked socket). No voice UI, mic, or recorder. REST unary STT/TTS stay on [MediaRest](MediaRest.md). Server-side mint of ephemeral client secrets for browser/mobile STS is included; product login is not.
+Library-only **realtime voice** (speech-to-speech) on `XaiClient`: documented xAI WebSocket, purpose-tagged metering, offline contract tests (mocked socket). No voice UI, mic, or recorder. REST unary STT/TTS and streaming STT/TTS stay on [MediaRest](MediaRest.md). Server-side mint of ephemeral client secrets for browser/mobile STS is included; product login is not.
 
 Upstream: `wss://api.x.ai/v1/realtime?model=…`. Default model `grok-voice-latest` (alias for `grok-voice-think-fast-2.0`). `xai_sdk` has no voice/realtime module — the kit wraps the public WS protocol (same spirit as video wrapping REST via `httpx`). Ephemeral tokens: `POST https://api.x.ai/v1/realtime/client_secrets`.
 
 ## Architecture / Contract
 
 - **Owns**: session open/close, inbound/outbound audio, optional text, usage `modality="realtime"`; server-side mint helper `create_realtime_client_secret` (wraps documented `POST /v1/realtime/client_secrets`)
-- **Does not own**: REST `transcribe` / `synthesize_speech`; streaming STT-only WS (shipped on [MediaRest](MediaRest.md) as `open_stt_session`); custom voice clone; a recorder UI; ephemeral-token **product login** / User types (ConnectAuth stays stores + OAuth helpers); streaming TTS-only WS; catalog `role=voice`
+- **Does not own**: REST `transcribe` / `synthesize_speech`; streaming STT-only WS (shipped on [MediaRest](MediaRest.md) as `open_stt_session`); streaming TTS-only WS (shipped on [MediaRest](MediaRest.md) as `open_tts_session`); custom voice clone; a recorder UI; ephemeral-token **product login** / User types (ConnectAuth stays stores + OAuth helpers); catalog `role=voice`
 - **Public API** (frozen 2026-08-13; mint added 2026-08-13):
   - `XaiClient.open_realtime_session(...)` → `RealtimeSession` (context manager)
   - Constructor: optional `voice_model=` (like `video_model=` / `image_model=`)
@@ -58,7 +58,7 @@ Mint body is documented only: `{"expires_after": {"seconds": N}}`. Default `N=30
 
 | Piece | Relationship |
 |-------|--------------|
-| [MediaRest.md](MediaRest.md) | REST STT/TTS already shipped; do not duplicate |
+| [MediaRest.md](MediaRest.md) | REST STT/TTS and streaming STT/TTS already shipped; do not duplicate |
 | [ConnectAuth.md](ConnectAuth.md) | API key / store — mint uses the same server-side key; ConnectAuth does not own this API |
 | [UsageObservability.md](UsageObservability.md) | `modality="realtime"` + default per-minute price rows (session close). Mint records purpose/success only |
 | [VideoGeneration.md](VideoGeneration.md) | Pattern for mocked transport + meter |

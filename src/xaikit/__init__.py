@@ -66,6 +66,12 @@ from xaikit.realtime import (
 )
 from xaikit.retry import RetryPolicy, call_with_retry, default_retry_policy
 from xaikit.stt_stream import XAI_STT_WS_URL, SttClosed, SttSession
+from xaikit.tts_stream import (
+    XAI_TTS_WS_URL,
+    TtsClosed,
+    TtsSession,
+    decode_tts_audio,
+)
 from xaikit.traces import (
     CompletionTrace,
     CompletionTracer,
@@ -104,6 +110,7 @@ __all__ = [
     "XAI_STT_URL",
     "XAI_STT_WS_URL",
     "XAI_TTS_URL",
+    "XAI_TTS_WS_URL",
     "XAI_VIDEO_EXTENSIONS_URL",
     "XAI_VIDEO_STATUS_URL",
     "XAI_VIDEOS_URL",
@@ -141,6 +148,8 @@ __all__ = [
     "SttSession",
     "StreamChunk",
     "TraceSink",
+    "TtsClosed",
+    "TtsSession",
     "UsageEvent",
     "UsageMeter",
     "UsageRollup",
@@ -151,6 +160,7 @@ __all__ = [
     "build_oauth_authorize_url",
     "call_with_retry",
     "decode_realtime_audio",
+    "decode_tts_audio",
     "realtime_client_secret_protocol",
     "default_price_table",
     "default_retry_policy",
