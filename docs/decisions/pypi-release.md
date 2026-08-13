@@ -8,10 +8,11 @@
 
 ## Context
 
-xAIkit is installable from git. The first PyPI upload should claim `xaikit` without implying a finished API. Casual `pip install xaikit` should not get an accidental alpha.
+xAIkit is installable from git. The first PyPI upload should not imply a finished API. The distribution name **`xaikit`** was rejected as too similar to existing [`xai-kit`](https://pypi.org/project/xai-kit/) (explainable-AI, unrelated).
 
 ## Decision
 
+- PyPI / pip name is **`xaikit-py`**. Import and display stay **`xaikit` / xAIkit**.
 - First public version is **`0.1.0a1`** (PEP 440 pre-release) with classifier **Alpha**.
 - Publish via **Trusted Publishing** (GitHub Actions OIDC) on tags `v*`. No long-lived PyPI token in the repo.
 - Default installs skip alphas; testers opt in with `--pre` / `--prerelease allow`.
@@ -19,10 +20,10 @@ xAIkit is installable from git. The first PyPI upload should claim `xaikit` with
 
 ## Rationale
 
-Pre-releases are how PyPI already hides work-in-progress. A README warning alone does not stop `pip install xaikit`.
+Pre-releases hide work-in-progress from a plain `pip install`. Hyphenating `xai-kit` vs `xaikit` is not enough for PyPI’s similarity check; `-py` is.
 
 ## Consequences
 
-- Human must add a **pending publisher** on PyPI before the first tag (account [BrianCLowe](https://pypi.org/user/BrianCLowe/)).
+- Pending publisher project name must be `xaikit-py` (account [BrianCLowe](https://pypi.org/user/BrianCLowe/)).
 - CI builds the wheel on every PR and pytest-installs it (not only `pythonpath = src`).
-- Wheel stays code-only (`docs/` excluded).
+- Wheel stays code-only (`docs/` excluded). Extra install: `xaikit-py[otel]`.

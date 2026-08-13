@@ -123,7 +123,7 @@ def test_missing_opentelemetry_raises_runtime_error(
         return importlib.import_module(name, package)
 
     monkeypatch.setattr("xaikit.usage.importlib.import_module", _import)
-    with pytest.raises(RuntimeError, match=r"xaikit\[otel\]") as excinfo:
+    with pytest.raises(RuntimeError, match=r"xaikit-py\[otel\]") as excinfo:
         OpenTelemetryUsageSink()
     assert "opentelemetry-api" in str(excinfo.value)
 

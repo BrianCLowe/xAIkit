@@ -31,15 +31,15 @@ Not an official xAI package. Domain schemas and the tool loop stay in your app.
 
 ## Install
 
-This is a **pre-release**. A plain `pip install xaikit` / `uv add xaikit` will not pick it up until a non-alpha version exists.
+This is a **pre-release**. A plain `pip install xaikit-py` / `uv add xaikit-py` will not pick it up until a non-alpha version exists. The import stays `xaikit` (the PyPI name is `xaikit-py` because `xaikit` was too close to an existing explainable-AI project).
 
 ```bash
 # PyPI alpha (opt in)
-uv add xaikit --prerelease allow
-# or: pip install --pre xaikit
+uv add xaikit-py --prerelease allow
+# or: pip install --pre xaikit-py
 
 # From a git tag
-uv add "xaikit @ git+https://github.com/BrianCLowe/xAIkit@v0.1.0a1"
+uv add "xaikit-py @ git+https://github.com/BrianCLowe/xAIkit@v0.1.0a1"
 
 # Editable neighbor checkout
 uv add --editable ../xAIkit
@@ -80,7 +80,7 @@ asyncio.run(main())
 
 When `usage_meter` is attached, **purpose is required**. Without a meter, purpose is optional.
 
-Optional OpenTelemetry export (`pip install xaikit[otel]`): `OpenTelemetryUsageSink` increments `xaikit.usage.calls` / `xaikit.usage.tokens` (attributes: purpose, model, modality, success). It is export-only — pair with `InMemoryUsageSink` via `CompositeUsageSink` to inspect events.
+Optional OpenTelemetry export (`pip install 'xaikit-py[otel]'`): `OpenTelemetryUsageSink` increments `xaikit.usage.calls` / `xaikit.usage.tokens` (attributes: purpose, model, modality, success). It is export-only — pair with `InMemoryUsageSink` via `CompositeUsageSink` to inspect events.
 
 ## Credentials and OAuth
 

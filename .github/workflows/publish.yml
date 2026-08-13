@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/xaikit/
+      url: https://pypi.org/project/xaikit-py/
     permissions:
       id-token: write
       contents: read
