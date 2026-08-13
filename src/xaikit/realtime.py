@@ -25,6 +25,33 @@ _AUDIO_DELTA_TYPES = frozenset(
     {"response.output_audio.delta", "response.audio.delta"}
 )
 
+_NORMAL_CLOSE_CODES = frozenset({1000, 1001})
+
+
+class RealtimeClosed(Exception):
+    """Peer closed the WebSocket without a transport error."""
+
+
+def _is_timeout(exc: BaseException) -> bool:
+    if isinstance(exc, TimeoutError):
+        return True
+    return type(exc).__name__ in {"TimeoutError", "TimeoutException"}
+
+
+def _is_normal_close(exc: BaseException) -> bool:
+    name = type(exc).__name__
+    if name in {"ConnectionClosedOK", "RealtimeClosed"}:
+        return True
+    code = getattr(exc, "code", None)
+    if code is None:
+        rcvd = getattr(exc, "rcvd", None)
+        code = getattr(rcvd, "code", None)
+    if name in {"ConnectionClosed", "ConnectionClosedOK", "ConnectionClosedError"}:
+        return name != "ConnectionClosedError" and (
+            code is None or code in _NORMAL_CLOSE_CODES
+        )
+    return False
+
 
 def realtime_session_url(
     model: str,
@@ -177,13 +204,27 @@ class RealtimeSession:
         self._send_json({"type": "response.cancel"})
 
     def recv(self, *, timeout: float | None = None) -> dict[str, Any] | bytes:
-        """Receive the next server event (JSON dict) or binary audio frame."""
+        """Receive the next server event (JSON dict) or binary audio frame.
+
+        A ``timeout`` expiry raises ``TimeoutError`` without metering or
+        closing — the caller may retry. A normal WebSocket close raises
+        ``RealtimeClosed`` without recording a failed usage event; call
+        :meth:`close` to meter success. Transport errors still fail the session.
+        """
         try:
             if timeout is None:
                 message = self._ws.recv()
             else:
                 message = self._ws.recv(timeout=timeout)
+        except TimeoutError:
+            raise
+        except RealtimeClosed:
+            raise
         except Exception as exc:
+            if _is_timeout(exc):
+                raise TimeoutError(str(exc) or "Realtime recv timed out") from exc
+            if _is_normal_close(exc):
+                raise RealtimeClosed(str(exc) or "Realtime connection closed") from exc
             self._fail(exc, "Realtime recv failed")
         if isinstance(message, bytes):
             return message
@@ -198,16 +239,12 @@ class RealtimeSession:
         return payload
 
     def events(self) -> Iterator[dict[str, Any] | bytes]:
-        """Yield server events until the socket closes."""
+        """Yield server events until the socket closes (normal close is success)."""
         while True:
             try:
                 yield self.recv()
-            except RuntimeError as exc:
-                cause = exc.__cause__
-                name = type(cause).__name__ if cause is not None else type(exc).__name__
-                if "Closed" in name or "closed" in str(exc).lower():
-                    return
-                raise
+            except RealtimeClosed:
+                return
 
     def close(
         self,

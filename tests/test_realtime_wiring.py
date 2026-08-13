@@ -20,6 +20,7 @@ from xaikit import (
     default_price_table,
     default_retry_policy,
 )
+from xaikit.realtime import RealtimeClosed
 
 
 def _client(*, usage_meter: UsageMeter | None = None, **kwargs: Any) -> XaiClient:
@@ -34,21 +35,29 @@ def _client(*, usage_meter: UsageMeter | None = None, **kwargs: Any) -> XaiClien
 
 
 class FakeWebSocket:
-    def __init__(self, incoming: list[str | bytes] | None = None) -> None:
+    def __init__(
+        self,
+        incoming: list[str | bytes] | None = None,
+        *,
+        empty_is_close: bool = False,
+    ) -> None:
         self.sent: list[str] = []
         self.incoming: list[str | bytes] = list(incoming or [])
         self.closed = False
         self.close_calls = 0
+        self.empty_is_close = empty_is_close
 
     def send(self, message: str | bytes) -> None:
         if self.closed:
-            raise RuntimeError("socket closed")
+            raise RealtimeClosed("socket closed")
         self.sent.append(message if isinstance(message, str) else message.decode("utf-8"))
 
     def recv(self, timeout: float | None = None) -> str | bytes:
         if self.closed:
-            raise RuntimeError("socket closed")
+            raise RealtimeClosed("socket closed")
         if not self.incoming:
+            if self.empty_is_close:
+                raise RealtimeClosed("socket closed")
             raise TimeoutError("no messages")
         return self.incoming.pop(0)
 
@@ -58,9 +67,14 @@ class FakeWebSocket:
 
 
 class _WsCapture:
-    def __init__(self, incoming: list[str | bytes] | None = None) -> None:
+    def __init__(
+        self,
+        incoming: list[str | bytes] | None = None,
+        *,
+        empty_is_close: bool = False,
+    ) -> None:
         self.calls: list[dict[str, Any]] = []
-        self.ws = FakeWebSocket(incoming)
+        self.ws = FakeWebSocket(incoming, empty_is_close=empty_is_close)
 
     def install(self, monkeypatch: pytest.MonkeyPatch) -> FakeWebSocket:
         def _connect(uri: str, **kwargs: Any) -> FakeWebSocket:
@@ -208,6 +222,51 @@ def test_send_audio_and_text_reject_empty(monkeypatch: pytest.MonkeyPatch) -> No
     with pytest.raises(RuntimeError, match="empty"):
         session.send_text("  ")
     session.close()
+
+
+def test_recv_timeout_does_not_fail_session_and_can_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sink = InMemoryUsageSink()
+    meter = UsageMeter(sink=sink)
+    client = _client(usage_meter=meter)
+    cap = _WsCapture()
+    ws = cap.install(monkeypatch)
+    session = client.open_realtime_session(purpose="demo.realtime.timeout")
+
+    with pytest.raises(TimeoutError):
+        session.recv(timeout=0.01)
+    assert list(sink.iter_events()) == []
+    assert ws.closed is False
+
+    ws.incoming.append(json.dumps({"type": "session.updated"}))
+    event = session.recv()
+    assert event["type"] == "session.updated"
+    session.close()
+    ev = list(sink.iter_events())[0]
+    assert ev.success is True
+    assert ev.modality == "realtime"
+
+
+def test_events_normal_close_records_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sink = InMemoryUsageSink()
+    meter = UsageMeter(sink=sink)
+    incoming = [json.dumps({"type": "session.updated"})]
+    client = _client(usage_meter=meter)
+    cap = _WsCapture(incoming, empty_is_close=True)
+    cap.install(monkeypatch)
+
+    session = client.open_realtime_session(purpose="demo.realtime.events")
+    got = list(session.events())
+    assert len(got) == 1
+    assert got[0]["type"] == "session.updated"
+    assert list(sink.iter_events()) == []
+    session.close()
+    ev = list(sink.iter_events())[0]
+    assert ev.success is True
+    assert ev.modality == "realtime"
 
 
 def test_recv_output_audio_delta_and_decode(monkeypatch: pytest.MonkeyPatch) -> None:
