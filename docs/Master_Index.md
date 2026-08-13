@@ -16,7 +16,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 |-------|--------|
 | **Project type** | Python library (PyPI/git install) |
 | **TODO labels** | Core (no InEditor / Asset columns) |
-| **Engine / stack** | Python ≥3.14, hatchling, uv, pytest, httpx, pydantic, websockets, xai-sdk |
+| **Engine / stack** | Python ≥3.10 (lockstep with xAI SDK), hatchling, uv, pytest, httpx, pydantic, websockets, xai-sdk |
 | **Game extensions** | Skip |
 | **Docs profile** | `ship-first` — spec + TODO; no Understanding files |
 
@@ -85,7 +85,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 |----------|-------------|
 | [Human-TODO.md](Human-TODO.md) | Human inbox |
 | [Tooling.md](Tooling.md) | Dev tools + `uv run pytest` |
-| [decisions/](decisions/) | Optional cross-cutting decisions |
+| [decisions/](decisions/) | Cross-cutting decisions ([Python version](decisions/python-version.md)) |
 | [reference/](reference/) | Chat exports / clippings (empty at bootstrap) |
 
 ## 4. Quick Start

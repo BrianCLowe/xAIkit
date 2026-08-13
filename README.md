@@ -2,6 +2,8 @@
 
 Extractable **xAI transport + living model catalog + connect + usage metering** as a library-first Python kit.
 
+Requires **Python 3.10+**, the same floor as the official [xAI Python SDK](https://github.com/xai-org/xai-sdk-python).
+
 Built for apps that want a typed Grok/xAI client with purpose-tagged usage events, catalog resolve (`cheapest` / `economy` / `best`), inject credential stores, and a mock provider for CI — without pulling in a multi-provider marketplace.
 
 ## Install

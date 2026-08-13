@@ -11,7 +11,7 @@ Machine / workflow tools to **develop this library** — not the package depende
 
 | Platform | Notes |
 |----------|--------|
-| Linux / macOS | `uv` installer; CPython 3.14 via uv |
+| Linux / macOS | `uv` installer; CPython 3.10+ via uv (floor matches xAI SDK) |
 | Windows | Same via uv; not the primary CI image |
 
 ## Required
@@ -20,7 +20,7 @@ Machine / workflow tools to **develop this library** — not the package depende
 |------|-----|--------------|--------|
 | Git | Version control | OS package manager | `git --version` |
 | uv | Python + deps + pytest | https://docs.astral.sh/uv/ | `uv --version` |
-| Python 3.14 | Package `requires-python` | `uv python install 3.14` | `uv run python --version` |
+| Python 3.10+ | Package `requires-python` (SDK lockstep) | `uv python install 3.10` | `uv run python --version` |
 
 ## Optional
 
