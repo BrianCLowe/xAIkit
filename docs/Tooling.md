@@ -53,4 +53,4 @@ Do not commit `.env` / API keys. Live xAI calls are optional and not default CI.
 
 - Before claiming code is good, run **Cheap / default**. After packaging/PyPI edits, also run **Package**.
 - Do not invent extra required tools. Live-key smokes stay optional and env-gated (`XAITKIT_LIVE=1` plus `XAI_API_KEY` — see Human-TODO Done).
-- First PyPI upload: human adds a pending Trusted Publisher (Human-TODO), then tag `v0.1.0a1`. Do not put PyPI tokens in the repo.
+- First PyPI upload: dist name **`xaikit-py`**; pending Trusted Publisher must match; then tag `v0.1.0a1`. Do not put PyPI tokens in the repo.

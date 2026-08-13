@@ -31,7 +31,7 @@ Library-only look-list — reply in chat when done (do not mark this row yoursel
 
 - **Surfaces:** `OpenTelemetryUsageSink`; modalities for files/embed/tokenize/batch/collections/responses/realtime mint/tts roster
 - **Placement:** `src/xaikit/usage.py`; extra `xaikit[otel]`
-- **Copy:** README optional OTel one-liner; counters `xaikit.usage.calls` / `xaikit.usage.tokens`
+- **Copy:** README optional OTel one-liner; extra `xaikit-py[otel]`; counters `xaikit.usage.calls` / `xaikit.usage.tokens`
 - **Happy path:** `uv run pytest tests/test_otel_usage_sink.py tests/test_meter_mock.py`
 - **Rough edges:** `iter_events()` is export-only; pair with `InMemoryUsageSink`; no invented USD on new modalities
 

@@ -160,7 +160,7 @@ def _opentelemetry_metrics() -> Any:
     except ImportError as exc:
         raise RuntimeError(
             "OpenTelemetryUsageSink requires OpenTelemetry. "
-            "Install with: pip install xaikit[otel] or opentelemetry-api"
+            "Install with: pip install 'xaikit-py[otel]' or opentelemetry-api"
         ) from exc
 
 

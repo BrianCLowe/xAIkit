@@ -25,7 +25,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - Deferred chat get: 202 pending meters purpose/success **without** tokens (like `get_file`); 200 may record tokens from `usage`; still `modality="chat"`; no invented USD (`apply_price_table=False`). Create is purpose/success only. 401 skips the meter.
 - Gap notes scrub secret-ish strings and cap length
 - Meter/trace failures must not break the user-facing call (logged). `UsageMeter.record` / sink `append` may raise; `XaiClient._record` catches and logs
-- `OpenTelemetryUsageSink` is export-only (optional extra `xaikit[otel]` / `opentelemetry-api`; lazy import). Default meter: `opentelemetry.metrics.get_meter("xaikit")`. Counters: `xaikit.usage.calls` (+1) and `xaikit.usage.tokens` (+`total_tokens` when known) with attributes `purpose`, `model`, `modality`, `success` — never prompts/secrets (`error` omitted). `iter_events()` raises `NotImplementedError`; inspect via `CompositeUsageSink(InMemoryUsageSink(), OpenTelemetryUsageSink())` (memory first)
+- `OpenTelemetryUsageSink` is export-only (optional extra `xaikit-py[otel]` / `opentelemetry-api`; lazy import). Default meter: `opentelemetry.metrics.get_meter("xaikit")`. Counters: `xaikit.usage.calls` (+1) and `xaikit.usage.tokens` (+`total_tokens` when known) with attributes `purpose`, `model`, `modality`, `success` — never prompts/secrets (`error` omitted). `iter_events()` raises `NotImplementedError`; inspect via `CompositeUsageSink(InMemoryUsageSink(), OpenTelemetryUsageSink())` (memory first)
 
 ## Decisions
 
