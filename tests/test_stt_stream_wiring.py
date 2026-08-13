@@ -11,6 +11,7 @@ import pytest
 from xaikit import (
     InMemoryUsageSink,
     MockChatProvider,
+    SttClosed,
     SttSession,
     UsageMeter,
     XAI_STT_WS_URL,
@@ -18,7 +19,6 @@ from xaikit import (
     default_price_table,
     default_retry_policy,
 )
-from xaikit.stt_stream import SttClosed
 
 
 def _client(*, usage_meter: UsageMeter | None = None, **kwargs: Any) -> XaiClient:
@@ -308,3 +308,43 @@ def test_default_price_table_streaming_stt_per_hour_rate() -> None:
     assert table.estimate_usd("stt", duration_seconds=60) == pytest.approx(
         0.20 / 60.0, abs=1e-8
     )
+
+
+def test_with_block_normal_close_after_done_meters_success(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sink = InMemoryUsageSink()
+    client = _client(usage_meter=UsageMeter(sink=sink))
+    incoming = [
+        _created(),
+        json.dumps({"type": "transcript.done", "text": "hi", "duration": 0.2}),
+    ]
+    cap = _WsCapture(incoming, empty_is_close=True)
+    cap.install(monkeypatch)
+
+    with client.open_stt_session(purpose="demo.stt.close") as session:
+        session.recv()  # transcript.created
+        session.recv()  # transcript.done
+        session.recv()  # server closed — SttClosed, suppressed as success
+
+    ev = list(sink.iter_events())[0]
+    assert ev.success is True
+    assert ev.modality == "stt"
+    assert ev.purpose == "demo.stt.close"
+
+
+def test_handshake_close_raises_runtime_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sink = InMemoryUsageSink()
+    client = _client(usage_meter=UsageMeter(sink=sink))
+    cap = _WsCapture([], empty_is_close=True)
+    cap.install(monkeypatch)
+
+    with pytest.raises(RuntimeError, match="closed before transcript.created"):
+        client.open_stt_session(purpose="demo.stt.hs")
+
+    ev = list(sink.iter_events())[0]
+    assert ev.success is False
+    assert ev.modality == "stt"
+    assert ev.purpose == "demo.stt.hs"

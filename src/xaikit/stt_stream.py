@@ -175,16 +175,18 @@ class SttSession:
     def __enter__(self) -> SttSession:
         return self
 
-    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
-        ok = exc_type is None
-        err = self._error_class(exc) if exc is not None else None
+    def __exit__(self, exc_type: Any, exc: Any, tb: Any) -> bool:
+        closed_ok = exc_type is not None and issubclass(exc_type, SttClosed)
+        ok = exc_type is None or closed_ok
+        err = None if ok else (self._error_class(exc) if exc is not None else None)
         try:
             self.close(success=ok, error=err)
         except Exception:
             if ok:
                 raise
             logger.exception("STT session close failed after error")
-        return None
+        # After audio.done the server closes the socket; that is success.
+        return closed_ok
 
     def wait_ready(self, *, timeout: float = 30.0) -> dict[str, Any]:
         """Block until the server sends ``transcript.created`` (required before audio)."""
@@ -206,6 +208,8 @@ class SttSession:
                 event = self._recv_raw(timeout=remaining)
             except TimeoutError as exc:
                 self._fail(exc, "STT session ready timed out")
+            except SttClosed as exc:
+                self._fail(exc, "STT session closed before transcript.created")
             self._pending.append(event)
         assert event is not None
         return event
