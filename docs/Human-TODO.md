@@ -11,6 +11,14 @@
 
 ## Open
 
+- [ ] **GitHub About + topics** (`procure`) — 2026-08-13 — Cloud Agents cannot write repo settings. On the repo homepage, click the gear next to **About** (or Settings → General). Paste:
+
+  - **Description:** `Unofficial Python kit for the xAI (Grok) API — typed client, catalog, usage metering, media, and realtime voice. Not a multi-provider SDK.`
+  - **Website:** `https://pypi.org/project/xaikit-py/`
+  - **Topics** (paste as tags): `python`, `grok`, `grok-api`, `llm`, `sdk`, `generative-ai`, `python-sdk`, `text-to-speech`, `speech-to-text`, `image-generation`, `video-generation`
+  - **Do not** add topic `xai` — on GitHub that tag is mostly explainable-AI, the same collision as PyPI `xai-kit`. Prefer `grok` / `grok-api`.
+
+  PyPI summary/keywords are already in `pyproject.toml` (next publish). Owner: this file. Blocks: none
 - [ ] **VideoGeneration library look-list** (`playtest`) — 2026-08-12 — Confirm generate/extend/poll/download + README example feel right; optional live start-only smoke if you want. Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md) · Blocks: none
 - [ ] **RealtimeVoice library look-list** (`playtest`) — 2026-08-13 — Session + ephemeral mint + custom `voice=` (orchestration). Owner: [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md) · Blocks: none
 - [ ] **MediaRest library look-list** (`playtest`) — 2026-08-13 — Image edit, streaming STT/TTS, voice roster (orchestration). Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md) · Blocks: none
