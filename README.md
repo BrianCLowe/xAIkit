@@ -37,6 +37,29 @@ resp = client.chat([{"role": "user", "content": "hello"}], purpose="demo.chat")
 
 When `usage_meter` is attached, **purpose is required**. Without a meter, purpose is optional.
 
+## Catalog resolve
+
+Callers pass `cheapest` / `economy` / `best` (and optional `role=`). Chat is the default pool. Pin still wins when `pin=` is set.
+
+```python
+from xaikit import ModelInfo, inject_catalog, resolve_model, resolve_model_selection
+
+inject_catalog(
+    [
+        ModelInfo(id="grok-4.6", capabilities=["chat"], input_per_million=20.0, created=2),
+        ModelInfo(id="grok-imagine-image", capabilities=["image"], created=1),
+        ModelInfo(id="grok-imagine-image-quality", capabilities=["image"], created=2),
+    ]
+)
+
+chat_id = resolve_model(intent="economy")  # role="chat" default
+image = resolve_model_selection(intent="best", role="image")
+video_id = resolve_model(intent="cheapest", role="video")
+voice_id = resolve_model(intent="economy", role="voice")
+```
+
+`role` is `chat` | `image` | `video` | `voice`. Offline tests inject fixtures with `inject_catalog` — do not hit the network.
+
 ## Video generation
 
 REST Imagine video on `XaiClient` (mocked HTTP in tests; live calls need `XAI_API_KEY`). Default `wait=True` polls until the clip is ready; `wait=False` returns `request_id` for `poll_video`.

@@ -1,6 +1,6 @@
 # ApiCoverage
 
-**Last Updated**: 2026-08-12  
+**Last Updated**: 2026-08-13  
 **Related TODO**: [ApiCoverage-TODO.md](ApiCoverage-TODO.md)
 
 ## Overview
@@ -19,7 +19,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 | Tools / function calling | [ClientChat](ClientChat.md) — same `chat` / `chat_stream` | No |
 | Vision / multimodal parts | [ClientChat](ClientChat.md) — message parts, not a second API | No |
 | Native structured outputs | [ClientChat](ClientChat.md) — `chat_json` grows to schema/SDK | Partial (`chat_json` fences) |
-| Catalog resolve | [Catalog](Catalog.md) — `cheapest` / `economy` / `best` per **role** | Chat pool only |
+| Catalog resolve | [Catalog](Catalog.md) — `cheapest` / `economy` / `best` per **role** | Yes |
 | Image generate | [MediaRest](MediaRest.md) | Yes |
 | Image edit / i2i | [MediaRest](MediaRest.md) — `edit_image` beside generate | No |
 | STT / TTS (REST) | [MediaRest](MediaRest.md) | Yes |
@@ -51,7 +51,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 - Offline contract tests (mocked HTTP/SDK/WS). Optional live: `XAITKIT_LIVE=1` + `XAI_API_KEY`.
 - No UI. No private app names in examples.
 
-### Catalog roles *(target)*
+### Catalog roles
 
 Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `video` \| `voice`). One price band → all three pick flagship. Coding SKUs stay out of general **chat** unless the catalog is coding-only. Image/video/voice pools do not use the chat coding skip. See [Catalog](Catalog.md).
 

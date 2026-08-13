@@ -4,15 +4,26 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from xaikit.catalog import (
     BOOTSTRAP_MODEL,
+    DEFAULT_IMAGE_MODEL,
+    DEFAULT_VIDEO_MODEL,
+    DEFAULT_VOICE_MODEL,
     ModelInfo,
-    economy_model,
     cheapest_model,
+    clear_catalog_cache,
+    economy_model,
+    fetch_models_from_sdk,
     intent_options,
+    list_models,
+    model_info_from_image_proto,
     model_info_from_language_proto,
+    models_for_role,
     normalize_intent,
     prefer_latest_model,
+    resolve_model,
     resolve_model_selection,
 )
 
@@ -210,3 +221,339 @@ def test_coding_only_catalog_still_resolves() -> None:
     ]
     assert resolve_model_selection(intent="cheapest", catalog=cat).model_id == "grok-build-0.1"
     assert resolve_model_selection(intent="best", catalog=cat).model_id == "grok-build-0.1"
+
+
+def _mixed_role_catalog() -> list[ModelInfo]:
+    """Chat + image + video + voice rows (unpriced media use public rates)."""
+    return [
+        *_live_like_catalog(),
+        ModelInfo(id="grok-imagine-image", capabilities=["image"], created=1),
+        ModelInfo(id="grok-imagine-image-2.0", capabilities=["image"], created=2),
+        ModelInfo(id="grok-imagine-image-quality", capabilities=["image"], created=3),
+        ModelInfo(id="grok-imagine-video", capabilities=["video"], created=1),
+        ModelInfo(id="grok-imagine-video-1.5", capabilities=["video"], created=2),
+        ModelInfo(id="grok-voice-think-fast-1.0", capabilities=["voice"], created=1),
+        ModelInfo(id="grok-voice-think-fast-2.0", capabilities=["voice"], created=2),
+        ModelInfo(id="grok-voice-latest", capabilities=["voice"], created=3),
+        ModelInfo(
+            id="grok-code-fast-image",
+            capabilities=["image"],
+            created=0,
+            input_per_million=0.001,
+        ),
+    ]
+
+
+def test_role_filters_pool() -> None:
+    cat = _mixed_role_catalog()
+    image_ids = {m.id for m in models_for_role(cat, "image")}
+    video_ids = {m.id for m in models_for_role(cat, "video")}
+    voice_ids = {m.id for m in models_for_role(cat, "voice")}
+    chat_ids = {m.id for m in models_for_role(cat, "chat")}
+
+    assert image_ids == {
+        "grok-imagine-image",
+        "grok-imagine-image-2.0",
+        "grok-imagine-image-quality",
+        "grok-code-fast-image",
+    }
+    assert video_ids == {"grok-imagine-video", "grok-imagine-video-1.5"}
+    assert voice_ids == {
+        "grok-voice-think-fast-1.0",
+        "grok-voice-think-fast-2.0",
+        "grok-voice-latest",
+    }
+    assert "grok-4.6" in chat_ids
+    assert "grok-build-0.1" not in chat_ids
+    assert image_ids.isdisjoint(chat_ids)
+    assert video_ids.isdisjoint(chat_ids)
+    assert voice_ids.isdisjoint(chat_ids)
+
+    assert resolve_model_selection(intent="best", role="image", catalog=cat).model_id == (
+        "grok-imagine-image-quality"
+    )
+    assert resolve_model_selection(intent="best", role="video", catalog=cat).model_id == (
+        "grok-imagine-video-1.5"
+    )
+    assert resolve_model_selection(intent="best", role="voice", catalog=cat).model_id == (
+        "grok-voice-latest"
+    )
+    # chat default unchanged on a mixed catalog
+    assert resolve_model_selection(intent="best", catalog=cat).model_id == "grok-4.6"
+    assert resolve_model_selection(intent="cheapest", catalog=cat).model_id == (
+        "grok-4.20-0309-non-reasoning"
+    )
+
+
+def test_coding_skip_does_not_apply_to_image_video_voice() -> None:
+    cat = _mixed_role_catalog()
+    # grok-build-0.1 is cheaper than general chat but skipped for chat only
+    assert resolve_model_selection(intent="cheapest", catalog=cat).model_id != "grok-build-0.1"
+    image_cheap = resolve_model_selection(intent="cheapest", role="image", catalog=cat)
+    assert image_cheap.model_id == "grok-code-fast-image"
+    assert image_cheap.source == "intent:cheapest"
+    video_cheap = resolve_model_selection(intent="cheapest", role="video", catalog=cat)
+    assert video_cheap.model_id == "grok-imagine-video"
+    voice_cheap = resolve_model_selection(intent="cheapest", role="voice", catalog=cat)
+    assert voice_cheap.model_id == "grok-voice-think-fast-1.0"
+
+
+def test_unpriced_media_uses_public_rates() -> None:
+    cat = [
+        ModelInfo(id="grok-imagine-image", capabilities=["image"], created=1),
+        ModelInfo(id="grok-imagine-image-2.0", capabilities=["image"], created=2),
+        ModelInfo(id="grok-imagine-image-quality", capabilities=["image"], created=3),
+    ]
+    assert resolve_model_selection(intent="cheapest", role="image", catalog=cat).model_id == (
+        "grok-imagine-image"
+    )
+    assert resolve_model_selection(intent="economy", role="image", catalog=cat).model_id == (
+        "grok-imagine-image-2.0"
+    )
+    assert resolve_model_selection(intent="best", role="image", catalog=cat).model_id == (
+        "grok-imagine-image-quality"
+    )
+
+    video = [
+        ModelInfo(id="grok-imagine-video", capabilities=["video"]),
+        ModelInfo(id="grok-imagine-video-1.5", capabilities=["video"]),
+    ]
+    assert resolve_model_selection(intent="cheapest", role="video", catalog=video).model_id == (
+        "grok-imagine-video"
+    )
+    assert resolve_model_selection(intent="best", role="video", catalog=video).model_id == (
+        "grok-imagine-video-1.5"
+    )
+    assert resolve_model_selection(intent="economy", role="video", catalog=video).model_id == (
+        "grok-imagine-video"
+    )
+
+    voice = [
+        ModelInfo(id="grok-voice-think-fast-1.0", capabilities=["voice"]),
+        ModelInfo(id="grok-voice-think-fast-2.0", capabilities=["voice"]),
+    ]
+    assert resolve_model_selection(intent="cheapest", role="voice", catalog=voice).model_id == (
+        "grok-voice-think-fast-1.0"
+    )
+    assert resolve_model_selection(intent="best", role="voice", catalog=voice).model_id == (
+        "grok-voice-think-fast-2.0"
+    )
+
+
+def test_thin_image_lineup_intents_overlap() -> None:
+    one = [ModelInfo(id="grok-imagine-image-quality", capabilities=["image"], created=1)]
+    assert resolve_model_selection(intent="cheapest", role="image", catalog=one).model_id == (
+        "grok-imagine-image-quality"
+    )
+    assert resolve_model_selection(intent="economy", role="image", catalog=one).model_id == (
+        "grok-imagine-image-quality"
+    )
+    assert resolve_model_selection(intent="best", role="image", catalog=one).model_id == (
+        "grok-imagine-image-quality"
+    )
+
+
+def test_empty_role_pool_bootstraps_role_default() -> None:
+    chat_only = [ModelInfo(id="grok-4.6", capabilities=["chat"], created=1)]
+    image = resolve_model_selection(intent="best", role="image", catalog=chat_only)
+    assert image.model_id == DEFAULT_IMAGE_MODEL
+    assert image.source == "bootstrap"
+    video = resolve_model_selection(role="video", catalog=chat_only)
+    assert video.model_id == DEFAULT_VIDEO_MODEL
+    voice = resolve_model(role="voice", catalog=chat_only)
+    assert voice == DEFAULT_VOICE_MODEL
+
+
+def test_language_proto_video_slug_is_not_chat() -> None:
+    info = model_info_from_language_proto(_lm(name="grok-imagine-video-1.5", aliases=[]))
+    assert "video" in info.capabilities
+    assert "chat" not in info.capabilities
+    assert not info.is_chat
+
+
+def test_image_proto_maps_price_and_capability() -> None:
+    info = model_info_from_image_proto(
+        SimpleNamespace(
+            name="grok-imagine-image-quality",
+            aliases=["grok-imagine-image-pro"],
+            version="1",
+            image_price=50,
+            created=None,
+            max_prompt_length=0,
+        )
+    )
+    assert info.id == "grok-imagine-image-quality"
+    assert info.capabilities == ["image"]
+    assert info.input_per_million is None
+    assert info.aliases == ["grok-imagine-image-pro"]
+
+
+def test_image_proto_video_slug_tagged_video() -> None:
+    info = model_info_from_image_proto(
+        SimpleNamespace(
+            name="grok-imagine-video-1.5",
+            aliases=[],
+            version=None,
+            image_price=None,
+            created=None,
+            max_prompt_length=None,
+        )
+    )
+    assert info.capabilities == ["video"]
+    assert info.input_per_million is None
+
+
+def _fake_sdk_client(
+    *,
+    language: list[object] | BaseException,
+    images: list[object] | BaseException,
+):
+    class FakeModels:
+        def list_language_models(self) -> list[object]:
+            if isinstance(language, BaseException):
+                raise language
+            return language
+
+        def list_image_generation_models(self) -> list[object]:
+            if isinstance(images, BaseException):
+                raise images
+            return images
+
+    class FakeClient:
+        def __init__(self, api_key: str) -> None:
+            assert api_key == "test-key"
+            self.models = FakeModels()
+
+        def close(self) -> None:
+            pass
+
+    return FakeClient
+
+
+def test_fetch_includes_image_models(monkeypatch: pytest.MonkeyPatch) -> None:
+    import xai_sdk
+
+    monkeypatch.setattr(
+        xai_sdk,
+        "Client",
+        _fake_sdk_client(
+            language=[_lm(name="grok-4.6")],
+            images=[
+                SimpleNamespace(
+                    name="grok-imagine-image-quality",
+                    aliases=[],
+                    version=None,
+                    image_price=50,
+                    created=None,
+                    max_prompt_length=None,
+                )
+            ],
+        ),
+    )
+    models = fetch_models_from_sdk("test-key")
+    by_id = {m.id: m for m in models}
+    assert "grok-4.6" in by_id
+    assert "grok-imagine-image-quality" in by_id
+    assert "image" in by_id["grok-imagine-image-quality"].capabilities
+    assert "chat" in by_id["grok-4.6"].capabilities
+
+
+def test_fetch_image_list_failure_keeps_language_models(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import xai_sdk
+
+    monkeypatch.setattr(
+        xai_sdk,
+        "Client",
+        _fake_sdk_client(
+            language=[_lm(name="grok-4.6")],
+            images=RuntimeError("image list down"),
+        ),
+    )
+    models = fetch_models_from_sdk("test-key")
+    assert [m.id for m in models] == ["grok-4.6"]
+
+
+def test_fetch_language_list_failure_keeps_image_models(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import xai_sdk
+
+    monkeypatch.setattr(
+        xai_sdk,
+        "Client",
+        _fake_sdk_client(
+            language=RuntimeError("language list down"),
+            images=[
+                SimpleNamespace(
+                    name="grok-imagine-image",
+                    aliases=[],
+                    version=None,
+                    image_price=None,
+                    created=None,
+                    max_prompt_length=None,
+                )
+            ],
+        ),
+    )
+    models = fetch_models_from_sdk("test-key")
+    assert [m.id for m in models] == ["grok-imagine-image"]
+    assert models[0].capabilities == ["image"]
+
+
+def test_fetch_all_lists_fail_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    import xai_sdk
+
+    monkeypatch.setattr(
+        xai_sdk,
+        "Client",
+        _fake_sdk_client(
+            language=RuntimeError("language list down"),
+            images=RuntimeError("image list down"),
+        ),
+    )
+    with pytest.raises(RuntimeError, match="list down"):
+        fetch_models_from_sdk("test-key")
+
+
+def test_list_models_sdk_total_failure_falls_back_to_fixture(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    import xai_sdk
+
+    clear_catalog_cache()
+    monkeypatch.setattr(
+        xai_sdk,
+        "Client",
+        _fake_sdk_client(
+            language=RuntimeError("language list down"),
+            images=RuntimeError("image list down"),
+        ),
+    )
+    fixture = tmp_path / "cat.json"
+    fixture.write_text(
+        '[{"id": "from-fixture", "capabilities": ["chat"]}]',
+        encoding="utf-8",
+    )
+    models = list_models(
+        api_key="test-key",
+        fixture_path=fixture,
+        force_refresh=True,
+    )
+    assert [m.id for m in models] == ["from-fixture"]
+    clear_catalog_cache()
+
+
+def test_image_role_ranks_on_public_per_call_not_sdk_token_units() -> None:
+    cat = [
+        ModelInfo(
+            id="grok-imagine-image-quality",
+            capabilities=["image"],
+            input_per_million=0.001,
+        ),
+        ModelInfo(id="grok-imagine-image", capabilities=["image"]),
+    ]
+    cheap = resolve_model_selection(intent="cheapest", role="image", catalog=cat)
+    assert cheap.model_id == "grok-imagine-image"
