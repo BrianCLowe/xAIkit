@@ -865,13 +865,13 @@ class XaiClient:
                 "expires_after must be between 3600 and 2592000 seconds"
             )
 
-        form: list[tuple[str, str]] = []
+        # Dict (not a list of tuples): httpx multipart encoding calls `.items()`
+        # on `data` when `files` is also set. Insertion order keeps expires_after
+        # before purpose; httpx then appends the file part.
+        form: dict[str, str] = {}
         if expires_after is not None:
-            # Upstream requires expires_after before the file part in multipart.
-            form.append(("expires_after", str(expires_after)))
-        form.append(
-            ("purpose", (file_purpose or "").strip() or DEFAULT_FILE_PURPOSE)
-        )
+            form["expires_after"] = str(expires_after)
+        form["purpose"] = (file_purpose or "").strip() or DEFAULT_FILE_PURPOSE
         files = {
             "file": (
                 name,

@@ -134,7 +134,7 @@ def test_upload_file_posts_multipart_with_auth_filename_and_meters(
     call = cap.posts[0]
     assert call["url"] == XAI_FILES_URL
     assert call["headers"]["Authorization"] == "Bearer test-key"
-    assert call["data"] == [("purpose", "assistants")]
+    assert call["data"] == {"purpose": "assistants"}
     assert call["files"]["file"] == ("note.txt", b"hello", "text/plain")
     assert call["timeout"] == 120.0
 
@@ -168,7 +168,7 @@ def test_upload_file_file_purpose_is_multipart_not_meter_tag(
         purpose="demo.files.meter",
         file_purpose="assistants",
     )
-    assert cap.posts[0]["data"] == [("purpose", "assistants")]
+    assert cap.posts[0]["data"] == {"purpose": "assistants"}
     assert list(sink.iter_events())[0].purpose == "demo.files.meter"
 
 
@@ -187,10 +187,45 @@ def test_upload_file_expires_after_precedes_file_part(
     )
 
     client.upload_file(b"hello", "note.txt", expires_after=86400)
-    assert cap.posts[0]["data"] == [
+    assert list(cap.posts[0]["data"].items()) == [
         ("expires_after", "86400"),
         ("purpose", "assistants"),
     ]
+
+
+def test_upload_file_form_data_encodes_as_httpx_multipart(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Regression: list-of-tuples `data` + `files` crashes httpx encoding."""
+    client = _client()
+    cap = _Capture()
+    cap.install_post(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json=_file_json(),
+            request=httpx.Request("POST", XAI_FILES_URL),
+        ),
+    )
+
+    client.upload_file(
+        b"hello",
+        "note.txt",
+        content_type="text/plain",
+        expires_after=86400,
+    )
+    call = cap.posts[0]
+    request = httpx.Request(
+        "POST",
+        call["url"],
+        data=call["data"],
+        files=call["files"],
+    )
+    body = request.read()
+    assert b"expires_after" in body
+    assert b"purpose" in body
+    assert b"note.txt" in body
+    assert body.find(b"expires_after") < body.find(b"note.txt")
 
 
 def test_upload_file_rejects_empty_bytes_without_http(
