@@ -1,6 +1,6 @@
 # ApiCoverage — TODO
 
-**Last Updated**: 2026-08-13 *(Files upload / get / delete on XaiClient)*  
+**Last Updated**: 2026-08-13 *(ClientChat tools / vision / schema)*  
 **Related Spec**: [ApiCoverage.md](ApiCoverage.md)
 
 ---
@@ -9,7 +9,7 @@
 
 **Active task:** Remainder unordered — implement against [ApiCoverage.md](ApiCoverage.md); do not invent a second client.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — Files API (`upload_file` / `get_file` / `delete_file`) on `XaiClient`
+**Last session:** 2026-08-13 — ClientChat extras (tools / vision / `chat_json` schema) homed and shipped
 
 ---
 
@@ -21,9 +21,6 @@
 
 *(no order — pick when a caller needs the surface; **homes** on [ApiCoverage.md](ApiCoverage.md))*
 
-- [ ] Chat tools / function calling — home: [ClientChat-TODO.md](ClientChat-TODO.md)
-- [ ] Vision / multimodal messages — home: [ClientChat-TODO.md](ClientChat-TODO.md)
-- [ ] Native structured outputs — home: [ClientChat-TODO.md](ClientChat-TODO.md)
 - [ ] Streaming STT — home: [MediaRest-TODO.md](MediaRest-TODO.md)
 - [ ] Built-in agent tools / Responses API — additive; do not replace `chat`
 - [ ] Batch
@@ -51,3 +48,6 @@
 - [x] Role-filtered catalog (image / video / voice) — home: [Catalog-TODO.md](Catalog-TODO.md) (2026-08-13)
 - [x] Image edit — home: [MediaRest-TODO.md](MediaRest-TODO.md) (2026-08-13)
 - [x] Files API (upload / `file_id`) — `XaiClient` files helpers; unblocks video/image `file_id` (2026-08-13)
+- [x] Chat tools / function calling — home: [ClientChat-TODO.md](ClientChat-TODO.md) (2026-08-13)
+- [x] Vision / multimodal messages — home: [ClientChat-TODO.md](ClientChat-TODO.md) (2026-08-13)
+- [x] Native structured outputs — home: [ClientChat-TODO.md](ClientChat-TODO.md) (2026-08-13)

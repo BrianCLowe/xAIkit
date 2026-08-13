@@ -151,6 +151,73 @@ for chunk in client.chat_stream(
     print(chunk.delta, end="", flush=True)
 ```
 
+## Tools, vision, and structured JSON
+
+The kit wraps xAI chat extras as JSON dicts. It does **not** run tools — the app owns the loop.
+
+```python
+from xaikit import MockChatProvider, XaiClient
+
+weather_tool = {
+    "name": "get_weather",
+    "description": "Get the weather for a city.",
+    "parameters": {
+        "type": "object",
+        "properties": {"city": {"type": "string"}},
+        "required": ["city"],
+    },
+}
+client = XaiClient(
+    provider=MockChatProvider(
+        replies=[
+            "a cube",
+            {
+                "tool_calls": [
+                    {"id": "call_1", "name": "get_weather", "arguments": {"city": "NYC"}},
+                ],
+            },
+            {"title": "blue"},
+        ]
+    ),
+    model="grok-4.5",
+)
+
+# Vision: content may be a string or a list of parts
+client.chat(
+    [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "What is in this image?"},
+                {"type": "image_url", "url": "https://example.com/cube.png"},
+            ],
+        }
+    ]
+)
+
+# Tools: defs in, tool_calls out (arguments are parsed JSON, typically a dict)
+resp = client.chat(
+    [{"role": "user", "content": "Weather in NYC?"}],
+    tools=[weather_tool],
+    tool_choice="auto",
+)
+# resp.tool_calls → [{"id": "call_1", "name": "get_weather", "arguments": {"city": "NYC"}}]
+# App runs the function, then sends the assistant turn + tool result:
+# client.chat([
+#     {"role": "user", "content": "Weather in NYC?"},
+#     {"role": "assistant", "content": "", "tool_calls": resp.tool_calls},
+#     {"role": "tool", "content": "72F", "tool_call_id": resp.tool_calls[0]["id"]},
+# ], tools=[weather_tool])
+
+# Native structured outputs (fence-stripping remains the fallback)
+schema = {
+    "type": "object",
+    "properties": {"title": {"type": "string"}},
+    "required": ["title"],
+}
+data = client.chat_json("Name a color", schema=schema)
+```
+
 ## Opt-in dev completion traces *(default off)*
 
 ```python

@@ -172,12 +172,16 @@ class XaiClient:
 
     def _complete(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
         temperature: float,
         max_tokens: int | None = None,
         thought_level: str | None,
         system_prompt: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        parallel_tool_calls: bool | None = None,
+        response_format: Any = None,
     ):
         def _call():
             return self._provider.complete(
@@ -187,6 +191,10 @@ class XaiClient:
                 max_tokens=max_tokens,
                 thought_level=thought_level,
                 system_prompt=system_prompt,
+                tools=tools,
+                tool_choice=tool_choice,
+                parallel_tool_calls=parallel_tool_calls,
+                response_format=response_format,
             )
 
         return call_with_retry(
@@ -197,12 +205,16 @@ class XaiClient:
 
     def _open_stream(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
         temperature: float,
         max_tokens: int | None = None,
         thought_level: str | None,
         system_prompt: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        parallel_tool_calls: bool | None = None,
+        response_format: Any = None,
     ):
         def _call():
             return self._provider.stream(
@@ -212,6 +224,10 @@ class XaiClient:
                 max_tokens=max_tokens,
                 thought_level=thought_level,
                 system_prompt=system_prompt,
+                tools=tools,
+                tool_choice=tool_choice,
+                parallel_tool_calls=parallel_tool_calls,
+                response_format=response_format,
             )
 
         # Retry only opening the iterator — mid-stream failures are not retried.
@@ -224,7 +240,7 @@ class XaiClient:
     def _trace(
         self,
         *,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         response: str | None,
         system_prompt: str | None,
         purpose: str | None,
@@ -288,7 +304,7 @@ class XaiClient:
 
     def chat(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
         purpose: str | None = None,
         parent_id: str | None = None,
@@ -298,8 +314,17 @@ class XaiClient:
         system_prompt: str | None = None,
         thought_level: str | None = None,
         effort: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        parallel_tool_calls: bool | None = None,
     ) -> CompletionResponse:
-        """Non-streaming chat completion."""
+        """Non-streaming chat completion.
+
+        ``tools`` are JSON-dict function defs (``name``, ``description``, ``parameters``).
+        The kit returns ``tool_calls`` on the response; the app runs tools and sends
+        ``role="tool"`` follow-up messages. The kit does not execute tools.
+        Message ``content`` may be a string or a list of parts (text / image_url / file).
+        """
         tag = self._require_purpose_if_metered(purpose)
         level = self._effective_thought_level(thought_level, effort=effort)
         usage: dict[str, Any] | None = None
@@ -310,6 +335,9 @@ class XaiClient:
                 max_tokens=max_tokens,
                 thought_level=level,
                 system_prompt=system_prompt,
+                tools=tools,
+                tool_choice=tool_choice,
+                parallel_tool_calls=parallel_tool_calls,
             )
             text = resp.content or ""
             usage = resp.usage
@@ -338,6 +366,7 @@ class XaiClient:
                 usage=usage,
                 reasoning_content=getattr(resp, "reasoning_content", None),
                 finish_reason=getattr(resp, "finish_reason", None),
+                tool_calls=getattr(resp, "tool_calls", None),
             )
         except Exception as exc:
             err = _error_class(exc)
@@ -376,14 +405,23 @@ class XaiClient:
         temperature: float = 0.3,
         thought_level: str | None = None,
         effort: str | None = None,
+        schema: Any = None,
+        response_format: Any = None,
     ) -> dict[str, Any]:
-        """Return a parsed JSON object from a JSON-only model response."""
+        """Return a parsed JSON object from a JSON-only model response.
+
+        Pass ``schema=`` (JSON Schema dict or pydantic ``BaseModel`` subclass) or
+        ``response_format=`` (``"json_object"`` / ``"text"`` / schema dict / model)
+        to use xAI native structured outputs. Fence-stripping remains the fallback
+        when the model still returns fenced JSON.
+        """
         tag = self._require_purpose_if_metered(purpose)
         level = self._effective_thought_level(thought_level, effort=effort)
         messages = [{"role": "user", "content": user_prompt}]
         sys = system_prompt or (
             "You return ONLY valid JSON (no markdown fences) matching the requested shape."
         )
+        fmt = schema if schema is not None else response_format
         usage: dict[str, Any] | None = None
         try:
             resp = self._complete(
@@ -391,6 +429,7 @@ class XaiClient:
                 temperature=temperature,
                 thought_level=level,
                 system_prompt=sys,
+                response_format=fmt,
             )
             text = resp.content or ""
             usage = resp.usage
@@ -496,7 +535,7 @@ class XaiClient:
 
     def chat_stream(
         self,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         *,
         purpose: str | None = None,
         parent_id: str | None = None,
@@ -506,11 +545,16 @@ class XaiClient:
         system_prompt: str | None = None,
         thought_level: str | None = None,
         effort: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        tool_choice: str | dict[str, Any] | None = None,
+        parallel_tool_calls: bool | None = None,
     ) -> Iterator[StreamChunk]:
         """Incremental chat completion — yields deltas as the provider streams them.
 
         Usage is recorded once when the stream completes successfully (or fails).
         Mid-stream provider failures are not retried; only opening the stream is.
+        Tool-call deltas are surfaced on each chunk when the SDK yields them; the
+        last chunk's ``tool_calls`` is the accumulated list. The app owns the loop.
         """
         tag = self._require_purpose_if_metered(purpose)
         level = self._effective_thought_level(thought_level, effort=effort)
@@ -523,6 +567,9 @@ class XaiClient:
                 max_tokens=max_tokens,
                 thought_level=level,
                 system_prompt=system_prompt,
+                tools=tools,
+                tool_choice=tool_choice,
+                parallel_tool_calls=parallel_tool_calls,
             )
             for piece in stream:
                 accumulated = piece.accumulated
@@ -535,6 +582,8 @@ class XaiClient:
                     usage=piece.usage,
                     finish_reason=piece.finish_reason,
                     reasoning_delta=piece.reasoning_delta,
+                    tool_call_delta=getattr(piece, "tool_call_delta", None),
+                    tool_calls=getattr(piece, "tool_calls", None),
                 )
             self._record(
                 purpose=tag,

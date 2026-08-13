@@ -16,9 +16,9 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 | Surface | Home when built | In tree today |
 |---------|-----------------|---------------|
 | Chat complete / stream | [ClientChat](ClientChat.md) | Yes |
-| Tools / function calling | [ClientChat](ClientChat.md) — same `chat` / `chat_stream` | No |
-| Vision / multimodal parts | [ClientChat](ClientChat.md) — message parts, not a second API | No |
-| Native structured outputs | [ClientChat](ClientChat.md) — `chat_json` grows to schema/SDK | Partial (`chat_json` fences) |
+| Tools / function calling | [ClientChat](ClientChat.md) — same `chat` / `chat_stream` | Yes |
+| Vision / multimodal parts | [ClientChat](ClientChat.md) — message parts, not a second API | Yes |
+| Native structured outputs | [ClientChat](ClientChat.md) — `chat_json` grows to schema/SDK | Yes |
 | Catalog resolve | [Catalog](Catalog.md) — `cheapest` / `economy` / `best` per **role** | Yes |
 | Image generate | [MediaRest](MediaRest.md) | Yes |
 | Image edit / i2i | [MediaRest](MediaRest.md) — `edit_image` beside generate | Yes |
@@ -65,11 +65,11 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 - Imagine `storage_options` / `file_output.file_id` on generate/edit is in-scope for MediaRest/Video when wrapping those response fields.
 - Chat-with-files / vision attachments stay on [ClientChat](ClientChat.md) — not this slice.
 
-### Chat extras *(target — live on ClientChat)*
+### Chat extras *(live on ClientChat)*
 
 - **Tools**: pass tool defs into `chat` / `chat_stream`; return tool calls on `CompletionResponse`; accept tool-result messages on the next turn. App owns the tool loop.
 - **Vision**: message content is not only `str` — image (and later video) parts (`url` / `file_id` / data). `MockChatProvider` records parts.
-- **Structured outputs**: `chat_json` uses xAI schema / `response_format` when we wrap it; fence-stripping stays fallback until then.
+- **Structured outputs**: `chat_json` uses xAI schema / `response_format`; fence-stripping stays fallback.
 - **Responses API / built-in tools** (web, X, code, collections, image-in-chat): additive. Do **not** migrate the paved path off `chat`.
 
 ### Media extras *(target — live on MediaRest)*
@@ -131,5 +131,5 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 
 ## Current status
 
-- **In progress**: Files helpers on `XaiClient`; remainder unordered after video + realtime voice
+- **In progress**: remainder unordered after video + realtime voice + ClientChat extras
 - **Blocked by**: —

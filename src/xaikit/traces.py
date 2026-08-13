@@ -12,7 +12,7 @@ import threading
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
@@ -29,7 +29,7 @@ class CompletionTrace(BaseModel):
     timestamp: datetime = Field(default_factory=_utc_now)
     purpose: str | None = None
     model: str | None = None
-    messages: list[dict[str, str]] = Field(default_factory=list)
+    messages: list[dict[str, Any]] = Field(default_factory=list)
     system_prompt: str | None = None
     response: str | None = None
     thought_level: str | None = None
@@ -132,7 +132,7 @@ class CompletionTracer:
     def record(
         self,
         *,
-        messages: list[dict[str, str]],
+        messages: list[dict[str, Any]],
         response: str | None = None,
         system_prompt: str | None = None,
         purpose: str | None = None,

@@ -16,6 +16,8 @@ class CompletionResponse(BaseModel):
     model: str | None = None
     reasoning_content: str | None = None
     finish_reason: str | None = None
+    tool_calls: list[dict[str, Any]] | None = None
+    """Client-side tool calls: ``{id, name, arguments}``. ``arguments`` is parsed JSON (typically a dict); invalid JSON stays a string. None when the model did not call tools."""
 
 
 class StreamChunk(BaseModel):
@@ -27,6 +29,10 @@ class StreamChunk(BaseModel):
     usage: dict[str, Any] | None = None
     finish_reason: str | None = None
     reasoning_delta: str | None = None
+    tool_call_delta: list[dict[str, Any]] | None = None
+    """Tool-call fragments yielded on this chunk (SDK stream deltas), if any."""
+    tool_calls: list[dict[str, Any]] | None = None
+    """Tool calls accumulated so far; the last chunk exposes the full list."""
 
 
 @dataclass(frozen=True, slots=True)
