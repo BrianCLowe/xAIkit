@@ -250,7 +250,7 @@ with client.open_realtime_session(
     # session.send_audio(pcm16_bytes)
 ```
 
-Default model is `grok-voice-latest`. Constructor `voice_model=` overrides like `video_model=`. REST STT/TTS stay on `transcribe` / `synthesize_speech`. Streaming STT (transcribe a stream, not speech-to-speech) is `open_stt_session`.
+Default model is `grok-voice-latest`. Constructor `voice_model=` overrides like `video_model=`. REST STT/TTS stay on `transcribe` / `synthesize_speech`. Streaming STT is `open_stt_session`; streaming TTS is `open_tts_session` (not speech-to-speech).
 
 Mint a short-lived token on the **server** so the long-lived API key never reaches the browser. Pass `value` to the client (`Authorization: Bearer <token>`, or `realtime_client_secret_protocol(token)` for `sec-websocket-protocol`).
 
@@ -288,6 +288,29 @@ with client.open_stt_session(language="en", interim_results=True) as session:
 ```
 
 REST file transcription stays on `transcribe`. Offline tests mock the socket.
+
+## Streaming text-to-speech
+
+Bidirectional TTS over `wss://api.x.ai/v1/tts`. Send text deltas; receive base64 `audio.delta` chunks. This is not the realtime voice (STS) socket.
+
+```python
+from xaikit import MockChatProvider, XaiClient, decode_tts_audio
+
+client = XaiClient(provider=MockChatProvider(), api_key="test-key")
+# Live: XaiClient(api_key=os.environ["XAI_API_KEY"])
+
+with client.open_tts_session(language="en", voice="eve", codec="mp3") as session:
+    session.send_text("Hello from streaming TTS.")
+    session.text_done()
+    for event in session.events():
+        chunk = decode_tts_audio(event)
+        if chunk:
+            pass  # apps own playback
+        elif event.get("type") == "audio.done":
+            break
+```
+
+REST unary synthesis stays on `synthesize_speech`. Offline tests mock the socket.
 
 ## Streaming
 

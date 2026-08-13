@@ -56,6 +56,14 @@ from xaikit.stt_stream import (
     connect_stt_websocket,
     stt_session_url,
 )
+from xaikit.tts_stream import (
+    DEFAULT_TTS_CODEC,
+    DEFAULT_TTS_WS_LANGUAGE,
+    XAI_TTS_WS_URL,
+    TtsSession,
+    connect_tts_websocket,
+    tts_session_url,
+)
 from xaikit.retry import RetryPolicy, call_with_retry, default_retry_policy
 from xaikit.traces import CompletionTracer
 from xaikit.types import CompletionResponse, StreamChunk
@@ -108,6 +116,19 @@ def _error_class(exc: BaseException) -> str:
     if len(msg) > 120:
         msg = msg[:117] + "..."
     return f"{name}: {msg}" if msg else name
+
+
+def _is_unauthorized_status(exc: BaseException) -> bool:
+    """True when a transport exception carries HTTP 401 (skip meter, then raise)."""
+    for obj in (exc, getattr(exc, "response", None)):
+        if obj is None:
+            continue
+        code = getattr(obj, "status_code", None)
+        if code is None:
+            code = getattr(obj, "status", None)
+        if code == 401:
+            return True
+    return False
 
 
 class XaiClient:
@@ -2674,12 +2695,94 @@ class XaiClient:
             raise
         return session
 
+    def open_tts_session(
+        self,
+        *,
+        voice: str = DEFAULT_TTS_VOICE_ID,
+        language: str = DEFAULT_TTS_WS_LANGUAGE,
+        codec: str = DEFAULT_TTS_CODEC,
+        sample_rate: int | None = None,
+        bit_rate: int | None = None,
+        speed: float | None = None,
+        optimize_streaming_latency: int | None = None,
+        text_normalization: bool | None = None,
+        with_timestamps: bool | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> TtsSession:
+        """Open a streaming text-to-speech WebSocket (not speech-to-speech).
+
+        Connects to ``wss://api.x.ai/v1/tts`` with query knobs and
+        ``Authorization: Bearer <api_key>``. REST unary synthesis stays on
+        :meth:`synthesize_speech`. STS stays on :meth:`open_realtime_session`.
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        key = self._require_tts_api_key()
+        url = tts_session_url(
+            base=XAI_TTS_WS_URL,
+            voice=voice,
+            language=language,
+            codec=codec,
+            sample_rate=sample_rate,
+            bit_rate=bit_rate,
+            speed=speed,
+            optimize_streaming_latency=optimize_streaming_latency,
+            text_normalization=text_normalization,
+            with_timestamps=with_timestamps,
+        )
+        headers = {"Authorization": f"Bearer {key}"}
+
+        try:
+            ws = connect_tts_websocket(
+                url,
+                additional_headers=headers,
+                open_timeout=_REALTIME_OPEN_TIMEOUT,
+                close_timeout=_REALTIME_CLOSE_TIMEOUT,
+            )
+        except Exception as exc:
+            if _is_unauthorized_status(exc):
+                raise RuntimeError("xAI TTS unauthorized — check API key") from exc
+            self._record(
+                purpose=tag,
+                usage=None,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                thought_level=None,
+                error=_error_class(exc),
+                modality="tts",
+                model="tts",
+                apply_price_table=False,
+            )
+            logger.exception("xAI TTS stream connect failed")
+            raise RuntimeError(f"TTS session connect failed: {exc}") from exc
+
+        return TtsSession(
+            ws,
+            purpose=tag,
+            parent_id=parent_id,
+            labels=labels,
+            record=self._record,
+            error_class=_error_class,
+            model="tts",
+        )
+
     def _require_stt_api_key(self) -> str:
         key = (self.api_key or "").strip()
         if not key:
             raise RuntimeError(
                 "xAI credentials not configured. Pass api_key= or inject a "
                 "CredentialStore before opening an STT session."
+            )
+        return key
+
+    def _require_tts_api_key(self) -> str:
+        key = (self.api_key or "").strip()
+        if not key:
+            raise RuntimeError(
+                "xAI credentials not configured. Pass api_key= or inject a "
+                "CredentialStore before opening a TTS session."
             )
         return key
 

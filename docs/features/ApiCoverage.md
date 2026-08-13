@@ -24,6 +24,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 | Image edit / i2i | [MediaRest](MediaRest.md) — `edit_image` beside generate | Yes |
 | STT / TTS (REST) | [MediaRest](MediaRest.md) | Yes |
 | Streaming STT (non-STS) | [MediaRest](MediaRest.md) | Yes |
+| Streaming TTS (non-STS) | [MediaRest](MediaRest.md) | Yes |
 | Video | [VideoGeneration](VideoGeneration.md) | No |
 | Realtime voice / STS | [RealtimeVoice](RealtimeVoice.md) | Yes |
 | Files upload / `file_id` | `XaiClient` files helpers (this spec until a map row) | Yes |
@@ -76,6 +77,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 
 - **Image edit**: `POST /v1/images/edits` JSON (not multipart) on [MediaRest](MediaRest.md). Knobs: model, prompt, source image, `n`, aspect/response_format as upstream allows. Same return shape as `generate_image` plus `file_id` when present.
 - **Streaming STT**: unary-transcribe over `wss://api.x.ai/v1/stt` on [MediaRest](MediaRest.md) (`open_stt_session` / `SttSession`). Not speech-to-speech (that is [RealtimeVoice](RealtimeVoice.md)).
+- **Streaming TTS**: bidirectional TTS over `wss://api.x.ai/v1/tts` on [MediaRest](MediaRest.md) (`open_tts_session` / `TtsSession`). Not STS (`/v1/realtime`). REST `synthesize_speech` stays.
 
 ### Other `XaiClient` surfaces *(target — this spec)*
 
@@ -104,6 +106,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 | 2026-08-12 | Video first, then ranked remainder | User request |
 | 2026-08-12 | After video: realtime voice; rest unordered | User confirm |
 | 2026-08-12 | Target homes: tools/vision/schema → ClientChat; image edit/streaming STT → MediaRest; Files/embed/tokenizer/batch/collections → XaiClient | Final kit is one client, not N SDKs |
+| 2026-08-13 | Streaming TTS (non-STS) → MediaRest | Same home as streaming STT: `/v1/tts` ≠ `/v1/realtime`. `open_tts_session` / `TtsSession`, not `RealtimeSession` |
 | 2026-08-12 | Chat stays the paved text path; Responses/built-in tools are additive | Do not rewrite `chat` as an interim |
 | 2026-08-12 | Files is not a gate for T2V / T2I | URL/data-URL first; `file_id` when Files exists |
 | 2026-08-12 | Catalog intents per role, same cheapest/economy/best rules | Image/voice/video lineups stay thin; overlap already specified |
@@ -123,7 +126,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 | [VideoGeneration.md](VideoGeneration.md) | Implement first; may take `file_id` later |
 | [RealtimeVoice.md](RealtimeVoice.md) | Implement after video |
 | [ClientChat.md](ClientChat.md) | Tools, vision, structured outputs |
-| [MediaRest.md](MediaRest.md) | Image edit, streaming STT |
+| [MediaRest.md](MediaRest.md) | Image edit, streaming STT, streaming TTS |
 | [Catalog.md](Catalog.md) | Role-filtered resolve |
 | [UsageObservability.md](UsageObservability.md) | Modalities for new surfaces |
 | [ConnectAuth.md](ConnectAuth.md) | Credentials |

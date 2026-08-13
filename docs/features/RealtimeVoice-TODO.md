@@ -7,9 +7,9 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Medium — Streaming TTS-only over WS if distinct from STS  
+**Active task:** Low — Custom voice `voice_id` on the realtime path  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — ephemeral client-secret mint (`create_realtime_client_secret`) + mocked HTTP tests
+**Last session:** 2026-08-13 — Streaming TTS-only WS home is [MediaRest-TODO.md](MediaRest-TODO.md) (`open_tts_session`; `wss://api.x.ai/v1/tts`, not STS)
 
 *Next agent: library-only · exercise path: pytest + optional `XAITKIT_LIVE=1` + `XAITKIT_LIVE_VOICE=1` smoke. Do not add a recorder UI.*
 
@@ -21,7 +21,7 @@
 
 ## Medium Priority
 
-- [ ] Streaming TTS-only over WS if distinct from STS
+*(none)*
 
 ## Low Priority / Future Ideas
 
@@ -30,7 +30,7 @@
 ## Cross-Feature Dependencies & Integration Notes
 
 - **library-only** — mocked tests, not a recorder UI. Optional live: `XAITKIT_LIVE=1 XAITKIT_LIVE_VOICE=1 uv run pytest tests/test_live_smoke.py -m live`
-- REST STT/TTS and streaming STT (`open_stt_session`) stay on [MediaRest-TODO.md](MediaRest-TODO.md).
+- REST STT/TTS, streaming STT (`open_stt_session`), and streaming TTS (`open_tts_session`) stay on [MediaRest-TODO.md](MediaRest-TODO.md).
 - Video generation shipped 2026-08-12 ([VideoGeneration-TODO.md](VideoGeneration-TODO.md)).
 
 ## Completed
@@ -41,5 +41,6 @@
 - [x] **Contract tests** — mocked WS: auth header, empty-session guards, purpose-when-metered, usage modality (2026-08-13)
 - [x] **Meter + prices** — `modality="realtime"`; default `per_minute_usd` rows from public STS rates (2026-08-13)
 - [x] Streaming STT-only over WS — home: [MediaRest-TODO.md](MediaRest-TODO.md) (`open_stt_session`; not STS) (2026-08-13)
+- [x] Streaming TTS-only over WS if distinct from STS — home: [MediaRest-TODO.md](MediaRest-TODO.md) (`open_tts_session` / `TtsSession` on `wss://api.x.ai/v1/tts`; not STS) (2026-08-13)
 - [x] **Ephemeral tokens for client-side connect** — `create_realtime_client_secret` wraps `POST /v1/realtime/client_secrets`; `realtime_client_secret_protocol`; mocked HTTP; no product login (2026-08-13)
 - [x] Catalog: voice models in resolve helpers — shipped on [Catalog-TODO.md](Catalog-TODO.md) (`role=voice`; 2026-08-13); closed here as a stale pointer (not this slice)
