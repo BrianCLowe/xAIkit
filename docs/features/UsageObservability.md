@@ -1,6 +1,6 @@
 # UsageObservability
 
-**Last Updated**: 2026-08-12  
+**Last Updated**: 2026-08-13  
 **Related TODO**: [UsageObservability-TODO.md](UsageObservability-TODO.md)
 
 ## Overview
@@ -18,8 +18,8 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 ## Behavior (stable)
 
 - Usage events: purpose, model, tokens, estimated USD, success, thought_level, modality, labels, parent_id
-- Modalities used today: `chat`, `stt`, `tts`, `imagine`, `video`
-- **Target modalities:** `realtime` (or `voice`), `files`, `embed`, plus existing tags — same purpose/labels/success rules
+- Modalities used today: `chat`, `stt`, `tts`, `imagine`, `video`, `realtime`
+- **Target modalities still open:** `files`, `embed` — same purpose/labels/success rules
 - Gap notes scrub secret-ish strings and cap length
 - Meter/trace failures must not break the user-facing call (logged)
 
@@ -29,12 +29,13 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 |------|----------|-----------|
 | 2026-08-12 | Opt-in companions, default off | Library-first; apps attach sinks |
 | 2026-08-12 | Video prices: `ModelPrice.per_second_usd` (+ optional resolution map); 480p default | Video is billed per second by resolution, not tokens. Public Imagine rates are estimates, not a billing authority |
+| 2026-08-13 | Realtime voice: `modality="realtime"`; `ModelPrice.per_minute_usd` | STS is billed per audio minute on the public table ($0.05 / $0.08). Text-input `$0.004` unit is undocumented — not estimated. Estimates, not a billing authority |
 
 ## Dependencies
 
 | Piece | Relationship |
 |-------|--------------|
-| [ClientChat.md](ClientChat.md) / [MediaRest.md](MediaRest.md) | Callers record via client hooks |
+| [ClientChat.md](ClientChat.md) / [MediaRest.md](MediaRest.md) / [VideoGeneration.md](VideoGeneration.md) / [RealtimeVoice.md](RealtimeVoice.md) | Callers record via client hooks |
 
 ## Acceptance *(library stem)*
 
@@ -42,8 +43,9 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - [x] Stream meters once on completion
 - [x] Gap scrub + jsonl CLI
 - [x] Video modality on meter when video ships
-- [ ] Realtime-voice / files / embed modalities when those methods ship
+- [x] Realtime-voice modality when realtime ships
+- [ ] Files / embed modalities when those methods ship
 
 ## Current status
 
-- **Last reconciled with code**: 2026-08-12 (`modality="video"` + Imagine per-second price rows)
+- **Last reconciled with code**: 2026-08-13 (`modality="realtime"` + voice per-minute price rows; files/embed still open)

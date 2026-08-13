@@ -220,3 +220,26 @@ def test_live_generate_video_start_returns_request_id(client: XaiClient) -> None
         wait=False,
     )
     assert out.get("request_id")
+
+
+_RUN_LIVE_VOICE = os.environ.get("XAITKIT_LIVE_VOICE", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+}
+
+
+@pytest.mark.skipif(
+    not _RUN_LIVE_VOICE,
+    reason="set XAITKIT_LIVE_VOICE=1 (realtime voice is metered; not part of default live smokes)",
+)
+def test_live_open_realtime_session_receives_an_event(client: XaiClient) -> None:
+    """Opt-in connect smoke — no mic; recv one server event then close."""
+    with client.open_realtime_session(
+        instructions="You are a test assistant. Keep replies to one word.",
+        turn_detection=None,
+    ) as session:
+        event = session.recv(timeout=30.0)
+        assert isinstance(event, (dict, bytes))
+        if isinstance(event, dict):
+            assert event.get("type")

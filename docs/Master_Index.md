@@ -16,7 +16,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 |-------|--------|
 | **Project type** | Python library (PyPI/git install) |
 | **TODO labels** | Core (no InEditor / Asset columns) |
-| **Engine / stack** | Python ≥3.14, hatchling, uv, pytest, httpx, pydantic, xai-sdk |
+| **Engine / stack** | Python ≥3.14, hatchling, uv, pytest, httpx, pydantic, websockets, xai-sdk |
 | **Game extensions** | Skip |
 | **Docs profile** | `ship-first` — spec + TODO; no Understanding files |
 
@@ -46,7 +46,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 - **README vs docs/** — README for consumers; this tree for agents and contributors; wheel stays code-only.
 - **Orchestrator git:** durable mode is **`milestone-pr`** (per-slice PR → CI/Bugbot → merge → next branch). **Cloud Agent** orchestration uses the same mode.
 - **Kit leftovers:** stay as TODOs on the inventory stem ([ApiCoverage](features/ApiCoverage.md)) until that slice is next; covering TODOs on existing stems (Workflow §5.4); no map rows for vague planned-only items.
-- **Next product work** — [realtime voice](features/RealtimeVoice-TODO.md); remaining API on [ApiCoverage](features/ApiCoverage.md) has no order.
+- **Next product work** — remaining API on [ApiCoverage](features/ApiCoverage.md) has no order.
 
 ## 3. Document Map
 

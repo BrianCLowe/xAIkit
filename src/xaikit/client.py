@@ -23,6 +23,14 @@ from xaikit.catalog import (
 )
 from xaikit.credentials import CredentialStore
 from xaikit.provider import ChatProvider, SdkChatProvider
+from xaikit.realtime import (
+    DEFAULT_REALTIME_VOICE,
+    DEFAULT_VOICE_MODEL,
+    XAI_REALTIME_URL,
+    RealtimeSession,
+    connect_realtime_websocket,
+    realtime_session_url,
+)
 from xaikit.retry import RetryPolicy, call_with_retry, default_retry_policy
 from xaikit.traces import CompletionTracer
 from xaikit.types import CompletionResponse, StreamChunk
@@ -40,6 +48,8 @@ XAI_VIDEO_EXTENSIONS_URL = "https://api.x.ai/v1/videos/extensions"
 XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos/{request_id}"
 DEFAULT_TTS_VOICE_ID = "eve"
 DEFAULT_IMAGE_MODEL = "grok-imagine-image-quality"
+_REALTIME_OPEN_TIMEOUT = 30.0
+_REALTIME_CLOSE_TIMEOUT = 10.0
 
 _VIDEO_ASPECT_RATIOS = frozenset({"1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"})
 _VIDEO_RESOLUTIONS = frozenset({"480p", "720p", "1080p"})
@@ -78,6 +88,7 @@ class XaiClient:
         subject: str | None = None,
         image_model: str | None = None,
         video_model: str | None = None,
+        voice_model: str | None = None,
         bootstrap_model: str = BOOTSTRAP_MODEL,
         completion_tracer: CompletionTracer | None = None,
     ) -> None:
@@ -128,6 +139,7 @@ class XaiClient:
         )
         self.image_model = (image_model or DEFAULT_IMAGE_MODEL).strip()
         self.video_model = (video_model or DEFAULT_VIDEO_MODEL).strip()
+        self.voice_model = (voice_model or DEFAULT_VOICE_MODEL).strip()
 
     def _require_purpose_if_metered(self, purpose: str | None) -> str | None:
         if self._usage_meter is None:
@@ -1033,6 +1045,89 @@ class XaiClient:
             raise RuntimeError("Video download returned empty body")
         return response.content
 
+    def _effective_voice_model(self, model: str | None) -> str:
+        return (model or self.voice_model or DEFAULT_VOICE_MODEL).strip()
+
+    def _require_realtime_api_key(self) -> str:
+        key = (self.api_key or "").strip()
+        if not key:
+            raise RuntimeError(
+                "xAI credentials not configured. Pass api_key= or inject a "
+                "CredentialStore before opening a realtime session."
+            )
+        return key
+
+    def open_realtime_session(
+        self,
+        *,
+        model: str | None = None,
+        voice: str | None = None,
+        instructions: str | None = None,
+        turn_detection: Any = ...,
+        tools: list[dict[str, Any]] | None = None,
+        audio: dict[str, Any] | None = None,
+        reasoning_effort: str | None = None,
+        session: dict[str, Any] | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> RealtimeSession:
+        """Open a speech-to-speech WebSocket session (documented realtime protocol).
+
+        Connects to ``wss://api.x.ai/v1/realtime?model=…`` with
+        ``Authorization: Bearer <api_key>``, then sends ``session.update``.
+        REST STT/TTS stay on :meth:`transcribe` / :meth:`synthesize_speech`.
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        key = self._require_realtime_api_key()
+        voice_model = self._effective_voice_model(model)
+        url = realtime_session_url(voice_model, base=XAI_REALTIME_URL)
+        headers = {"Authorization": f"Bearer {key}"}
+
+        session_body = _realtime_session_body(
+            voice=voice,
+            instructions=instructions,
+            turn_detection=turn_detection,
+            tools=tools,
+            audio=audio,
+            reasoning_effort=reasoning_effort,
+            session=session,
+        )
+
+        try:
+            ws = connect_realtime_websocket(
+                url,
+                additional_headers=headers,
+                open_timeout=_REALTIME_OPEN_TIMEOUT,
+                close_timeout=_REALTIME_CLOSE_TIMEOUT,
+            )
+        except Exception as exc:
+            self._record(
+                purpose=tag,
+                usage=None,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                thought_level=None,
+                error=_error_class(exc),
+                modality="realtime",
+                model=voice_model,
+            )
+            logger.exception("xAI realtime connect failed")
+            raise RuntimeError(f"Realtime session connect failed: {exc}") from exc
+
+        rt = RealtimeSession(
+            ws,
+            model=voice_model,
+            purpose=tag,
+            parent_id=parent_id,
+            labels=labels,
+            record=self._record,
+            error_class=_error_class,
+        )
+        rt.update_session(session_body)
+        return rt
+
     def _start_and_maybe_wait_video(
         self,
         url: str,
@@ -1380,3 +1475,48 @@ def _normalize_video_payload(
         "model": payload.get("model"),
         "respect_moderation": video.get("respect_moderation"),
     }
+
+
+def _realtime_session_body(
+    *,
+    voice: str | None,
+    instructions: str | None,
+    turn_detection: Any,
+    tools: list[dict[str, Any]] | None,
+    audio: dict[str, Any] | None,
+    reasoning_effort: str | None,
+    session: dict[str, Any] | None,
+) -> dict[str, Any]:
+    extras = dict(session) if isinstance(session, dict) else {}
+    body: dict[str, Any] = {}
+    if "voice" not in extras:
+        body["voice"] = DEFAULT_REALTIME_VOICE
+    if "turn_detection" not in extras and turn_detection is ...:
+        body["turn_detection"] = {"type": "server_vad"}
+    body.update(extras)
+    if voice is not None:
+        cleaned = str(voice).strip()
+        if cleaned:
+            body["voice"] = cleaned
+    if instructions is not None:
+        cleaned = str(instructions).strip()
+        if cleaned:
+            body["instructions"] = cleaned
+    if turn_detection is not ...:
+        if turn_detection is False:
+            body["turn_detection"] = None
+        else:
+            body["turn_detection"] = turn_detection
+    if tools is not None:
+        body["tools"] = tools
+    if audio is not None:
+        body["audio"] = audio
+    if reasoning_effort is not None:
+        effort = str(reasoning_effort).strip()
+        if effort:
+            reasoning = dict(body.get("reasoning") or {})
+            if isinstance(body.get("reasoning"), dict):
+                reasoning = dict(body["reasoning"])
+            reasoning["effort"] = effort
+            body["reasoning"] = reasoning
+    return body

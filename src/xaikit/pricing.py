@@ -47,9 +47,30 @@ _DEFAULT_VIDEO_MODELS: dict[str, dict[str, Any]] = {
     },
 }
 
+# Public Voice / speech-to-speech list rates (USD / audio minute). Estimates, not a billing authority.
+# grok-voice-latest is the documented alias for grok-voice-think-fast-2.0.
+# Text-input $0.004 on the public table has no documented unit — not estimated here.
+_DEFAULT_VOICE_MODELS: dict[str, dict[str, Any]] = {
+    "grok-voice-latest": {
+        "input_per_million": 0.0,
+        "output_per_million": 0.0,
+        "per_minute_usd": 0.08,
+    },
+    "grok-voice-think-fast-2.0": {
+        "input_per_million": 0.0,
+        "output_per_million": 0.0,
+        "per_minute_usd": 0.08,
+    },
+    "grok-voice-think-fast-1.0": {
+        "input_per_million": 0.0,
+        "output_per_million": 0.0,
+        "per_minute_usd": 0.05,
+    },
+}
+
 
 class ModelPrice(BaseModel):
-    """Per-model pricing (token rates and/or per-second video rates)."""
+    """Per-model pricing (token, per-second video, and/or per-minute voice rates)."""
 
     input_per_million: float = Field(ge=0.0)
     output_per_million: float = Field(ge=0.0)
@@ -62,6 +83,11 @@ class ModelPrice(BaseModel):
     per_second_usd_by_resolution: dict[str, float] | None = Field(
         default=None,
         description="Optional USD/second map keyed by resolution (480p, 720p, 1080p)",
+    )
+    per_minute_usd: float | None = Field(
+        default=None,
+        ge=0.0,
+        description="USD per audio minute (realtime voice; estimates, not billing)",
     )
 
 
@@ -101,7 +127,7 @@ class PriceTable(BaseModel):
         duration_seconds: float | None = None,
         resolution: str | None = None,
     ) -> float | None:
-        """Estimate USD from video duration, token counts, or per-call fallback."""
+        """Estimate USD from video duration, voice minutes, token counts, or per-call fallback."""
         price = self.price_for(model)
         if duration_seconds is not None:
             rate = None
@@ -113,6 +139,11 @@ class PriceTable(BaseModel):
                 rate = price.per_second_usd
             if rate is not None:
                 return round(float(duration_seconds) * float(rate), 8)
+            if price.per_minute_usd is not None:
+                return round(
+                    (float(duration_seconds) / 60.0) * float(price.per_minute_usd),
+                    8,
+                )
         pt = prompt_tokens if prompt_tokens is not None else 0
         ct = completion_tokens if completion_tokens is not None else 0
         if prompt_tokens is not None or completion_tokens is not None:
@@ -129,6 +160,8 @@ def default_price_table() -> PriceTable:
     """Built-in bootstrap table (no file required)."""
     models = {mid: ModelPrice(**vals) for mid, vals in _DEFAULT_MODELS.items()}
     for mid, vals in _DEFAULT_VIDEO_MODELS.items():
+        models[mid] = ModelPrice(**vals)
+    for mid, vals in _DEFAULT_VOICE_MODELS.items():
         models[mid] = ModelPrice(**vals)
     return PriceTable(version=1, currency="USD", models=models)
 
