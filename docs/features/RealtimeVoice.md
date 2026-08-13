@@ -12,7 +12,7 @@ Upstream: `wss://api.x.ai/v1/realtime?model=…`. Default model `grok-voice-late
 ## Architecture / Contract
 
 - **Owns**: session open/close, inbound/outbound audio, optional text, usage `modality="realtime"`
-- **Does not own**: REST `transcribe` / `synthesize_speech`; custom voice clone; a recorder UI; ephemeral-token product login; streaming STT-only / TTS-only WS; catalog `role=voice`
+- **Does not own**: REST `transcribe` / `synthesize_speech`; streaming STT-only WS (shipped on [MediaRest](MediaRest.md) as `open_stt_session`); custom voice clone; a recorder UI; ephemeral-token product login; streaming TTS-only WS; catalog `role=voice`
 - **Public API** (frozen 2026-08-13):
   - `XaiClient.open_realtime_session(...)` → `RealtimeSession` (context manager)
   - Constructor: optional `voice_model=` (like `video_model=` / `image_model=`)

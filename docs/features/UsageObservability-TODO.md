@@ -1,6 +1,6 @@
 # UsageObservability — TODO
 
-**Last Updated**: 2026-08-13 *(files modality on upload/get/delete)*  
+**Last Updated**: 2026-08-13 *(streaming STT `stt` price row)*  
 **Related Spec**: [UsageObservability.md](UsageObservability.md)
 
 ---
@@ -9,7 +9,7 @@
 
 **Active task:** Embed modality when embed ships.  
 **Blocked by:** [ApiCoverage-TODO.md](ApiCoverage-TODO.md)  
-**Last session:** 2026-08-13 — Files `modality="files"` landed with ApiCoverage Files helpers; embed still open
+**Last session:** 2026-08-13 — Default streaming STT `stt` `$0.20/hour` price row; files modality already shipped; embed still open
 
 ---
 
@@ -33,3 +33,4 @@
 - [x] **`modality="realtime"`** on open/close realtime session — same purpose/labels rules (2026-08-13)
 - [x] Price rows for realtime voice in default table (`per_minute_usd`; public STS audio-minute rates) (2026-08-13)
 - [x] **`modality="files"`** on upload/get/delete — same purpose/labels rules (2026-08-13)
+- [x] Default `stt` price row `$0.20/hour` (`per_minute_usd = 0.20/60`) for streaming wall-clock estimates (2026-08-13)

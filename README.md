@@ -139,7 +139,30 @@ with client.open_realtime_session(
     # session.send_audio(pcm16_bytes)
 ```
 
-Default model is `grok-voice-latest`. Constructor `voice_model=` overrides like `video_model=`. REST STT/TTS stay on `transcribe` / `synthesize_speech`.
+Default model is `grok-voice-latest`. Constructor `voice_model=` overrides like `video_model=`. REST STT/TTS stay on `transcribe` / `synthesize_speech`. Streaming STT (transcribe a stream, not speech-to-speech) is `open_stt_session`.
+
+## Streaming speech-to-text
+
+Unary-transcribe over `wss://api.x.ai/v1/stt`. Send raw PCM bytes (not base64). This is not the realtime voice (STS) socket.
+
+```python
+from xaikit import MockChatProvider, XaiClient
+
+client = XaiClient(provider=MockChatProvider(), api_key="test-key")
+# Live: XaiClient(api_key=os.environ["XAI_API_KEY"])
+
+pcm16_bytes = bytes(3200)  # 100 ms of 16 kHz s16le PCM — apps own capture
+with client.open_stt_session(language="en", interim_results=True) as session:
+    session.send_audio(pcm16_bytes)
+    session.audio_done()
+    for event in session.events():
+        if event.get("type") == "transcript.partial":
+            print(event.get("text"))
+        elif event.get("type") == "transcript.done":
+            break
+```
+
+REST file transcription stays on `transcribe`. Offline tests mock the socket.
 
 ## Streaming
 

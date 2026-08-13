@@ -1,6 +1,6 @@
 # UsageObservability
 
-**Last Updated**: 2026-08-13  
+**Last Updated**: 2026-08-13 *(streaming STT `stt` price row)*  
 **Related TODO**: [UsageObservability-TODO.md](UsageObservability-TODO.md)
 
 ## Overview
@@ -31,6 +31,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 | 2026-08-12 | Video prices: `ModelPrice.per_second_usd` (+ optional resolution map); 480p default | Video is billed per second by resolution, not tokens. Public Imagine rates are estimates, not a billing authority |
 | 2026-08-13 | Realtime voice: `modality="realtime"`; `ModelPrice.per_minute_usd` | STS is billed per audio minute on the public table ($0.05 / $0.08). Text-input `$0.004` unit is undocumented — not estimated. Estimates, not a billing authority |
 | 2026-08-13 | Files: `modality="files"`; no default price row | Upload is metered for purpose/success; public table has no per-file rate to estimate |
+| 2026-08-13 | Streaming STT: same `modality="stt"` as REST; default `stt` row `$0.20/hour` (`per_minute_usd`) | Public Voice table Streaming Speech to Text. REST `$0.10/hr` not estimated. Estimates, not billing. Cite: https://docs.x.ai/developers/pricing |
 
 ## Dependencies
 
@@ -50,4 +51,4 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 
 ## Current status
 
-- **Last reconciled with code**: 2026-08-13 (`modality="files"` on upload/get/delete; embed still open)
+- **Last reconciled with code**: 2026-08-13 (`modality="files"`; streaming STT default `stt` price row; embed still open)

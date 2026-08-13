@@ -60,6 +60,7 @@ from xaikit.realtime import (
     decode_realtime_audio,
 )
 from xaikit.retry import RetryPolicy, call_with_retry, default_retry_policy
+from xaikit.stt_stream import XAI_STT_WS_URL, SttSession
 from xaikit.traces import (
     CompletionTrace,
     CompletionTracer,
@@ -92,6 +93,7 @@ __all__ = [
     "XAI_IMAGE_EDITS_URL",
     "XAI_REALTIME_URL",
     "XAI_STT_URL",
+    "XAI_STT_WS_URL",
     "XAI_TTS_URL",
     "XAI_VIDEO_EXTENSIONS_URL",
     "XAI_VIDEO_STATUS_URL",
@@ -126,6 +128,7 @@ __all__ = [
     "RealtimeSession",
     "RetryPolicy",
     "SdkChatProvider",
+    "SttSession",
     "StreamChunk",
     "TraceSink",
     "UsageEvent",

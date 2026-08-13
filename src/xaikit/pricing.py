@@ -72,6 +72,17 @@ _DEFAULT_IMAGE_MODELS: dict[str, dict[str, Any]] = {
     },
 }
 
+# Public streaming STT list rate (USD / audio minute from $0.20/hour). Estimates, not billing.
+# REST unary STT is $0.10/hour on the public table — not estimated here (no duration on REST calls).
+# https://docs.x.ai/developers/pricing (Voice: Speech to Text Streaming $0.20 / hr)
+_DEFAULT_STT_MODELS: dict[str, dict[str, Any]] = {
+    "stt": {
+        "input_per_million": 0.0,
+        "output_per_million": 0.0,
+        "per_minute_usd": 0.20 / 60.0,
+    },
+}
+
 # Public Voice / speech-to-speech list rates (USD / audio minute). Estimates, not a billing authority.
 # grok-voice-latest is the documented alias for grok-voice-think-fast-2.0.
 # Text-input $0.004 on the public table has no documented unit — not estimated here.
@@ -189,6 +200,8 @@ def default_price_table() -> PriceTable:
     for mid, vals in _DEFAULT_VIDEO_MODELS.items():
         models[mid] = ModelPrice(**vals)
     for mid, vals in _DEFAULT_VOICE_MODELS.items():
+        models[mid] = ModelPrice(**vals)
+    for mid, vals in _DEFAULT_STT_MODELS.items():
         models[mid] = ModelPrice(**vals)
     return PriceTable(version=1, currency="USD", models=models)
 

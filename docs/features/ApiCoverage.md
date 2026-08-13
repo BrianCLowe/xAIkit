@@ -23,7 +23,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 | Image generate | [MediaRest](MediaRest.md) | Yes |
 | Image edit / i2i | [MediaRest](MediaRest.md) — `edit_image` beside generate | Yes |
 | STT / TTS (REST) | [MediaRest](MediaRest.md) | Yes |
-| Streaming STT (non-STS) | [MediaRest](MediaRest.md) | No |
+| Streaming STT (non-STS) | [MediaRest](MediaRest.md) | Yes |
 | Video | [VideoGeneration](VideoGeneration.md) | No |
 | Realtime voice / STS | [RealtimeVoice](RealtimeVoice.md) | Yes |
 | Files upload / `file_id` | `XaiClient` files helpers (this spec until a map row) | Yes |
@@ -75,7 +75,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 ### Media extras *(target — live on MediaRest)*
 
 - **Image edit**: `POST /v1/images/edits` JSON (not multipart) on [MediaRest](MediaRest.md). Knobs: model, prompt, source image, `n`, aspect/response_format as upstream allows. Same return shape as `generate_image` plus `file_id` when present.
-- **Streaming STT**: only if it is still “transcribe a stream,” not speech-to-speech (that is RealtimeVoice).
+- **Streaming STT**: unary-transcribe over `wss://api.x.ai/v1/stt` on [MediaRest](MediaRest.md) (`open_stt_session` / `SttSession`). Not speech-to-speech (that is [RealtimeVoice](RealtimeVoice.md)).
 
 ### Other `XaiClient` surfaces *(target — this spec)*
 

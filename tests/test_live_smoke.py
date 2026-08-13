@@ -255,3 +255,32 @@ def test_live_open_realtime_session_receives_an_event(client: XaiClient) -> None
         assert isinstance(event, (dict, bytes))
         if isinstance(event, dict):
             assert event.get("type")
+
+
+_RUN_LIVE_STT = os.environ.get("XAITKIT_LIVE_STT", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+}
+
+
+@pytest.mark.skipif(
+    not _RUN_LIVE_STT,
+    reason="set XAITKIT_LIVE_STT=1 (streaming STT is metered; not part of default live smokes)",
+)
+def test_live_open_stt_session_receives_created_and_done(client: XaiClient) -> None:
+    """Opt-in streaming STT smoke — silence PCM, no mic; wait for transcript.done."""
+    pcm = bytes(16000 * 2)  # 1 s of 16 kHz s16le silence
+    with client.open_stt_session(language="en", interim_results=True) as session:
+        created = session.recv(timeout=30.0)
+        assert created.get("type") == "transcript.created"
+        session.send_audio(pcm)
+        session.audio_done()
+        kinds: list[str] = []
+        while True:
+            event = session.recv(timeout=30.0)
+            kind = str(event.get("type") or "")
+            kinds.append(kind)
+            if kind == "transcript.done":
+                break
+        assert "transcript.done" in kinds
