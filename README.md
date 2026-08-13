@@ -37,6 +37,37 @@ resp = client.chat([{"role": "user", "content": "hello"}], purpose="demo.chat")
 
 When `usage_meter` is attached, **purpose is required**. Without a meter, purpose is optional.
 
+## Credentials and OAuth
+
+Pass `api_key=` or a `CredentialStore` (`EnvCredentialStore` / `DictCredentialStore`). The kit does **not** hardcode xAI portal URLs. OAuth helpers take **caller-supplied** `authorize_url` and `token_url`.
+
+```python
+from xaikit import (
+    build_oauth_authorize_url,
+    exchange_oauth_code,
+    oauth_is_configured,
+)
+
+# Your app supplies the IdP endpoints — not the kit.
+authorize = "https://idp.example.com/authorize"
+token = "https://idp.example.com/token"
+
+assert oauth_is_configured(client_id="app-id", client_secret="app-secret")
+url = build_oauth_authorize_url(
+    client_id="app-id",
+    redirect_uri="https://app.example.com/callback",
+    state="nonce-1",
+    authorize_url=authorize,
+)
+# tokens = exchange_oauth_code(
+#     code,
+#     client_id="app-id",
+#     client_secret="app-secret",
+#     redirect_uri="https://app.example.com/callback",
+#     token_url=token,
+# )
+```
+
 ## Catalog resolve
 
 Callers pass `cheapest` / `economy` / `best` (and optional `role=`). Chat is the default pool. Pin still wins when `pin=` is set.

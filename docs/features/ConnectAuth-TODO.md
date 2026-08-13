@@ -7,9 +7,9 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Document OAuth endpoints as caller-supplied (no hardcoded xAI portal URLs in kit)  
+**Active task:** Stem shipped (library-only). OAuth URLs stay caller-supplied.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — contract tests for authorize URL / exchange / env store
+**Last session:** 2026-08-13 — README + spec: authorize/token URLs are caller-supplied (no portal hosts in the kit)
 
 ---
 
@@ -19,9 +19,10 @@
 
 ## Medium Priority
 
-- [ ] Document OAuth endpoints as caller-supplied (no hardcoded xAI portal URLs in kit)
+*(none)*
 
 ## Completed
 
 - [x] **Contract tests** — authorize URL params, missing client_id, env store fallback (**library-only**) (2026-08-13)
 - [x] Credential stores + OAuth helpers (2026-08-12 — in tree)
+- [x] Document OAuth endpoints as caller-supplied (no hardcoded xAI portal URLs in kit) (2026-08-13)

@@ -20,12 +20,14 @@ Credential injection and OAuth helpers with **no User/Session types**. Apps pass
 - OAuth configured iff client id and secret are both non-empty
 - Authorize URL: `response_type=code`, default scope `openid`, required `client_id` / `authorize_url`
 - Token exchange via HTTP; failures raise `RuntimeError`
+- **Authorize and token URLs are caller-supplied.** The kit does not embed xAI (or any) portal hostnames. Consumer docs: README **Credentials and OAuth**.
 
 ## Decisions
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
 | 2026-08-12 | No User/Session in the kit | Extractable transport; apps own identity |
+| 2026-08-13 | OAuth `authorize_url` / `token_url` are caller-supplied; no portal URLs in the kit | Apps own the IdP; README documents the helpers without hardcoding xAI hosts |
 
 ## Dependencies
 
@@ -37,6 +39,7 @@ Credential injection and OAuth helpers with **no User/Session types**. Apps pass
 
 - [x] Stores + OAuth helpers exist
 - [x] Focused unit tests for authorize URL / exchange / env store
+- [x] Consumer docs: OAuth endpoints are caller-supplied (no kit portal URLs)
 
 ## Current status
 
