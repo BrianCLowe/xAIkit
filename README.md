@@ -312,6 +312,14 @@ with client.open_tts_session(language="en", voice="eve", codec="mp3") as session
 
 REST unary synthesis stays on `synthesize_speech`. Offline tests mock the socket.
 
+List built-in TTS voices (not team-scoped custom clones):
+
+```python
+voices = client.list_tts_voices()
+# voices[0]["voice_id"] / ["name"] / ["language"]
+# client.get_tts_voice("eve")
+```
+
 ## Streaming
 
 ```python
