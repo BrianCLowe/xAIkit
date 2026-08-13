@@ -1,6 +1,6 @@
 # ApiCoverage — TODO
 
-**Last Updated**: 2026-08-12 *(kit-coverage: streaming STT + role-filtered catalog pointers)*  
+**Last Updated**: 2026-08-13 *(kit-coverage: streaming STT leftover; role-filtered catalog done on Catalog)*  
 **Related Spec**: [ApiCoverage.md](ApiCoverage.md)
 
 ---
@@ -27,7 +27,6 @@
 - [ ] Native structured outputs — home: [ClientChat-TODO.md](ClientChat-TODO.md)
 - [ ] Image edit — home: [MediaRest-TODO.md](MediaRest-TODO.md)
 - [ ] Streaming STT — home: [MediaRest-TODO.md](MediaRest-TODO.md)
-- [ ] Role-filtered catalog (image / video / voice) — home: [Catalog-TODO.md](Catalog-TODO.md)
 - [ ] Built-in agent tools / Responses API — additive; do not replace `chat`
 - [ ] Batch
 - [ ] Collections / documents
@@ -51,3 +50,4 @@
 - [x] Rank remaining API surfaces (2026-08-12 — realtime voice next; rest unordered)
 - [x] Split winner into Document Map row (2026-08-12 — RealtimeVoice)
 - [x] Target kit spec (homes + shared rules) (2026-08-12)
+- [x] Role-filtered catalog (image / video / voice) — home: [Catalog-TODO.md](Catalog-TODO.md) (2026-08-13)

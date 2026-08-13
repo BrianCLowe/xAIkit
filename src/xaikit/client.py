@@ -17,6 +17,7 @@ from xai_sdk import Client
 
 from xaikit.catalog import (
     BOOTSTRAP_MODEL,
+    DEFAULT_IMAGE_MODEL,
     DEFAULT_VIDEO_MODEL,
     normalize_thought_level,
     resolve_model_selection,
@@ -47,7 +48,6 @@ XAI_VIDEOS_URL = "https://api.x.ai/v1/videos/generations"
 XAI_VIDEO_EXTENSIONS_URL = "https://api.x.ai/v1/videos/extensions"
 XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos/{request_id}"
 DEFAULT_TTS_VOICE_ID = "eve"
-DEFAULT_IMAGE_MODEL = "grok-imagine-image-quality"
 _REALTIME_OPEN_TIMEOUT = 30.0
 _REALTIME_CLOSE_TIMEOUT = 10.0
 

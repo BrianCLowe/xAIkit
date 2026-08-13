@@ -1,6 +1,7 @@
 """Model catalog + resolution for XaiKit.
 
 Resolve chain: pin → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap.
+``role=`` selects the pool (``chat`` default, or ``image`` / ``video`` / ``voice``).
 No settings import; callers pass knobs / inject fixtures.
 """
 
@@ -23,11 +24,25 @@ from xaikit.types import ModelInfo, ModelSelection
 logger = logging.getLogger(__name__)
 
 BOOTSTRAP_MODEL = "grok-4.5"
+DEFAULT_IMAGE_MODEL = "grok-imagine-image-quality"
 DEFAULT_VIDEO_MODEL = "grok-imagine-video-1.5"
+DEFAULT_VOICE_MODEL = "grok-voice-latest"
 
 INTENT_CHEAPEST = "cheapest"
 INTENT_ECONOMY = "economy"
 INTENT_BEST = "best"
+
+ROLE_CHAT = "chat"
+ROLE_IMAGE = "image"
+ROLE_VIDEO = "video"
+ROLE_VOICE = "voice"
+KNOWN_ROLES = (ROLE_CHAT, ROLE_IMAGE, ROLE_VIDEO, ROLE_VOICE)
+_ROLE_BOOTSTRAP = {
+    ROLE_CHAT: BOOTSTRAP_MODEL,
+    ROLE_IMAGE: DEFAULT_IMAGE_MODEL,
+    ROLE_VIDEO: DEFAULT_VIDEO_MODEL,
+    ROLE_VOICE: DEFAULT_VOICE_MODEL,
+}
 # Canonical three; aliases normalize in. Overlap is allowed when the lineup is thin.
 # "economy" = cheaper-than-flagship rung, not "best performance-per-dollar".
 _INTENT_ALIASES = {
@@ -118,6 +133,19 @@ def normalize_intent(intent: str | None) -> str | None:
     return _INTENT_ALIASES.get(raw)
 
 
+def normalize_role(role: str | None) -> str:
+    """Map ``role=`` to ``chat`` | ``image`` | ``video`` | ``voice`` (default chat)."""
+    if role is None:
+        return ROLE_CHAT
+    raw = str(role).strip().lower()
+    if not raw:
+        return ROLE_CHAT
+    if raw in KNOWN_ROLES:
+        return raw
+    logger.warning("Unknown role %r — using chat", role)
+    return ROLE_CHAT
+
+
 def normalize_thought_level(level: str | None) -> str | None:
     """Map product thought/effort levels to xAI ``reasoning_effort`` values.
 
@@ -170,6 +198,35 @@ def _price_from_sdk_units(raw: int | None) -> float | None:
     return float(raw)
 
 
+def _slug_role(*parts: str) -> str | None:
+    """Role implied by a model id / alias slug (video before image)."""
+    for part in parts:
+        mid = str(part or "").strip().lower().replace("_", "-")
+        if not mid:
+            continue
+        if mid.startswith("grok-imagine-video") or "-imagine-video" in mid:
+            return ROLE_VIDEO
+        if mid.startswith("grok-voice"):
+            return ROLE_VOICE
+        if "imagine-image" in mid:
+            return ROLE_IMAGE
+    return None
+
+
+def _created_unix(value: Any) -> int | None:
+    if value is None:
+        return None
+    if hasattr(value, "seconds"):
+        try:
+            return int(value.seconds) or None
+        except (TypeError, ValueError):
+            return None
+    try:
+        return int(value) or None
+    except (TypeError, ValueError):
+        return None
+
+
 def model_info_from_language_proto(lm: Any) -> ModelInfo:
     """Map xAI SDK LanguageModel proto (or duck-typed object) → ModelInfo."""
     name = (getattr(lm, "name", None) or "").strip()
@@ -178,28 +235,25 @@ def model_info_from_language_proto(lm: Any) -> ModelInfo:
     if version is not None:
         version = str(version).strip() or None
 
-    caps: list[str] = ["chat"]
+    slug = _slug_role(name, *[str(a) for a in aliases if a])
+    caps: list[str] = [] if slug in {ROLE_IMAGE, ROLE_VIDEO, ROLE_VOICE} else ["chat"]
     out_mods = list(getattr(lm, "output_modalities", None) or [])
     in_mods = list(getattr(lm, "input_modalities", None) or [])
     for m in out_mods + in_mods:
         tag = _modality_name(m)
         if tag and tag not in ("invalid", "invalid_modality", "0"):
+            if slug in {ROLE_IMAGE, ROLE_VIDEO, ROLE_VOICE} and tag in {
+                "text",
+                "chat",
+            }:
+                continue
             if tag not in caps:
                 caps.append(tag)
+    if slug and slug not in caps:
+        caps.append(slug)
     if _slug_implies_reasoning(name, *[str(a) for a in aliases if a]):
         if "reasoning" not in caps:
             caps.append("reasoning")
-
-    created_raw = getattr(lm, "created", None)
-    created: int | None = None
-    if created_raw is not None:
-        if hasattr(created_raw, "seconds"):
-            created = int(created_raw.seconds) or None
-        else:
-            try:
-                created = int(created_raw) or None
-            except (TypeError, ValueError):
-                created = None
 
     max_prompt = getattr(lm, "max_prompt_length", None)
     context_length = int(max_prompt) if max_prompt else None
@@ -217,17 +271,118 @@ def model_info_from_language_proto(lm: Any) -> ModelInfo:
         output_per_million=_price_from_sdk_units(
             getattr(lm, "completion_text_token_price", None)
         ),
-        created=created,
+        created=_created_unix(getattr(lm, "created", None)),
     )
 
 
+def model_info_from_image_proto(im: Any) -> ModelInfo:
+    """Map xAI SDK ImageGenerationModel proto (or duck-typed object) → ModelInfo.
+
+    Tags ``image`` (or ``video`` / ``voice`` when the slug says so). Maps
+    ``image_price`` when present; otherwise leaves prices None so resolve can
+    use public rates.
+    """
+    name = (getattr(im, "name", None) or "").strip()
+    aliases = list(getattr(im, "aliases", None) or [])
+    version = (getattr(im, "version", None) or None) or None
+    if version is not None:
+        version = str(version).strip() or None
+
+    slug = _slug_role(name, *[str(a) for a in aliases if a]) or ROLE_IMAGE
+    caps = [slug]
+    max_prompt = getattr(im, "max_prompt_length", None)
+    context_length = int(max_prompt) if max_prompt else None
+
+    return ModelInfo(
+        id=name,
+        display_name=name or None,
+        aliases=[str(a) for a in aliases if a],
+        version=version,
+        capabilities=caps,
+        context_length=context_length,
+        input_per_million=_price_from_sdk_units(getattr(im, "image_price", None)),
+        created=_created_unix(getattr(im, "created", None)),
+    )
+
+
+def _merge_catalog_row(by_id: dict[str, ModelInfo], info: ModelInfo) -> None:
+    if not info.id:
+        return
+    existing = by_id.get(info.id)
+    if existing is None:
+        by_id[info.id] = info
+        return
+    caps = list(existing.capabilities)
+    for cap in info.capabilities:
+        if cap not in caps:
+            caps.append(cap)
+    by_id[info.id] = existing.model_copy(
+        update={
+            "capabilities": caps,
+            "aliases": existing.aliases or info.aliases,
+            "version": existing.version or info.version,
+            "context_length": existing.context_length or info.context_length,
+            "input_per_million": (
+                existing.input_per_million
+                if existing.input_per_million is not None
+                else info.input_per_million
+            ),
+            "output_per_million": (
+                existing.output_per_million
+                if existing.output_per_million is not None
+                else info.output_per_million
+            ),
+            "created": existing.created if existing.created is not None else info.created,
+        }
+    )
+
+
+def _sdk_list_models(
+    client: Any,
+    method_name: str,
+    mapper: Callable[[Any], ModelInfo],
+) -> list[ModelInfo]:
+    fn = getattr(getattr(client, "models", None), method_name, None)
+    if not callable(fn):
+        return []
+    try:
+        rows = fn()
+    except Exception as exc:
+        logger.warning(
+            "Model catalog %s failed (%s); keeping other lists",
+            method_name,
+            type(exc).__name__,
+        )
+        return []
+    out: list[ModelInfo] = []
+    for row in rows or []:
+        try:
+            info = mapper(row)
+        except Exception:
+            logger.warning("Skipping catalog row from %s", method_name, exc_info=True)
+            continue
+        if info.id:
+            out.append(info)
+    return out
+
+
 def fetch_models_from_sdk(api_key: str) -> list[ModelInfo]:
-    """Live fetch language models via xAI SDK (requires network + key)."""
+    """Live fetch language + image-generation models via xAI SDK.
+
+    Video/voice have no list APIs — those rows are tagged by slug when they
+    appear on either list. One list failing does not wipe the others.
+    """
     from xai_sdk import Client
 
     client = Client(api_key=api_key)
+    by_id: dict[str, ModelInfo] = {}
     try:
-        language = client.models.list_language_models()
+        for method_name, mapper in (
+            ("list_language_models", model_info_from_language_proto),
+            ("list_image_generation_models", model_info_from_image_proto),
+        ):
+            for info in _sdk_list_models(client, method_name, mapper):
+                _merge_catalog_row(by_id, info)
     finally:
         close = getattr(client, "close", None)
         if callable(close):
@@ -236,8 +391,7 @@ def fetch_models_from_sdk(api_key: str) -> list[ModelInfo]:
             except Exception:
                 pass
 
-    models = [model_info_from_language_proto(m) for m in language]
-    return [m for m in models if m.id]
+    return list(by_id.values())
 
 
 def list_models(
@@ -329,6 +483,40 @@ def general_chat_models(catalog: Sequence[ModelInfo] | None = None) -> list[Mode
     return general or chat
 
 
+def _model_matches_role(model: ModelInfo, role: str) -> bool:
+    if not (model.id or "").strip():
+        return False
+    slug = _slug_role(model.id, *model.aliases)
+    caps = {c.lower() for c in model.capabilities}
+    if role == ROLE_CHAT:
+        return model.is_chat
+    if role == ROLE_IMAGE:
+        if slug == ROLE_IMAGE:
+            return True
+        if slug in {ROLE_VIDEO, ROLE_VOICE}:
+            return False
+        return ROLE_IMAGE in caps and not model.is_chat
+    if role == ROLE_VIDEO:
+        return slug == ROLE_VIDEO or ROLE_VIDEO in caps
+    if role == ROLE_VOICE:
+        return slug == ROLE_VOICE or ROLE_VOICE in caps
+    return False
+
+
+def models_for_role(
+    catalog: Sequence[ModelInfo] | None = None,
+    role: str | None = None,
+) -> list[ModelInfo]:
+    """Filter catalog to a role pool. Coding-SKU skip applies to chat only."""
+    role_n = normalize_role(role)
+    rows = list(catalog) if catalog is not None else list_models()
+    matched = [m for m in rows if _model_matches_role(m, role_n)]
+    if role_n == ROLE_CHAT:
+        general = [m for m in matched if not _is_coding_sku(m)]
+        return general or matched
+    return matched
+
+
 _GROK_NUM = re.compile(
     r"grok[-_]?(\d+(?:\.\d+)?)(?:[-_]|$)",
     re.IGNORECASE,
@@ -390,6 +578,22 @@ def _imagine_video_sort_key(model: ModelInfo) -> tuple:
     return (tuple(nums) if nums else (0,), is_latest, created, mid)
 
 
+def _newest_key(model: ModelInfo, role: str) -> tuple:
+    """Sort key for ``best`` / prefer-latest within a role pool."""
+    if role == ROLE_CHAT:
+        return _version_tuple(model)
+    if role == ROLE_VIDEO:
+        return _imagine_video_sort_key(model)
+    mid = (model.id or "").strip().lower().replace("_", "-")
+    nums: list[int] = []
+    for part in re.split(r"[^0-9]+", mid):
+        if part.isdigit():
+            nums.append(int(part))
+    is_latest = 1 if mid.endswith("-latest") or "-latest-" in f"-{mid}-" else 0
+    created = model.created or 0
+    return (created, is_latest, tuple(nums) if nums else (0,), mid)
+
+
 def prefer_latest_video_model(catalog: Sequence[ModelInfo] | None = None) -> str:
     """Pick the newest ``grok-imagine-video*`` id from *catalog*.
 
@@ -406,20 +610,65 @@ def prefer_latest_video_model(catalog: Sequence[ModelInfo] | None = None) -> str
     return max(videos, key=_imagine_video_sort_key).id
 
 
-def prefer_latest_model(catalog: Sequence[ModelInfo] | None = None) -> str | None:
-    """Pick newest chat flagship from catalog (coding SKUs skipped when others exist)."""
-    chat = general_chat_models(catalog)
-    if not chat:
+def prefer_latest_model(
+    catalog: Sequence[ModelInfo] | None = None,
+    *,
+    role: str | None = None,
+) -> str | None:
+    """Pick newest flagship from the role pool (chat: coding SKUs skipped when others exist)."""
+    role_n = normalize_role(role)
+    pool = models_for_role(catalog, role_n)
+    if not pool:
         return None
-    best = max(chat, key=_version_tuple)
+    best = max(pool, key=lambda m: _newest_key(m, role_n))
     return best.id
 
 
-def _input_price(model: ModelInfo) -> float:
+def _public_ranking_price(model: ModelInfo, role: str) -> float | None:
+    """List/public rate for image/video/voice when SDK omitted ``input_per_million``."""
+    if role == ROLE_CHAT:
+        return None
+    from xaikit.pricing import default_price_table
+
+    table = default_price_table()
+    key = (model.id or "").strip()
+    if not key:
+        return None
+    price = None
+    if key in table.models:
+        price = table.models[key]
+    else:
+        candidates = sorted(
+            (k for k in table.models if k != "default" and key.startswith(k)),
+            key=len,
+            reverse=True,
+        )
+        if candidates:
+            price = table.models[candidates[0]]
+    if price is None:
+        return None
+    if role == ROLE_VIDEO and price.per_second_usd is not None:
+        return float(price.per_second_usd)
+    if role == ROLE_VOICE and price.per_minute_usd is not None:
+        return float(price.per_minute_usd)
+    if role == ROLE_IMAGE and price.per_call_usd is not None:
+        return float(price.per_call_usd)
+    return None
+
+
+def _ranking_price(model: ModelInfo, role: str) -> float:
     if model.input_per_million is not None:
         return float(model.input_per_million)
-    # Unknown price → treat as expensive so cheapest prefers priced minis
+    public = _public_ranking_price(model, role)
+    if public is not None:
+        return public
     return 1e9
+
+
+def _has_ranking_price(model: ModelInfo, role: str) -> bool:
+    if model.input_per_million is not None:
+        return True
+    return _public_ranking_price(model, role) is not None
 
 
 def _cheapest_tie_key(model: ModelInfo) -> tuple:
@@ -432,52 +681,66 @@ def _cheapest_tie_key(model: ModelInfo) -> tuple:
     return (missing_created, created, is_multi_agent, is_non_reasoning, mid)
 
 
-def cheapest_model(catalog: Sequence[ModelInfo] | None = None) -> str | None:
-    """Lowest input_per_million general-chat model.
+def cheapest_model(
+    catalog: Sequence[ModelInfo] | None = None,
+    *,
+    role: str | None = None,
+) -> str | None:
+    """Lowest ranking-price model in the role pool.
 
-    One price band → flagship (newer models are usually more efficient at
-    the same list price). Multiple bands → oldest / non-reasoning in the
-    cheapest band.
+    Chat uses ``input_per_million``. Image/video/voice use that field when
+    set, otherwise public list rates. One price band → flagship. Multiple
+    bands → oldest / non-reasoning in the cheapest band.
     """
-    chat = general_chat_models(catalog)
-    if not chat:
+    role_n = normalize_role(role)
+    pool = models_for_role(catalog, role_n)
+    if not pool:
         return None
-    priced = [m for m in chat if m.input_per_million is not None]
-    pool = priced or chat
-    prices = {_input_price(m) for m in pool}
+    priced = [m for m in pool if _has_ranking_price(m, role_n)]
+    use = priced or pool
+    prices = {_ranking_price(m, role_n) for m in use}
     if len(prices) <= 1:
-        return prefer_latest_model(pool) or pool[0].id
+        return prefer_latest_model(use, role=role_n) or use[0].id
     min_price = min(prices)
-    candidates = [m for m in pool if _input_price(m) == min_price]
+    candidates = [m for m in use if _ranking_price(m, role_n) == min_price]
     return min(candidates, key=_cheapest_tie_key).id
 
 
-def best_model(catalog: Sequence[ModelInfo] | None = None) -> str | None:
+def best_model(
+    catalog: Sequence[ModelInfo] | None = None,
+    *,
+    role: str | None = None,
+) -> str | None:
     """Alias for prefer_latest (flagship / best quality heuristic)."""
-    return prefer_latest_model(catalog)
+    return prefer_latest_model(catalog, role=role)
 
 
-def economy_model(catalog: Sequence[ModelInfo] | None = None) -> str | None:
-    """Newest general-chat model in the price band strictly below flagship.
+def economy_model(
+    catalog: Sequence[ModelInfo] | None = None,
+    *,
+    role: str | None = None,
+) -> str | None:
+    """Newest model in the price band strictly below flagship for this role.
 
     This is the mid / economy rung, not a performance-per-dollar optimum
     (that ratio can belong to ``best``). Overlaps ``cheapest`` when that
     band is a single price, and overlaps ``best`` when nothing is cheaper
     than the flagship.
     """
-    chat = general_chat_models(catalog)
-    if not chat:
+    role_n = normalize_role(role)
+    pool = models_for_role(catalog, role_n)
+    if not pool:
         return None
-    flagship_id = prefer_latest_model(chat)
+    flagship_id = prefer_latest_model(pool, role=role_n)
     if not flagship_id:
-        return cheapest_model(chat)
-    flagship = next((m for m in chat if m.id == flagship_id), None)
+        return cheapest_model(pool, role=role_n)
+    flagship = next((m for m in pool if m.id == flagship_id), None)
     if flagship is None:
         return flagship_id
-    cap = _input_price(flagship)
-    cheaper = [m for m in chat if _input_price(m) < cap]
+    cap = _ranking_price(flagship, role_n)
+    cheaper = [m for m in pool if _ranking_price(m, role_n) < cap]
     if cheaper:
-        return prefer_latest_model(cheaper) or cheaper[0].id
+        return prefer_latest_model(cheaper, role=role_n) or cheaper[0].id
     return flagship_id
 
 
@@ -490,6 +753,7 @@ def resolve_model(
     catalog: Sequence[ModelInfo] | None = None,
     bootstrap: str = BOOTSTRAP_MODEL,
     task_assignment: _TaskAssignFn | None = None,
+    role: str | None = None,
 ) -> str:
     """Resolve a model id via the kit policy chain."""
     return resolve_model_selection(
@@ -500,7 +764,14 @@ def resolve_model(
         catalog=catalog,
         bootstrap=bootstrap,
         task_assignment=task_assignment,
+        role=role,
     ).model_id
+
+
+def _bootstrap_model_id(role: str, bootstrap: str) -> str:
+    if role == ROLE_CHAT:
+        return (bootstrap or BOOTSTRAP_MODEL).strip() or BOOTSTRAP_MODEL
+    return _ROLE_BOOTSTRAP.get(role, BOOTSTRAP_MODEL)
 
 
 def resolve_model_selection(
@@ -512,9 +783,14 @@ def resolve_model_selection(
     catalog: Sequence[ModelInfo] | None = None,
     bootstrap: str = BOOTSTRAP_MODEL,
     task_assignment: _TaskAssignFn | None = None,
+    role: str | None = None,
 ) -> ModelSelection:
-    """pin → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap."""
+    """pin → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap.
+
+    ``role=`` selects the pool (``chat`` default). Coding-SKU skip is chat-only.
+    """
     level = normalize_thought_level(thought_level)
+    role_n = normalize_role(role)
 
     explicit = (pin or "").strip()
     if explicit:
@@ -537,7 +813,7 @@ def resolve_model_selection(
             INTENT_ECONOMY: economy_model,
             INTENT_BEST: best_model,
         }[canonical]
-        mid = picker(cat)
+        mid = picker(cat, role=role_n)
         if mid:
             return ModelSelection(
                 model_id=mid, thought_level=level, source=f"intent:{canonical}"
@@ -559,14 +835,14 @@ def resolve_model_selection(
             )
 
     if cat is not None:
-        latest = prefer_latest_model(cat)
+        latest = prefer_latest_model(cat, role=role_n)
         if latest:
             return ModelSelection(
                 model_id=latest, thought_level=level, source="prefer_latest"
             )
 
     return ModelSelection(
-        model_id=(bootstrap or BOOTSTRAP_MODEL).strip() or BOOTSTRAP_MODEL,
+        model_id=_bootstrap_model_id(role_n, bootstrap),
         thought_level=level,
         source="bootstrap",
     )

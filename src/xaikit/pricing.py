@@ -47,6 +47,31 @@ _DEFAULT_VIDEO_MODELS: dict[str, dict[str, Any]] = {
     },
 }
 
+# Public Imagine image list rates (USD / image). Estimates, not a billing authority.
+# grok-imagine-image-pro is the documented alias for grok-imagine-image-quality.
+_DEFAULT_IMAGE_MODELS: dict[str, dict[str, Any]] = {
+    "grok-imagine-image": {
+        "input_per_million": 0.0,
+        "output_per_million": 0.0,
+        "per_call_usd": 0.02,
+    },
+    "grok-imagine-image-2.0": {
+        "input_per_million": 0.0,
+        "output_per_million": 0.0,
+        "per_call_usd": 0.04,
+    },
+    "grok-imagine-image-quality": {
+        "input_per_million": 0.0,
+        "output_per_million": 0.0,
+        "per_call_usd": 0.05,
+    },
+    "grok-imagine-image-pro": {
+        "input_per_million": 0.0,
+        "output_per_million": 0.0,
+        "per_call_usd": 0.05,
+    },
+}
+
 # Public Voice / speech-to-speech list rates (USD / audio minute). Estimates, not a billing authority.
 # grok-voice-latest is the documented alias for grok-voice-think-fast-2.0.
 # Text-input $0.004 on the public table has no documented unit — not estimated here.
@@ -159,6 +184,8 @@ class PriceTable(BaseModel):
 def default_price_table() -> PriceTable:
     """Built-in bootstrap table (no file required)."""
     models = {mid: ModelPrice(**vals) for mid, vals in _DEFAULT_MODELS.items()}
+    for mid, vals in _DEFAULT_IMAGE_MODELS.items():
+        models[mid] = ModelPrice(**vals)
     for mid, vals in _DEFAULT_VIDEO_MODELS.items():
         models[mid] = ModelPrice(**vals)
     for mid, vals in _DEFAULT_VOICE_MODELS.items():

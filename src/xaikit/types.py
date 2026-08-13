@@ -61,6 +61,7 @@ class ModelInfo(BaseModel):
             return True
         if "embedding" in caps and "chat" not in caps and "text" not in caps:
             return False
-        if "image" in caps and "chat" not in caps and "text" not in caps:
+        exclusive = {"image", "video", "voice"}
+        if (caps & exclusive) and "chat" not in caps and "text" not in caps:
             return False
         return "chat" in caps or "text" in caps or "reasoning" in caps
