@@ -75,6 +75,7 @@ _JSON_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 
 XAI_STT_URL = "https://api.x.ai/v1/stt"
 XAI_TTS_URL = "https://api.x.ai/v1/tts"
+XAI_TTS_VOICES_URL = "https://api.x.ai/v1/tts/voices"
 XAI_IMAGES_URL = "https://api.x.ai/v1/images/generations"
 XAI_IMAGE_EDITS_URL = "https://api.x.ai/v1/images/edits"
 XAI_FILES_URL = "https://api.x.ai/v1/files"
@@ -99,6 +100,7 @@ DEFAULT_FILE_PURPOSE = "assistants"
 _REALTIME_OPEN_TIMEOUT = 30.0
 _REALTIME_CLOSE_TIMEOUT = 10.0
 _REALTIME_CLIENT_SECRETS_TIMEOUT = 30.0
+_TTS_VOICES_TIMEOUT = 30.0
 
 _VIDEO_ASPECT_RATIOS = frozenset({"1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3"})
 _VIDEO_RESOLUTIONS = frozenset({"480p", "720p", "1080p"})
@@ -869,6 +871,135 @@ class XaiClient:
             model="tts",
         )
         return audio, content_type
+
+    def _record_tts_voices(
+        self,
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        success: bool,
+        error: str | None = None,
+    ) -> None:
+        self._record(
+            purpose=tag,
+            usage=None,
+            parent_id=parent_id,
+            labels=labels,
+            success=success,
+            thought_level=None,
+            error=error,
+            modality="tts",
+            model="tts",
+            apply_price_table=False,
+        )
+
+    def _tts_voices_http(
+        self,
+        url: str,
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+    ) -> httpx.Response:
+        key = self._require_tts_api_key()
+        headers = {"Authorization": f"Bearer {key}"}
+        try:
+            response = httpx.get(
+                url,
+                headers=headers,
+                timeout=_TTS_VOICES_TIMEOUT,
+            )
+        except httpx.HTTPError as exc:
+            self._record_tts_voices(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            logger.exception("xAI TTS voices request failed")
+            raise RuntimeError(f"TTS voices request failed: {exc}") from exc
+
+        if response.status_code == 401:
+            raise RuntimeError("xAI TTS voices unauthorized — check API key")
+        if response.status_code >= 400:
+            detail = response.text[:500] if response.text else response.reason_phrase
+            logger.error("xAI TTS voices error %s: %s", response.status_code, detail)
+            self._record_tts_voices(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=f"HTTP{response.status_code}",
+            )
+            raise RuntimeError(f"TTS voices failed ({response.status_code}): {detail}")
+        return response
+
+    def list_tts_voices(
+        self,
+        *,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """List built-in TTS voices via ``GET /v1/tts/voices``.
+
+        Returns the upstream ``voices`` array as JSON dicts (``voice_id``,
+        ``name``, ``language``). Does not wrap team-scoped custom-voice clone.
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        response = self._tts_voices_http(
+            XAI_TTS_VOICES_URL,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+        )
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("TTS voices returned non-JSON response") from exc
+        voices = payload.get("voices") if isinstance(payload, dict) else None
+        if not isinstance(voices, list) or not voices:
+            raise RuntimeError("TTS voices response missing voices list")
+        self._record_tts_voices(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return voices
+
+    def get_tts_voice(
+        self,
+        voice_id: str,
+        *,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Fetch one built-in TTS voice via ``GET /v1/tts/voices/{voice_id}``."""
+        tag = self._require_purpose_if_metered(purpose)
+        url = _tts_voice_resource_url(voice_id)
+        response = self._tts_voices_http(
+            url,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+        )
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("TTS voice returned non-JSON response") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError("TTS voice returned unexpected payload")
+        self._record_tts_voices(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return payload
 
     def _record_files(
         self,
@@ -2784,7 +2915,7 @@ class XaiClient:
         if not key:
             raise RuntimeError(
                 "xAI credentials not configured. Pass api_key= or inject a "
-                "CredentialStore before opening a TTS session."
+                "CredentialStore before TTS API calls."
             )
         return key
 
@@ -2990,6 +3121,13 @@ class XaiClient:
         if not isinstance(payload, dict):
             raise RuntimeError("Video poll returned unexpected payload")
         return payload
+
+
+def _tts_voice_resource_url(voice_id: str) -> str:
+    cleaned = (voice_id or "").strip()
+    if not cleaned:
+        raise RuntimeError("voice_id is empty")
+    return f"{XAI_TTS_VOICES_URL}/{cleaned}"
 
 
 def _file_resource_url(file_id: str) -> str:

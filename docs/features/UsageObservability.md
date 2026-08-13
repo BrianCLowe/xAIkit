@@ -1,6 +1,6 @@
 # UsageObservability
 
-**Last Updated**: 2026-08-13 *(streaming TTS sessions: same `tts` modality, duration, no USD)*  
+**Last Updated**: 2026-08-13 *(TTS voice roster listing: same `tts` modality, no USD)*  
 **Related TODO**: [UsageObservability-TODO.md](UsageObservability-TODO.md)
 
 ## Overview
@@ -21,6 +21,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - Modalities used today: `chat`, `stt`, `tts`, `imagine`, `video`, `realtime`, `files`, `embed`, `tokenize`, `batch`, `collections`, `responses`
 - Minting a realtime client secret meters purpose/success with `modality="realtime"`; no duration and no USD (not an STS audio-minute; session duration stays on `open_realtime_session` close)
 - Streaming TTS sessions use the same `tts` modality as REST `synthesize_speech`; wall-clock `duration` on close; no USD (`apply_price_table=False`)
+- TTS voice roster listing (`list_tts_voices` / `get_tts_voice`) uses the same `tts` modality; no USD (`apply_price_table=False`) — listing is not billed audio
 - Gap notes scrub secret-ish strings and cap length
 - Meter/trace failures must not break the user-facing call (logged)
 
@@ -63,4 +64,4 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 
 ## Current status
 
-- **Last reconciled with code**: 2026-08-13 (`modality="tts"` on streaming TTS sessions; duration, no USD; realtime client-secret mint purpose/success only)
+- **Last reconciled with code**: 2026-08-13 (`modality="tts"` on streaming TTS sessions and TTS voice roster listing; duration on sessions only; no USD; realtime client-secret mint purpose/success only)
