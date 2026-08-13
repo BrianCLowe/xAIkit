@@ -1,6 +1,6 @@
 # ApiCoverage — TODO
 
-**Last Updated**: 2026-08-13 *(streaming STT homed on MediaRest)*  
+**Last Updated**: 2026-08-13 *(embeddings on XaiClient)*  
 **Related Spec**: [ApiCoverage.md](ApiCoverage.md)
 
 ---
@@ -9,7 +9,7 @@
 
 **Active task:** Remainder unordered — implement against [ApiCoverage.md](ApiCoverage.md); do not invent a second client.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — ClientChat extras (tools / vision / `chat_json` schema) homed and shipped
+**Last session:** 2026-08-13 — Embeddings (`XaiClient.embed` REST `/v1/embeddings`) + UsageObservability `modality="embed"`
 
 ---
 
@@ -24,7 +24,6 @@
 - [ ] Built-in agent tools / Responses API — additive; do not replace `chat`
 - [ ] Batch
 - [ ] Collections / documents
-- [ ] Embeddings
 - [ ] Tokenizer
 
 ## Low Priority / Future Ideas
@@ -51,3 +50,4 @@
 - [x] Vision / multimodal messages — home: [ClientChat-TODO.md](ClientChat-TODO.md) (2026-08-13)
 - [x] Native structured outputs — home: [ClientChat-TODO.md](ClientChat-TODO.md) (2026-08-13)
 - [x] Streaming STT — home: [MediaRest-TODO.md](MediaRest-TODO.md) (2026-08-13)
+- [x] Embeddings — `XaiClient.embed` REST `/v1/embeddings`; meter `modality="embed"` (2026-08-13)

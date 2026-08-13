@@ -284,3 +284,32 @@ def test_live_open_stt_session_receives_created_and_done(client: XaiClient) -> N
             if kind == "transcript.done":
                 break
         assert "transcript.done" in kinds
+
+
+_RUN_LIVE_EMBED = os.environ.get("XAITKIT_LIVE_EMBED", "").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+}
+
+
+@pytest.mark.skipif(
+    not _RUN_LIVE_EMBED,
+    reason="set XAITKIT_LIVE_EMBED=1 (embeddings are metered; not part of default live smokes)",
+)
+def test_live_embed_returns_vectors(client: XaiClient) -> None:
+    """Opt-in embed smoke — pin model (OpenAPI example is v1; override via env)."""
+    model = (os.environ.get("XAITKIT_LIVE_EMBED_MODEL") or "v1").strip() or "v1"
+    sink = InMemoryUsageSink()
+    metered = XaiClient(
+        api_key=client.api_key,
+        model=client.model,
+        usage_meter=UsageMeter(sink=sink),
+        retry_policy=default_retry_policy(max_attempts=2, backoff_seconds=0.5),
+    )
+    out = metered.embed("query: xaikit live smoke", model=model, purpose="live.embed")
+    assert out.get("data")
+    assert out["data"][0].get("embedding")
+    events = list(sink.iter_events())
+    assert events and events[0].success is True
+    assert events[0].modality == "embed"

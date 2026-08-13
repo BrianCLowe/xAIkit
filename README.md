@@ -96,6 +96,22 @@ meta = client.upload_file(b"hello", "note.txt", content_type="text/plain")
 
 Uploads larger than 50 MB are rejected before HTTP.
 
+## Embeddings
+
+REST embeddings on `XaiClient` (mocked HTTP in tests). `embed` posts JSON to `/v1/embeddings` and returns `{object, model, data, usage}` where `data` is `[{index, embedding}, …]`. Pin `model=` (OpenAPI examples use `v1`; there is no documented grok-embedding default). Empty input is rejected before HTTP.
+
+```python
+from xaikit import MockChatProvider, XaiClient
+
+client = XaiClient(provider=MockChatProvider(), api_key="test-key")
+# Live: XaiClient(api_key=os.environ["XAI_API_KEY"])
+
+out = client.embed(["query: hello", "passage: world"], model="v1")
+vectors = [row["embedding"] for row in out["data"]]
+```
+
+When a usage meter is attached, `purpose=` is required. Events use `modality="embed"`. The public pricing table has no embeddings rate, so the meter records tokens without inventing USD.
+
 ## Video generation
 
 REST Imagine video on `XaiClient` (mocked HTTP in tests; live calls need `XAI_API_KEY`). Default `wait=True` polls until the clip is ready; `wait=False` returns `request_id` for `poll_video`.

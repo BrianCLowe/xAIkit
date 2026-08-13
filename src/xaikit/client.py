@@ -54,12 +54,15 @@ XAI_TTS_URL = "https://api.x.ai/v1/tts"
 XAI_IMAGES_URL = "https://api.x.ai/v1/images/generations"
 XAI_IMAGE_EDITS_URL = "https://api.x.ai/v1/images/edits"
 XAI_FILES_URL = "https://api.x.ai/v1/files"
+XAI_EMBEDDINGS_URL = "https://api.x.ai/v1/embeddings"
 XAI_VIDEOS_URL = "https://api.x.ai/v1/videos/generations"
 XAI_VIDEO_EXTENSIONS_URL = "https://api.x.ai/v1/videos/extensions"
 XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos/{request_id}"
 DEFAULT_TTS_VOICE_ID = "eve"
 XAI_FILE_MAX_BYTES = 50 * 1024 * 1024
+XAI_EMBED_MAX_INPUTS = 128
 _FILES_TIMEOUT = 120.0
+_EMBED_TIMEOUT = 120.0
 _FILES_EXPIRES_AFTER_MIN = 3600
 _FILES_EXPIRES_AFTER_MAX = 2_592_000
 DEFAULT_FILE_PURPOSE = "assistants"
@@ -290,6 +293,7 @@ class XaiClient:
         error: str | None = None,
         modality: str | None = None,
         model: str | None = None,
+        apply_price_table: bool = True,
     ) -> None:
         if self._usage_meter is None:
             return
@@ -306,6 +310,7 @@ class XaiClient:
                 thought_level=thought_level,
                 error=error,
                 modality=modality,
+                apply_price_table=apply_price_table,
             )
         except Exception:
             logger.exception("Failed to record usage event (purpose=%s)", purpose)
@@ -1026,6 +1031,105 @@ class XaiClient:
             parent_id=parent_id,
             labels=labels,
             success=True,
+        )
+        return out
+
+    def _record_embed(
+        self,
+        *,
+        tag: str | None,
+        model: str,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        success: bool,
+        usage: dict[str, Any] | None = None,
+        error: str | None = None,
+    ) -> None:
+        self._record(
+            purpose=tag,
+            usage=usage,
+            parent_id=parent_id,
+            labels=labels,
+            success=success,
+            thought_level=None,
+            error=error,
+            modality="embed",
+            model=model,
+            apply_price_table=False,
+        )
+
+    def embed(
+        self,
+        texts: str | list[str],
+        *,
+        model: str,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Embed text via xAI REST ``POST /v1/embeddings``.
+
+        *model* is required (OpenAPI examples use ``v1``; there is no
+        documented grok-embedding default). Returns the REST envelope
+        ``{object, model, data, usage}`` where ``data`` is
+        ``[{index, embedding}, ...]``.
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        pin = (model or "").strip()
+        if not pin:
+            raise RuntimeError("model is required for embed")
+        payload_input = _normalize_embed_texts(texts)
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        body = {"model": pin, "input": payload_input}
+        try:
+            response = httpx.post(
+                XAI_EMBEDDINGS_URL,
+                headers=headers,
+                json=body,
+                timeout=_EMBED_TIMEOUT,
+            )
+        except httpx.HTTPError as exc:
+            self._record_embed(
+                tag=tag,
+                model=pin,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            logger.exception("xAI embeddings request failed")
+            raise RuntimeError(f"Embeddings request failed: {exc}") from exc
+
+        if response.status_code == 401:
+            raise RuntimeError("xAI embeddings unauthorized — check API key")
+        if response.status_code >= 400:
+            detail = response.text[:500] if response.text else response.reason_phrase
+            logger.error("xAI embeddings error %s: %s", response.status_code, detail)
+            self._record_embed(
+                tag=tag,
+                model=pin,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=f"HTTP{response.status_code}",
+            )
+            raise RuntimeError(f"Embeddings failed ({response.status_code}): {detail}")
+
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Embeddings returned non-JSON response") from exc
+        out = _parse_embed_response(payload, fallback_model=pin)
+        self._record_embed(
+            tag=tag,
+            model=str(out.get("model") or pin),
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+            usage=out.get("usage") if isinstance(out.get("usage"), dict) else None,
         )
         return out
 
@@ -1792,6 +1896,70 @@ def _parse_file_metadata(payload: Any) -> dict[str, Any]:
         if key in payload:
             out[key] = payload[key]
     return out
+
+
+def _normalize_embed_texts(texts: str | list[str]) -> str | list[str]:
+    """Reject empty input before HTTP. Documented max list length is 128."""
+    if isinstance(texts, str):
+        if not texts.strip():
+            raise RuntimeError("Embed input is empty")
+        return texts
+    if isinstance(texts, list):
+        if not texts:
+            raise RuntimeError("Embed input is empty")
+        if len(texts) > XAI_EMBED_MAX_INPUTS:
+            raise RuntimeError(
+                f"Embed input list exceeds {XAI_EMBED_MAX_INPUTS} items"
+            )
+        for item in texts:
+            if not isinstance(item, str):
+                raise RuntimeError("Embed input items must be strings")
+            if not item.strip():
+                raise RuntimeError("Embed input is empty")
+        return texts
+    raise RuntimeError("Embed input must be a string or list of strings")
+
+
+def _parse_embed_usage(raw: Any) -> dict[str, Any] | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        return None
+    out: dict[str, Any] = {}
+    for key in ("prompt_tokens", "total_tokens"):
+        if raw.get(key) is not None:
+            out[key] = raw[key]
+    return out or None
+
+
+def _parse_embed_response(payload: Any, *, fallback_model: str) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise RuntimeError("Embeddings response is not a JSON object")
+    raw_data = payload.get("data")
+    if not isinstance(raw_data, list) or not raw_data:
+        raise RuntimeError("Embeddings response missing data")
+    rows: list[dict[str, Any]] = []
+    for item in raw_data:
+        if not isinstance(item, dict):
+            raise RuntimeError("Embeddings response data item is invalid")
+        if "embedding" not in item:
+            raise RuntimeError("Embeddings response missing embedding")
+        index = item.get("index")
+        row: dict[str, Any] = {
+            "index": int(index) if index is not None else len(rows),
+            "embedding": item.get("embedding"),
+        }
+        if "object" in item:
+            row["object"] = item.get("object")
+        rows.append(row)
+    rows.sort(key=lambda row: int(row["index"]))
+    model = payload.get("model")
+    return {
+        "object": payload.get("object") or "list",
+        "model": str(model).strip() if model is not None and str(model).strip() else fallback_model,
+        "data": rows,
+        "usage": _parse_embed_usage(payload.get("usage")),
+    }
 
 
 def _imagine_file_id(

@@ -1,21 +1,21 @@
 # UsageObservability — TODO
 
-**Last Updated**: 2026-08-13 *(streaming STT `stt` price row)*  
+**Last Updated**: 2026-08-13 *(embed modality)*  
 **Related Spec**: [UsageObservability.md](UsageObservability.md)
 
 ---
 
 ## Current focus *(session handoff)*
 
-**Active task:** Embed modality when embed ships.  
+**Active task:** Tokenize helper if we wrap tokenizer API.  
 **Blocked by:** [ApiCoverage-TODO.md](ApiCoverage-TODO.md)  
-**Last session:** 2026-08-13 — Default streaming STT `stt` `$0.20/hour` price row; files modality already shipped; embed still open
+**Last session:** 2026-08-13 — `modality="embed"` on `XaiClient.embed`; no default USD row (public table has no embeddings rate)
 
 ---
 
 ## High Priority / Next Actions
 
-- [ ] Embed modality when embed ships (see [ApiCoverage.md](ApiCoverage.md))
+*(none)*
 
 ## Medium Priority
 
@@ -33,4 +33,5 @@
 - [x] **`modality="realtime"`** on open/close realtime session — same purpose/labels rules (2026-08-13)
 - [x] Price rows for realtime voice in default table (`per_minute_usd`; public STS audio-minute rates) (2026-08-13)
 - [x] **`modality="files"`** on upload/get/delete — same purpose/labels rules (2026-08-13)
-- [x] Default `stt` price row `$0.20/hour` (`per_minute_usd = 0.20/60`) for streaming wall-clock estimates (2026-08-13)
+- [x] Default `stt` price row `$0.20/hour` (`per_minute_usd`) for streaming wall-clock estimates (2026-08-13)
+- [x] **`modality="embed"`** on `embed` — same purpose/labels/success rules; no invented USD (2026-08-13)
