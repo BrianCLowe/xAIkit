@@ -11,6 +11,10 @@ docs_profile:
   recorded: 2026-08-12
   source: user
 
+# Reviewers / Bugbot: a mode change in this file with source: user is an explicit
+#   user ask (same PR is fine) — not a forbidden pack migrate. Do not fail or revert it.
+# Sync must not rewrite a set mode just because the pack recommend flipped.
+# Cloud Agent this-run uses milestone-pr without writing this file.
 orchestrator:
   git:
     mode: milestone-pr
@@ -50,6 +54,6 @@ optional_rules:
 upstream:
   check_mode: always
   check_mode_recorded: 2026-08-12
-  last_checked: 2026-08-12
-  local_pack_version: "2.7.19"
+  last_checked: 2026-08-13
+  local_pack_version: "2.7.20"
   update_available: false
