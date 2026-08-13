@@ -11,7 +11,7 @@
 
 ## Open
 
-- [ ] **Tag `v0.1.0a2` after the version bump is on master** (`procure`) — 2026-08-13 — PyPI still serves `0.1.0a1` (no Issues pointer). After the `0.1.0a2` bump is on master:
+- [ ] **Tag `v0.1.0a2` after the version bump is on master** (`procure`) — 2026-08-13 — PyPI still serves `0.1.0a1` (no Issues pointer). After [#39](https://github.com/BrianCLowe/xAIkit/pull/39) is on master:
 
   ```bash
   git checkout master && git pull
