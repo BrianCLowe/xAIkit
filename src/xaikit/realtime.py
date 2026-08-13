@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 XAI_REALTIME_URL = "wss://api.x.ai/v1/realtime"
 DEFAULT_VOICE_MODEL = "grok-voice-latest"
 DEFAULT_REALTIME_VOICE = "eve"
+XAI_CLIENT_SECRET_PROTOCOL_PREFIX = "xai-client-secret."
 
 _AUDIO_DELTA_TYPES = frozenset(
     {"response.output_audio.delta", "response.audio.delta"}
@@ -73,6 +74,14 @@ def connect_realtime_websocket(uri: str, **kwargs: Any) -> Any:
     from websockets.sync.client import connect
 
     return connect(uri, **kwargs)
+
+
+def realtime_client_secret_protocol(token: str) -> str:
+    """Browser ``sec-websocket-protocol`` value: ``xai-client-secret.{token}``."""
+    cleaned = (token or "").strip()
+    if not cleaned:
+        raise ValueError("ephemeral token is empty")
+    return f"{XAI_CLIENT_SECRET_PROTOCOL_PREFIX}{cleaned}"
 
 
 def decode_realtime_audio(event: dict[str, Any]) -> bytes | None:

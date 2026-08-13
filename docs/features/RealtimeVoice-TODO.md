@@ -7,11 +7,11 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Medium — ephemeral tokens for client-side connect (if we wrap that API).  
+**Active task:** Medium — Streaming TTS-only over WS if distinct from STS  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — High Priority realtime session + audio + mocked WS tests + meter/prices shipped
+**Last session:** 2026-08-13 — ephemeral client-secret mint (`create_realtime_client_secret`) + mocked HTTP tests
 
-*Next agent: High is drained. library-only · exercise path: pytest + optional `XAITKIT_LIVE=1` + `XAITKIT_LIVE_VOICE=1` smoke. Do not add a recorder UI.*
+*Next agent: library-only · exercise path: pytest + optional `XAITKIT_LIVE=1` + `XAITKIT_LIVE_VOICE=1` smoke. Do not add a recorder UI.*
 
 ---
 
@@ -21,13 +21,11 @@
 
 ## Medium Priority
 
-- [ ] Ephemeral tokens for client-side connect (if we wrap that API)
 - [ ] Streaming TTS-only over WS if distinct from STS
 
 ## Low Priority / Future Ideas
 
 - [ ] Custom voice `voice_id` on the realtime path
-- [ ] Catalog: voice models in resolve helpers
 
 ## Cross-Feature Dependencies & Integration Notes
 
@@ -43,3 +41,5 @@
 - [x] **Contract tests** — mocked WS: auth header, empty-session guards, purpose-when-metered, usage modality (2026-08-13)
 - [x] **Meter + prices** — `modality="realtime"`; default `per_minute_usd` rows from public STS rates (2026-08-13)
 - [x] Streaming STT-only over WS — home: [MediaRest-TODO.md](MediaRest-TODO.md) (`open_stt_session`; not STS) (2026-08-13)
+- [x] **Ephemeral tokens for client-side connect** — `create_realtime_client_secret` wraps `POST /v1/realtime/client_secrets`; `realtime_client_secret_protocol`; mocked HTTP; no product login (2026-08-13)
+- [x] Catalog: voice models in resolve helpers — shipped on [Catalog-TODO.md](Catalog-TODO.md) (`role=voice`; 2026-08-13); closed here as a stale pointer (not this slice)

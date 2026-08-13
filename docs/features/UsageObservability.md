@@ -1,6 +1,6 @@
 # UsageObservability
 
-**Last Updated**: 2026-08-13 *(responses modality)*  
+**Last Updated**: 2026-08-13 *(realtime client-secret mint: purpose/success, no duration/USD)*  
 **Related TODO**: [UsageObservability-TODO.md](UsageObservability-TODO.md)
 
 ## Overview
@@ -19,6 +19,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 
 - Usage events: purpose, model, tokens, estimated USD, success, thought_level, modality, labels, parent_id
 - Modalities used today: `chat`, `stt`, `tts`, `imagine`, `video`, `realtime`, `files`, `embed`, `tokenize`, `batch`, `collections`, `responses`
+- Minting a realtime client secret meters purpose/success with `modality="realtime"`; no duration and no USD (not an STS audio-minute; session duration stays on `open_realtime_session` close)
 - Gap notes scrub secret-ish strings and cap length
 - Meter/trace failures must not break the user-facing call (logged)
 
@@ -36,6 +37,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 | 2026-08-13 | Batch: `modality="batch"`; no default price row | Public table has no batch rate. Meter purpose/success on batch RPCs; `apply_price_table=False` |
 | 2026-08-13 | Collections: `modality="collections"`; no default price row | Public table has no collections rate. Meter purpose/success on collection RPCs; `apply_price_table=False` |
 | 2026-08-13 | Responses: `modality="responses"`; no default price row | Distinct from `chat`. Public table has no Responses/tools rate. Meter purpose/success/tokens from `input_tokens`/`output_tokens`; `apply_price_table=False` — no invented USD |
+| 2026-08-13 | Realtime client-secret mint: purpose/success only | Same `modality="realtime"` as STS. No duration/tokens; `apply_price_table=False` so estimates stay None — minting is not an audio-minute |
 
 ## Dependencies
 
@@ -59,4 +61,4 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 
 ## Current status
 
-- **Last reconciled with code**: 2026-08-13 (`modality="responses"`; no default Responses price row)
+- **Last reconciled with code**: 2026-08-13 (`modality="responses"`; realtime client-secret mint purpose/success only, no duration/USD)

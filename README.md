@@ -252,6 +252,20 @@ with client.open_realtime_session(
 
 Default model is `grok-voice-latest`. Constructor `voice_model=` overrides like `video_model=`. REST STT/TTS stay on `transcribe` / `synthesize_speech`. Streaming STT (transcribe a stream, not speech-to-speech) is `open_stt_session`.
 
+Mint a short-lived token on the **server** so the long-lived API key never reaches the browser. Pass `value` to the client (`Authorization: Bearer <token>`, or `realtime_client_secret_protocol(token)` for `sec-websocket-protocol`).
+
+```python
+from xaikit import MockChatProvider, XaiClient, realtime_client_secret_protocol
+
+client = XaiClient(provider=MockChatProvider(), api_key="test-key")
+# Live: XaiClient(api_key=os.environ["XAI_API_KEY"])  # server-side only
+
+secret = client.create_realtime_client_secret(expires_after=300)
+token = secret["value"]
+# Client WS: Authorization: Bearer {token}
+protocol = realtime_client_secret_protocol(token)  # "xai-client-secret.{token}"
+```
+
 ## Streaming speech-to-text
 
 Unary-transcribe over `wss://api.x.ai/v1/stt`. Send raw PCM bytes (not base64). This is not the realtime voice (STS) socket.

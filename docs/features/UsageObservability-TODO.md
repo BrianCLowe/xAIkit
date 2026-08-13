@@ -1,6 +1,6 @@
 # UsageObservability — TODO
 
-**Last Updated**: 2026-08-13 *(responses modality)*  
+**Last Updated**: 2026-08-13 *(realtime client-secret mint: purpose/success, no duration/USD)*  
 **Related Spec**: [UsageObservability.md](UsageObservability.md)
 
 ---
@@ -46,3 +46,4 @@
 - [x] **`modality="batch"`** on create/add/get/list/cancel/list_results — same purpose/labels/success rules; no invented USD (2026-08-13)
 - [x] **`modality="collections"`** on create/get/list/delete/upload_document/search — same purpose/labels/success rules; no invented USD (2026-08-13)
 - [x] **`modality="responses"`** on create_response/get_response — same purpose/labels/success rules; no invented USD (2026-08-13)
+- [x] Realtime client-secret mint — purpose/success, `modality="realtime"`, no duration/USD (`apply_price_table=False`) (2026-08-13)
