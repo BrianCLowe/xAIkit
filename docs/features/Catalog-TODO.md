@@ -7,9 +7,9 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Refresh bootstrap / fixture models when xAI retires slugs  
+**Active task:** Persist catalog snapshot to disk (today is in-process)  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — role-filtered resolve (`role=image|video|voice`) + SDK image-generation fetch
+**Last session:** 2026-08-13 — bootstrap `grok-4.6`; offline fallback `grok-4.6` + `grok-4.3`; public chat rates in `pricing.py`
 
 ---
 
@@ -19,7 +19,7 @@
 
 ## Medium Priority
 
-- [ ] Refresh bootstrap / fixture models when xAI retires slugs
+*(none)*
 
 ## Low Priority / Future Ideas
 
@@ -32,3 +32,4 @@
 - [x] Three intents + coding-SKU skip (2026-08-12)
 - [x] Role-filtered resolve — `role=image|video|voice` using the same cheapest / economy / best rules (2026-08-13)
 - [x] Surface image/video/voice models in fetch (not chat-only `list_language_models`) (2026-08-13)
+- [x] Refresh bootstrap / fixture models when xAI retires slugs (2026-08-13 — `BOOTSTRAP_MODEL=grok-4.6`; offline cheap row `grok-4.3`; grok-3-mini out of fallback)

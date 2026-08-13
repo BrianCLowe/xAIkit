@@ -91,6 +91,8 @@ voice_id = resolve_model(intent="economy", role="voice")
 
 `role` is `chat` | `image` | `video` | `voice`. Offline tests inject fixtures with `inject_catalog` — do not hit the network.
 
+When `model` is omitted, chat resolve falls back to `BOOTSTRAP_MODEL` (`grok-4.6`). Offline with no API key or fixture, `list_models` injects `grok-4.6` plus cheaper-band `grok-4.3`.
+
 ## Image generation and edit
 
 REST Imagine images on `XaiClient` (mocked HTTP in tests; live calls need `XAI_API_KEY`). `edit_image` posts JSON to `/v1/images/edits` (not OpenAI multipart). Source image is a public URL, data URI, or a `file_id` from `upload_file`.

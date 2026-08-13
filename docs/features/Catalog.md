@@ -15,7 +15,7 @@ The same `cheapest` / `economy` / `best` intents run on a **role-filtered** pool
 - **Does not own**: billing UI, per-app task names (apps inject `set_task_assignment`)
 - **Public API**: `list_models`, `inject_catalog`, `resolve_model`, `resolve_model_selection` (`role=`), `normalize_thought_level`, `normalize_intent`, `effort_options`, `intent_options`, `BOOTSTRAP_MODEL`, `ModelInfo`, `ModelSelection`
 
-Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook → prefer_latest → bootstrap** (`grok-4.5` for chat; image/video/voice use that role’s default slug when the pool is empty).
+Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook → prefer_latest → bootstrap** (`grok-4.6` for chat; image/video/voice use that role’s default slug when the pool is empty). Offline with no key/fixture, `list_models` injects `grok-4.6` plus cheaper-band `grok-4.3`.
 
 `normalize_thought_level`: API `low`\|`high` only; empty/unknown → omit knob.
 
@@ -45,6 +45,7 @@ Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook �
 | 2026-08-12 | Single price band → all intents pick flagship | Same list price: older SKU is not cheaper, and newer models are usually more token-efficient. Multi-band cheapest still uses the low band (4.20 vs 4.3 at $12.5 while 4.6 is $20) |
 | 2026-08-12 | Catalog intents per role, same three names | Thin image/voice/video lineups; overlap already specified ([ApiCoverage](ApiCoverage.md)) |
 | 2026-08-13 | `role=` on resolve; fetch via `list_image_generation_models` | Same three intents on a filtered pool. SDK has no video/voice list APIs — slug-tag those; image proto prices map when present, else public rates |
+| 2026-08-13 | Bootstrap `grok-4.6`; offline fallback `grok-4.6` + `grok-4.3` | Public models page (fetched 2026-08-13): chat/code default is Grok 4.6. `grok-3-mini` is off that table — cheap offline row is `grok-4.3` ($1.25 in / $2.50 out under 200k). Cite: https://docs.x.ai/docs/models and https://docs.x.ai/developers/pricing |
 
 ## Dependencies
 
@@ -64,4 +65,4 @@ Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook �
 ## Current status
 
 - **In progress**: none
-- **Last reconciled with code**: 2026-08-13
+- **Last reconciled with code**: 2026-08-13 (bootstrap `grok-4.6`; offline fallback + `grok-4.3`)
