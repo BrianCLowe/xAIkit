@@ -1,6 +1,6 @@
 # UsageObservability — TODO
 
-**Last Updated**: 2026-08-13 *(tokenize modality)*  
+**Last Updated**: 2026-08-13 *(batch modality)*  
 **Related Spec**: [UsageObservability.md](UsageObservability.md)
 
 ---
@@ -9,7 +9,7 @@
 
 **Active task:** OpenTelemetry export sink (Low).  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — `modality="tokenize"` on `XaiClient.tokenize`; no default USD row (public table has no tokenizer rate)
+**Last session:** 2026-08-13 — `modality="batch"` on `XaiClient` batch methods; no default USD row (public table has no batch rate)
 
 ---
 
@@ -28,6 +28,7 @@
 ## Cross-Feature Dependencies & Integration Notes
 
 - Tokenizer helper shipped with [ApiCoverage-TODO.md](ApiCoverage-TODO.md) (`XaiClient.tokenize`).
+- Batch methods shipped with [ApiCoverage-TODO.md](ApiCoverage-TODO.md) (`XaiClient.create_batch` / `add_batch_requests` / `get_batch` / `list_batch_results`).
 
 ## Completed
 
@@ -40,3 +41,4 @@
 - [x] Default `stt` price row `$0.20/hour` (`per_minute_usd`) for streaming wall-clock estimates (2026-08-13)
 - [x] **`modality="embed"`** on `embed` — same purpose/labels/success rules; no invented USD (2026-08-13)
 - [x] Tokenize helper if we wrap tokenizer API — `modality="tokenize"` on `tokenize`; no invented USD (2026-08-13)
+- [x] **`modality="batch"`** on create/add/get/list/cancel/list_results — same purpose/labels/success rules; no invented USD (2026-08-13)

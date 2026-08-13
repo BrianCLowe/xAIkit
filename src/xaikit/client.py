@@ -15,6 +15,13 @@ from typing import Any
 import httpx
 from xai_sdk import Client
 
+from xaikit.batch import (
+    batch_to_dict,
+    call_batch_rpc,
+    list_batches_to_dict,
+    list_results_to_dict,
+    normalize_batch_requests,
+)
 from xaikit.catalog import (
     BOOTSTRAP_MODEL,
     DEFAULT_IMAGE_MODEL,
@@ -1235,6 +1242,301 @@ class XaiClient:
             labels=labels,
             success=True,
             count=int(out["count"]),
+        )
+        return out
+
+    def _record_batch(
+        self,
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        success: bool,
+        error: str | None = None,
+    ) -> None:
+        self._record(
+            purpose=tag,
+            usage=None,
+            parent_id=parent_id,
+            labels=labels,
+            success=success,
+            thought_level=None,
+            error=error,
+            modality="batch",
+            model="batch",
+            apply_price_table=False,
+        )
+
+    def _batch_rpc(
+        self,
+        operation: str,
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        failed: str,
+        **kwargs: Any,
+    ) -> Any:
+        try:
+            return call_batch_rpc(
+                operation,
+                sdk_client=self._client,
+                **kwargs,
+            )
+        except Exception as exc:
+            self._record_batch(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            logger.exception("xAI batch %s failed", operation)
+            raise RuntimeError(f"{failed}: {exc}") from exc
+
+    def create_batch(
+        self,
+        name: str,
+        *,
+        input_file_id: str | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Create a batch job (SDK ``client.batch.create``). Returns ``{id, name, …}``."""
+        tag = self._require_purpose_if_metered(purpose)
+        cleaned = (name or "").strip()
+        if not cleaned:
+            raise RuntimeError("Batch name is empty")
+        file_id = (input_file_id or "").strip() or None
+        raw = self._batch_rpc(
+            "create",
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            failed="Batch create failed",
+            name=cleaned,
+            input_file_id=file_id,
+        )
+        try:
+            out = batch_to_dict(raw)
+        except Exception as exc:
+            self._record_batch(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            raise RuntimeError(f"Batch create failed: {exc}") from exc
+        self._record_batch(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return out
+
+    def add_batch_requests(
+        self,
+        batch_id: str,
+        requests: list[dict[str, Any]],
+        *,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Add chat-shaped request dicts to a batch (SDK ``client.batch.add``)."""
+        tag = self._require_purpose_if_metered(purpose)
+        bid = (batch_id or "").strip()
+        if not bid:
+            raise RuntimeError("Batch id is empty")
+        normalized = normalize_batch_requests(requests, default_model=self.model)
+        raw = self._batch_rpc(
+            "add",
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            failed="Batch add failed",
+            batch_id=bid,
+            requests=normalized,
+        )
+        out: dict[str, Any]
+        if raw is None:
+            out = {"id": bid}
+        elif isinstance(raw, dict):
+            out = dict(raw)
+            out.setdefault("id", bid)
+        else:
+            out = {"id": bid}
+        self._record_batch(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return out
+
+    def get_batch(
+        self,
+        batch_id: str,
+        *,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Fetch batch status (SDK ``client.batch.get``). Poll ``state`` for progress."""
+        tag = self._require_purpose_if_metered(purpose)
+        bid = (batch_id or "").strip()
+        if not bid:
+            raise RuntimeError("Batch id is empty")
+        raw = self._batch_rpc(
+            "get",
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            failed="Batch get failed",
+            batch_id=bid,
+        )
+        try:
+            out = batch_to_dict(raw)
+        except Exception as exc:
+            self._record_batch(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            raise RuntimeError(f"Batch get failed: {exc}") from exc
+        self._record_batch(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return out
+
+    def cancel_batch(
+        self,
+        batch_id: str,
+        *,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Cancel a batch (SDK ``client.batch.cancel``)."""
+        tag = self._require_purpose_if_metered(purpose)
+        bid = (batch_id or "").strip()
+        if not bid:
+            raise RuntimeError("Batch id is empty")
+        raw = self._batch_rpc(
+            "cancel",
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            failed="Batch cancel failed",
+            batch_id=bid,
+        )
+        try:
+            out = batch_to_dict(raw)
+        except Exception as exc:
+            self._record_batch(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            raise RuntimeError(f"Batch cancel failed: {exc}") from exc
+        self._record_batch(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return out
+
+    def list_batches(
+        self,
+        *,
+        limit: int | None = None,
+        pagination_token: str | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """List batches (SDK ``client.batch.list``). Returns ``{batches, pagination_token}``."""
+        tag = self._require_purpose_if_metered(purpose)
+        raw = self._batch_rpc(
+            "list",
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            failed="Batch list failed",
+            limit=limit,
+            pagination_token=(pagination_token or "").strip() or None,
+        )
+        try:
+            out = list_batches_to_dict(raw)
+        except Exception as exc:
+            self._record_batch(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            raise RuntimeError(f"Batch list failed: {exc}") from exc
+        self._record_batch(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return out
+
+    def list_batch_results(
+        self,
+        batch_id: str,
+        *,
+        limit: int | None = None,
+        pagination_token: str | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """List batch results (SDK ``client.batch.list_batch_results``)."""
+        tag = self._require_purpose_if_metered(purpose)
+        bid = (batch_id or "").strip()
+        if not bid:
+            raise RuntimeError("Batch id is empty")
+        raw = self._batch_rpc(
+            "list_results",
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            failed="Batch list results failed",
+            batch_id=bid,
+            limit=limit,
+            pagination_token=(pagination_token or "").strip() or None,
+        )
+        try:
+            out = list_results_to_dict(raw)
+        except Exception as exc:
+            self._record_batch(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            raise RuntimeError(f"Batch list results failed: {exc}") from exc
+        self._record_batch(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
         )
         return out
 

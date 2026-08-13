@@ -29,7 +29,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 | Files upload / `file_id` | `XaiClient` files helpers (this spec until a map row) | Yes |
 | Embeddings | `XaiClient` (this spec) | Yes |
 | Tokenizer | `XaiClient` or `xaikit` helper (this spec) | Yes |
-| Batch | `XaiClient` (this spec) | No |
+| Batch | `XaiClient` (this spec) | Yes |
 | Collections / documents | `XaiClient` (this spec) | No |
 | Responses / built-in agent tools | Additive wrap — **do not replace** `chat` | No |
 | Async twin | Optional parallel API (`aio`) — **not** a rewrite of sync | No |
@@ -81,7 +81,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 
 - **Embeddings**: `embed(texts: str | list[str], *, model=…, purpose=…, parent_id=…, labels=…)` → REST envelope `{object, model, data, usage}` where `data` is `[{index, embedding}, …]`. Constant `XAI_EMBEDDINGS_URL` (`POST https://api.x.ai/v1/embeddings`). Wrap documented REST via httpx (`xai_sdk` has no embeddings module). `model=` is required — OpenAPI examples use `v1`; docs do not name a grok-embedding default. Empty string / empty list / blank items / lists over 128 are rejected before HTTP. Failures → `RuntimeError`. Meter success and failure with `modality="embed"` (tokens from response `usage`, no invented USD). Pin `model=`; do not add catalog `role=embed` (Catalog roles stay `chat` \| `image` \| `video` \| `voice`).
 - **Tokenizer**: `tokenize(text, *, model=…, purpose=…, parent_id=…, labels=…)` → `{tokens, count, model}` where `tokens` is `[{token_id, string, token_bytes}, …]` (JSON dicts, no protobuf). Constant `XAI_TOKENIZE_URL` (`POST https://api.x.ai/v1/tokenize-text`). Wrap documented REST via httpx. `model=` defaults to the client's chat `self.model`. Empty/blank text is rejected before HTTP. Failures → `RuntimeError`. Meter success and failure with `modality="tokenize"` (count from the token list, no invented USD). Works with `provider=` mocks (no live SDK required).
-- **Batch**: submit + poll/results; same chat/media payloads where upstream allows; purpose-when-metered on the job.
+- **Batch**: submit + poll/results on `XaiClient` via `xai_sdk.Client.batch` (not invented REST). Public methods return JSON dicts (no `batch_pb2`). `create_batch(name, *, input_file_id=…, purpose=…)` → `{id, name, …}`. `add_batch_requests(batch_id, requests, *, purpose=…)` takes chat-shaped dicts (`model`, `messages`, knobs; `model` defaults to the client's chat model) and maps them to SDK chat objects internally. `get_batch` / `cancel_batch` / `list_batches` / `list_batch_results` wrap the matching SDK methods. Empty name / batch id / requests are rejected before RPC. Failures → `RuntimeError`. Purpose required when metered; meter success and failure with `modality="batch"` (no invented USD). Offline tests monkeypatch `call_batch_rpc` (like realtime WS). Works with `provider=` mocks when the helper is patched.
 - **Collections / documents**: upload/query if we wrap that API; not a RAG product.
 
 ### Out of kit
@@ -111,6 +111,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 | 2026-08-13 | Embeddings: REST envelope `{object, model, data, usage}`; require `model=` | Official OpenAPI `POST /v1/embeddings` (https://api.x.ai/api-docs/openapi.json). Example model id is `v1`, not a grok-embedding-* default. Return the documented envelope so callers get vectors and usage. |
 | 2026-08-13 | Embeddings: httpx REST, not gRPC; no catalog `role=embed` | `xai_sdk` ships embed protos but no Python module. Catalog roles are chat/image/video/voice only — pin `model=` |
 | 2026-08-13 | Tokenizer: `{tokens, count, model}`; httpx REST; default model is client chat model | Official OpenAPI `POST /v1/tokenize-text`. Map `string_token` → `string` so callers never import protos. SDK also has `tokenize.tokenize_text`; REST matches embed/files mock-HTTP tests. |
+| 2026-08-13 | Batch: JSON dicts on `XaiClient`; wrap `xai_sdk` batch via `call_batch_rpc`; `modality="batch"`; no USD | SDK already models create/add/get/list/cancel/list_results. Callers must not import `batch_pb2`. Public table has no batch rate — meter purpose/success only. |
 
 ## Dependencies
 
@@ -134,5 +135,5 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 
 ## Current status
 
-- **In progress**: remainder unordered after video + realtime voice + ClientChat extras + Files + embeddings + tokenizer
+- **In progress**: remainder unordered after video + realtime voice + ClientChat extras + Files + embeddings + tokenizer + batch
 - **Blocked by**: —

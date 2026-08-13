@@ -129,6 +129,33 @@ pieces = [row["string"] for row in out["tokens"]]
 
 When a usage meter is attached, `purpose=` is required. Events use `modality="tokenize"`. The public pricing table has no tokenizer rate, so the meter records the token count without inventing USD.
 
+## Batch
+
+SDK batch on `XaiClient` (mocked helper in tests — never hits gRPC). `create_batch` / `add_batch_requests` submit a job; `get_batch` polls status; `list_batch_results` reads completions as JSON dicts (no protobuf). Requests are chat-shaped dicts (`model`, `messages`, knobs). Empty name / batch id / requests are rejected before the RPC.
+
+```python
+from xaikit import MockChatProvider, XaiClient
+
+client = XaiClient(provider=MockChatProvider(), api_key="test-key")
+# Live: XaiClient(api_key=os.environ["XAI_API_KEY"])
+
+job = client.create_batch("nightly-capitals")
+client.add_batch_requests(
+    job["id"],
+    [
+        {
+            "messages": [{"role": "user", "content": "Capital of France?"}],
+            "batch_request_id": "fr",
+        }
+    ],
+)
+status = client.get_batch(job["id"])
+# status["state"]["num_pending"] / num_success / …
+# results = client.list_batch_results(job["id"])
+```
+
+When a usage meter is attached, `purpose=` is required. Events use `modality="batch"`. The public pricing table has no batch rate, so the meter records purpose/success without inventing USD.
+
 ## Video generation
 
 REST Imagine video on `XaiClient` (mocked HTTP in tests; live calls need `XAI_API_KEY`). Default `wait=True` polls until the clip is ready; `wait=False` returns `request_id` for `poll_video`.

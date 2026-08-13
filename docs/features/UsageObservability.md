@@ -1,6 +1,6 @@
 # UsageObservability
 
-**Last Updated**: 2026-08-13 *(tokenize modality)*  
+**Last Updated**: 2026-08-13 *(batch modality)*  
 **Related TODO**: [UsageObservability-TODO.md](UsageObservability-TODO.md)
 
 ## Overview
@@ -18,7 +18,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 ## Behavior (stable)
 
 - Usage events: purpose, model, tokens, estimated USD, success, thought_level, modality, labels, parent_id
-- Modalities used today: `chat`, `stt`, `tts`, `imagine`, `video`, `realtime`, `files`, `embed`, `tokenize`
+- Modalities used today: `chat`, `stt`, `tts`, `imagine`, `video`, `realtime`, `files`, `embed`, `tokenize`, `batch`
 - Gap notes scrub secret-ish strings and cap length
 - Meter/trace failures must not break the user-facing call (logged)
 
@@ -33,6 +33,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 | 2026-08-13 | Streaming STT: same `modality="stt"` as REST; default `stt` row `$0.20/hour` (`per_minute_usd`) | Public Voice table Streaming Speech to Text. REST `$0.10/hr` not estimated. Estimates, not billing. Cite: https://docs.x.ai/developers/pricing |
 | 2026-08-13 | Embeddings: `modality="embed"`; no default price row | Public table https://docs.x.ai/developers/pricing has no embeddings rate. OpenAPI `prompt_text_token_price` examples conflict (10 vs 100 cents/M) — do not invent USD. Meter purpose/success/tokens; `apply_price_table=False` |
 | 2026-08-13 | Tokenizer: `modality="tokenize"`; no default price row | Public table has no tokenizer rate. Meter purpose/success and token count from the token list; `apply_price_table=False` |
+| 2026-08-13 | Batch: `modality="batch"`; no default price row | Public table has no batch rate. Meter purpose/success on batch RPCs; `apply_price_table=False` |
 
 ## Dependencies
 
@@ -50,7 +51,8 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - [x] Files modality when Files methods ship
 - [x] Embed modality when embed ships
 - [x] Tokenize modality when tokenizer ships
+- [x] Batch modality when batch ships
 
 ## Current status
 
-- **Last reconciled with code**: 2026-08-13 (`modality="tokenize"`; no default tokenize price row)
+- **Last reconciled with code**: 2026-08-13 (`modality="batch"`; no default batch price row)
