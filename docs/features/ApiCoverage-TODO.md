@@ -1,6 +1,6 @@
 # ApiCoverage — TODO
 
-**Last Updated**: 2026-08-13 *(tokenizer on XaiClient)*  
+**Last Updated**: 2026-08-13 *(batch on XaiClient)*  
 **Related Spec**: [ApiCoverage.md](ApiCoverage.md)
 
 ---
@@ -9,7 +9,7 @@
 
 **Active task:** Remainder unordered — implement against [ApiCoverage.md](ApiCoverage.md); do not invent a second client.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — Tokenizer (`XaiClient.tokenize` REST `/v1/tokenize-text`) + UsageObservability `modality="tokenize"`
+**Last session:** 2026-08-13 — Batch (`XaiClient.create_batch` / `add_batch_requests` / `get_batch` / `list_batch_results`) + UsageObservability `modality="batch"`
 
 ---
 
@@ -22,7 +22,6 @@
 *(no order — pick when a caller needs the surface; **homes** on [ApiCoverage.md](ApiCoverage.md))*
 
 - [ ] Built-in agent tools / Responses API — additive; do not replace `chat`
-- [ ] Batch
 - [ ] Collections / documents
 
 ## Low Priority / Future Ideas
@@ -51,3 +50,4 @@
 - [x] Streaming STT — home: [MediaRest-TODO.md](MediaRest-TODO.md) (2026-08-13)
 - [x] Embeddings — `XaiClient.embed` REST `/v1/embeddings`; meter `modality="embed"` (2026-08-13)
 - [x] Tokenizer — `XaiClient.tokenize` REST `/v1/tokenize-text`; meter `modality="tokenize"` (2026-08-13)
+- [x] Batch — `XaiClient` create/add/get/list/cancel/list_results via SDK `call_batch_rpc`; meter `modality="batch"` (2026-08-13)
