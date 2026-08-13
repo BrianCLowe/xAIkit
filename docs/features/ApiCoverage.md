@@ -1,6 +1,6 @@
 # ApiCoverage
 
-**Last Updated**: 2026-08-13 *(collections on XaiClient)*  
+**Last Updated**: 2026-08-13 *(Responses API on XaiClient)*  
 **Related TODO**: [ApiCoverage-TODO.md](ApiCoverage-TODO.md)
 
 ## Overview
@@ -31,7 +31,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 | Tokenizer | `XaiClient` or `xaikit` helper (this spec) | Yes |
 | Batch | `XaiClient` (this spec) | Yes |
 | Collections / documents | `XaiClient` (this spec) | Yes |
-| Responses / built-in agent tools | Additive wrap — **do not replace** `chat` | No |
+| Responses / built-in agent tools | Additive wrap — **do not replace** `chat` | Yes |
 | Async twin | Optional parallel API (`aio`) — **not** a rewrite of sync | No |
 | Service tier / deferred | Pass-through knob when a method already exists | No |
 | Auth subclient / User types | Out of kit — [ConnectAuth](ConnectAuth.md) stays stores + OAuth helpers | N/A |
@@ -83,6 +83,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 - **Tokenizer**: `tokenize(text, *, model=…, purpose=…, parent_id=…, labels=…)` → `{tokens, count, model}` where `tokens` is `[{token_id, string, token_bytes}, …]` (JSON dicts, no protobuf). Constant `XAI_TOKENIZE_URL` (`POST https://api.x.ai/v1/tokenize-text`). Wrap documented REST via httpx. `model=` defaults to the client's chat `self.model`. Empty/blank text is rejected before HTTP. Failures → `RuntimeError`. Meter success and failure with `modality="tokenize"` (count from the token list, no invented USD). Works with `provider=` mocks (no live SDK required).
 - **Batch**: submit + poll/results on `XaiClient` via `xai_sdk.Client.batch` (not invented REST). Public methods return JSON dicts (no `batch_pb2`). `create_batch(name, *, input_file_id=…, purpose=…)` → `{id, name, …}`. `add_batch_requests(batch_id, requests, *, purpose=…)` takes chat-shaped dicts (`model`, `messages`, knobs; `model` defaults to the client's chat model) and maps them to SDK chat objects internally. `get_batch` / `cancel_batch` / `list_batches` / `list_batch_results` wrap the matching SDK methods. Empty name / batch id / requests are rejected before RPC. Failures → `RuntimeError`. Purpose required when metered; meter success and failure with `modality="batch"` (no invented USD). Offline tests monkeypatch `call_batch_rpc` (like realtime WS). Works with `provider=` mocks when the helper is patched.
 - **Collections / documents**: upload/query on `XaiClient` via `xai_sdk.Client.collections` (not a RAG product, not invented REST). Public methods return JSON dicts (no collections/documents protobufs). Honest wrap: `create_collection(name, *, model_name=…, chunk_configuration=…, description=…, purpose=…)` → `{id, name, …}`; `get_collection` / `list_collections` / `delete_collection`; `upload_document(collection_id, name, data, *, fields=…, purpose=…)`; `search_collections(query, collection_ids, *, limit=…, purpose=…)` → `{matches}` (`collection_ids` is a string or list). Empty name / collection id / query / file bytes are rejected before RPC. Failures → `RuntimeError`. Purpose required when metered; meter success and failure with `modality="collections"` (no invented USD). Offline tests monkeypatch `call_collections_rpc`. Create/get/list/delete/upload use the management channel — `XaiClient` passes `XAI_MANAGEMENT_KEY` from the environment into `xai_sdk.Client` (no second kit auth param). Search uses the regular API key.
+- **Responses / built-in agent tools**: additive REST wrap — **do not replace** `chat` / `chat_stream`. `create_response(input, *, model=…, tools=…, purpose=…)` → REST JSON dict via `POST https://api.x.ai/v1/responses`. Constant `XAI_RESPONSES_URL`. Optional `get_response(response_id, *, purpose=…)` → `GET /v1/responses/{response_id}`. `input` is a string or list (OpenAPI `ModelInput`). `model=` defaults to the client's chat model. Built-in tools (`web_search`, `x_search`, `code_interpreter`, `file_search`, `image_generation`, plus pass-through of other documented `ModelTool` types) are **opt-in** — omitted from the body unless `tools=` is passed; never default-on. Empty input / blank string / empty list / empty response id / more than 128 tools are rejected before HTTP. Failures → `RuntimeError`. Purpose required when metered; meter success and failure with `modality="responses"` (tokens from response `usage` `input_tokens`/`output_tokens`; no invented USD). Works with `provider=` mocks (httpx is patched in tests).
 
 ### Out of kit
 
@@ -113,6 +114,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 | 2026-08-13 | Tokenizer: `{tokens, count, model}`; httpx REST; default model is client chat model | Official OpenAPI `POST /v1/tokenize-text`. Map `string_token` → `string` so callers never import protos. SDK also has `tokenize.tokenize_text`; REST matches embed/files mock-HTTP tests. |
 | 2026-08-13 | Batch: JSON dicts on `XaiClient`; wrap `xai_sdk` batch via `call_batch_rpc`; `modality="batch"`; no USD | SDK already models create/add/get/list/cancel/list_results. Callers must not import `batch_pb2`. Public table has no batch rate — meter purpose/success only. |
 | 2026-08-13 | Collections: JSON dicts on `XaiClient`; wrap SDK via `call_collections_rpc`; `modality="collections"`; no USD; not a RAG product | SDK already models create/get/list/delete/upload_document/search. Callers must not import collections protobufs. Management key stays SDK `XAI_MANAGEMENT_KEY` env pass-through — no second kit auth. Public table has no collections rate. |
+| 2026-08-13 | Responses: httpx REST `create_response` / `get_response`; `modality="responses"`; tools opt-in never default-on; do not replace `chat` | Official OpenAPI `POST /v1/responses` + `GET /v1/responses/{response_id}`. Built-in tools stay caller-supplied. Distinct modality so chat metering stays separate. Public table has no Responses/tools rate — no invented USD. |
 
 ## Dependencies
 
@@ -136,5 +138,5 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 
 ## Current status
 
-- **In progress**: remainder unordered after video + realtime voice + ClientChat extras + Files + embeddings + tokenizer + batch + collections
+- **In progress**: remainder unordered after video + realtime voice + ClientChat extras + Files + embeddings + tokenizer + batch + collections + Responses
 - **Blocked by**: —
