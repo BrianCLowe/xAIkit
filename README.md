@@ -1,4 +1,4 @@
-# XaiKit
+# xAIkit
 
 Extractable **xAI transport + living model catalog + connect + usage metering** as a library-first Python kit.
 

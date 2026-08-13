@@ -1,4 +1,4 @@
-# XaiKit HTTP mount examples *(docs only)*
+# xAIkit HTTP mount examples *(docs only)*
 
 Thin FastAPI (Starlette-based) sample routes that wrap the typed `XaiClient` API.
 

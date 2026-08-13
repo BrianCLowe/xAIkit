@@ -1,4 +1,4 @@
-# XaiKit — Human TODO
+# xAIkit — Human TODO
 
 **Last Updated**: 2026-08-13  
 **Related**: [Master_Index.md](Master_Index.md) · [Tooling.md](Tooling.md)

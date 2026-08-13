@@ -5,9 +5,9 @@
 
 ## Overview
 
-Target contract for **the rest of XaiKit** — every xAI surface this kit will wrap that is not already a Document Map row. Video and realtime voice have their own stems; this file is the **finished-kit spec** for everything else, not a parking lot of maybe-laters.
+Target contract for **the rest of xAIkit** — every xAI surface this kit will wrap that is not already a Document Map row. Video and realtime voice have their own stems; this file is the **finished-kit spec** for everything else, not a parking lot of maybe-laters.
 
-XaiKit’s product is one library: typed `XaiClient` (plus catalog / meter / credentials), mock-testable, purpose-tagged usage, no UI, no multi-provider SDK. Remaining surfaces attach to that client. They do **not** get a second architecture when someone picks them up.
+xAIkit’s product is one library: typed `XaiClient` (plus catalog / meter / credentials), mock-testable, purpose-tagged usage, no UI, no multi-provider SDK. Remaining surfaces attach to that client. They do **not** get a second architecture when someone picks them up.
 
 Implement order after video: **realtime voice**, then **no order**. Split a surface into its own map row only when implementation starts if the stem would otherwise bloat — the contract below still applies.
 
