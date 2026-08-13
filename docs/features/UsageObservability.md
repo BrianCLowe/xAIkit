@@ -1,6 +1,6 @@
 # UsageObservability
 
-**Last Updated**: 2026-08-13 *(deferred chat get: 202 no tokens; still `chat` modality)*  
+**Last Updated**: 2026-08-13 *(OpenTelemetryUsageSink optional extra)*  
 **Related TODO**: [UsageObservability-TODO.md](UsageObservability-TODO.md)
 
 ## Overview
@@ -9,9 +9,9 @@ Optional, default-off companions: purpose-tagged `UsageMeter`, `CompletionTracer
 
 ## Architecture / Contract
 
-- **Owns**: event records, sinks (null / memory / jsonl / composite), rollups, gap scrub
+- **Owns**: event records, sinks (null / memory / jsonl / composite / OpenTelemetry export), rollups, gap scrub
 - **Does not own**: dashboards, billing accounts
-- **Public API**: `UsageMeter`, sinks, `CompletionTracer`, `GapLog`, `build_gap_log`, `xaikit-gaps` CLI, `default_price_table`
+- **Public API**: `UsageMeter`, sinks (`InMemoryUsageSink`, `JsonlUsageSink`, `CompositeUsageSink`, `OpenTelemetryUsageSink`), `CompletionTracer`, `GapLog`, `build_gap_log`, `xaikit-gaps` CLI, `default_price_table`
 
 Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are opt-in.
 
@@ -24,7 +24,8 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - TTS voice roster listing (`list_tts_voices` / `get_tts_voice`) uses the same `tts` modality; no USD (`apply_price_table=False`) — listing is not billed audio
 - Deferred chat get: 202 pending meters purpose/success **without** tokens (like `get_file`); 200 may record tokens from `usage`; still `modality="chat"`; no invented USD (`apply_price_table=False`). Create is purpose/success only. 401 skips the meter.
 - Gap notes scrub secret-ish strings and cap length
-- Meter/trace failures must not break the user-facing call (logged)
+- Meter/trace failures must not break the user-facing call (logged). `UsageMeter.record` / sink `append` may raise; `XaiClient._record` catches and logs
+- `OpenTelemetryUsageSink` is export-only (optional extra `xaikit[otel]` / `opentelemetry-api`; lazy import). Default meter: `opentelemetry.metrics.get_meter("xaikit")`. Counters: `xaikit.usage.calls` (+1) and `xaikit.usage.tokens` (+`total_tokens` when known) with attributes `purpose`, `model`, `modality`, `success` — never prompts/secrets (`error` omitted). `iter_events()` raises `NotImplementedError`; inspect via `CompositeUsageSink(InMemoryUsageSink(), OpenTelemetryUsageSink())` (memory first)
 
 ## Decisions
 
@@ -43,6 +44,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 | 2026-08-13 | Realtime client-secret mint: purpose/success only | Same `modality="realtime"` as STS. No duration/tokens; `apply_price_table=False` so estimates stay None — minting is not an audio-minute |
 | 2026-08-13 | Streaming TTS: same `modality="tts"` as REST; no default price row | Public table has no TTS rate. Session records purpose/success + wall-clock duration; `apply_price_table=False` — no invented USD |
 | 2026-08-13 | Deferred chat get 202: purpose/success, no tokens; 200 may record usage tokens; no USD | Same `modality="chat"` as live chat. Pending poll is not a completion. Public priority premium is not estimated. |
+| 2026-08-13 | OTel sink is optional extra, export-only counters | Keep wheel on httpx/pydantic/websockets/xai-sdk. Mapping: meter `xaikit`, counters `xaikit.usage.calls` / `xaikit.usage.tokens`, attrs purpose/model/modality/success. Tests mock `opentelemetry.metrics`. `iter_events` not supported — compose with `InMemoryUsageSink`. Sink may raise; client `_record` still protects user calls. |
 
 ## Dependencies
 
@@ -63,7 +65,8 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - [x] Batch modality when batch ships
 - [x] Collections modality when collections ships
 - [x] Responses modality when Responses ships
+- [x] OpenTelemetry export sink (optional extra; mocked tests; export-only)
 
 ## Current status
 
-- **Last reconciled with code**: 2026-08-13 (`modality="chat"` on deferred create/get; 202 pending purpose/success without tokens; 200 may record usage tokens; no USD)
+- **Last reconciled with code**: 2026-08-13 (`OpenTelemetryUsageSink`; optional `otel` extra; mocked meter tests)

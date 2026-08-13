@@ -658,6 +658,11 @@ dependencies = [
     { name = "xai-sdk" },
 ]
 
+[package.optional-dependencies]
+otel = [
+    { name = "opentelemetry-api" },
+]
+
 [package.dev-dependencies]
 dev = [
     { name = "pytest" },
@@ -666,10 +671,12 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
+    { name = "opentelemetry-api", marker = "extra == 'otel'", specifier = ">=1.20" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "websockets", specifier = ">=14.0" },
     { name = "xai-sdk", specifier = ">=1.17.0" },
 ]
+provides-extras = ["otel"]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=9.0.0" }]
