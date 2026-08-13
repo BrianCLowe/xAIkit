@@ -1,6 +1,6 @@
 # UsageObservability — TODO
 
-**Last Updated**: 2026-08-13 *(collections modality)*  
+**Last Updated**: 2026-08-13 *(responses modality)*  
 **Related Spec**: [UsageObservability.md](UsageObservability.md)
 
 ---
@@ -9,7 +9,7 @@
 
 **Active task:** OpenTelemetry export sink (Low).  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — `modality="collections"` on `XaiClient` collection methods; no default USD row (public table has no collections rate)
+**Last session:** 2026-08-13 — `modality="responses"` on `XaiClient.create_response` / `get_response`; no default USD row (public table has no Responses/tools rate)
 
 ---
 
@@ -30,6 +30,7 @@
 - Tokenizer helper shipped with [ApiCoverage-TODO.md](ApiCoverage-TODO.md) (`XaiClient.tokenize`).
 - Batch methods shipped with [ApiCoverage-TODO.md](ApiCoverage-TODO.md) (`XaiClient.create_batch` / `add_batch_requests` / `get_batch` / `list_batch_results`).
 - Collections methods shipped with [ApiCoverage-TODO.md](ApiCoverage-TODO.md) (`XaiClient.create_collection` / `upload_document` / `search_collections`).
+- Responses methods shipped with [ApiCoverage-TODO.md](ApiCoverage-TODO.md) (`XaiClient.create_response` / `get_response`).
 
 ## Completed
 
@@ -44,3 +45,4 @@
 - [x] Tokenize helper if we wrap tokenizer API — `modality="tokenize"` on `tokenize`; no invented USD (2026-08-13)
 - [x] **`modality="batch"`** on create/add/get/list/cancel/list_results — same purpose/labels/success rules; no invented USD (2026-08-13)
 - [x] **`modality="collections"`** on create/get/list/delete/upload_document/search — same purpose/labels/success rules; no invented USD (2026-08-13)
+- [x] **`modality="responses"`** on create_response/get_response — same purpose/labels/success rules; no invented USD (2026-08-13)

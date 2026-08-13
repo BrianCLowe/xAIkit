@@ -1,6 +1,6 @@
 # UsageObservability
 
-**Last Updated**: 2026-08-13 *(collections modality)*  
+**Last Updated**: 2026-08-13 *(responses modality)*  
 **Related TODO**: [UsageObservability-TODO.md](UsageObservability-TODO.md)
 
 ## Overview
@@ -18,7 +18,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 ## Behavior (stable)
 
 - Usage events: purpose, model, tokens, estimated USD, success, thought_level, modality, labels, parent_id
-- Modalities used today: `chat`, `stt`, `tts`, `imagine`, `video`, `realtime`, `files`, `embed`, `tokenize`, `batch`, `collections`
+- Modalities used today: `chat`, `stt`, `tts`, `imagine`, `video`, `realtime`, `files`, `embed`, `tokenize`, `batch`, `collections`, `responses`
 - Gap notes scrub secret-ish strings and cap length
 - Meter/trace failures must not break the user-facing call (logged)
 
@@ -35,6 +35,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 | 2026-08-13 | Tokenizer: `modality="tokenize"`; no default price row | Public table has no tokenizer rate. Meter purpose/success and token count from the token list; `apply_price_table=False` |
 | 2026-08-13 | Batch: `modality="batch"`; no default price row | Public table has no batch rate. Meter purpose/success on batch RPCs; `apply_price_table=False` |
 | 2026-08-13 | Collections: `modality="collections"`; no default price row | Public table has no collections rate. Meter purpose/success on collection RPCs; `apply_price_table=False` |
+| 2026-08-13 | Responses: `modality="responses"`; no default price row | Distinct from `chat`. Public table has no Responses/tools rate. Meter purpose/success/tokens from `input_tokens`/`output_tokens`; `apply_price_table=False` — no invented USD |
 
 ## Dependencies
 
@@ -54,7 +55,8 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - [x] Tokenize modality when tokenizer ships
 - [x] Batch modality when batch ships
 - [x] Collections modality when collections ships
+- [x] Responses modality when Responses ships
 
 ## Current status
 
-- **Last reconciled with code**: 2026-08-13 (`modality="collections"`; no default collections price row)
+- **Last reconciled with code**: 2026-08-13 (`modality="responses"`; no default Responses price row)

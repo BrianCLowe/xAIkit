@@ -72,6 +72,7 @@ XAI_IMAGE_EDITS_URL = "https://api.x.ai/v1/images/edits"
 XAI_FILES_URL = "https://api.x.ai/v1/files"
 XAI_EMBEDDINGS_URL = "https://api.x.ai/v1/embeddings"
 XAI_TOKENIZE_URL = "https://api.x.ai/v1/tokenize-text"
+XAI_RESPONSES_URL = "https://api.x.ai/v1/responses"
 XAI_VIDEOS_URL = "https://api.x.ai/v1/videos/generations"
 XAI_VIDEO_EXTENSIONS_URL = "https://api.x.ai/v1/videos/extensions"
 XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos/{request_id}"
@@ -81,6 +82,8 @@ XAI_EMBED_MAX_INPUTS = 128
 _FILES_TIMEOUT = 120.0
 _EMBED_TIMEOUT = 120.0
 _TOKENIZE_TIMEOUT = 60.0
+_RESPONSES_TIMEOUT = 120.0
+XAI_RESPONSES_MAX_TOOLS = 128
 _FILES_EXPIRES_AFTER_MIN = 3600
 _FILES_EXPIRES_AFTER_MAX = 2_592_000
 DEFAULT_FILE_PURPOSE = "assistants"
@@ -1258,6 +1261,170 @@ class XaiClient:
             labels=labels,
             success=True,
             count=int(out["count"]),
+        )
+        return out
+
+    def _record_responses(
+        self,
+        *,
+        tag: str | None,
+        model: str,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        success: bool,
+        usage: dict[str, Any] | None = None,
+        error: str | None = None,
+    ) -> None:
+        self._record(
+            purpose=tag,
+            usage=usage,
+            parent_id=parent_id,
+            labels=labels,
+            success=success,
+            thought_level=None,
+            error=error,
+            modality="responses",
+            model=model,
+            apply_price_table=False,
+        )
+
+    def _responses_http(
+        self,
+        method: str,
+        url: str,
+        *,
+        tag: str | None,
+        model: str,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        **kwargs: Any,
+    ) -> httpx.Response:
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        if "json" in kwargs:
+            headers["Content-Type"] = "application/json"
+        extra_headers = kwargs.pop("headers", None)
+        if extra_headers:
+            headers.update(extra_headers)
+        http_fn = {"POST": httpx.post, "GET": httpx.get}[method]
+        try:
+            response = http_fn(
+                url,
+                headers=headers,
+                timeout=_RESPONSES_TIMEOUT,
+                **kwargs,
+            )
+        except httpx.HTTPError as exc:
+            self._record_responses(
+                tag=tag,
+                model=model,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            logger.exception("xAI responses request failed")
+            raise RuntimeError(f"Responses request failed: {exc}") from exc
+
+        if response.status_code == 401:
+            raise RuntimeError("xAI responses unauthorized — check API key")
+        if response.status_code >= 400:
+            detail = response.text[:500] if response.text else response.reason_phrase
+            logger.error("xAI responses error %s: %s", response.status_code, detail)
+            self._record_responses(
+                tag=tag,
+                model=model,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=f"HTTP{response.status_code}",
+            )
+            raise RuntimeError(f"Responses failed ({response.status_code}): {detail}")
+        return response
+
+    def create_response(
+        self,
+        input: str | list[Any],
+        *,
+        model: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Create a response via xAI REST ``POST /v1/responses``.
+
+        Additive to ``chat`` / ``chat_stream`` — those stay the paved text
+        path. Built-in tools (web, X, code, collections, image) are opt-in:
+        they are sent only when *tools* is passed. Returns the REST JSON
+        object. *model* defaults to this client's chat model. Empty input is
+        rejected before HTTP.
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        pin = (model or "").strip() or (self.model or "").strip()
+        if not pin:
+            raise RuntimeError("model is required for create_response")
+        payload_input = _normalize_response_input(input)
+        body: dict[str, Any] = {"model": pin, "input": payload_input}
+        normalized_tools = _normalize_response_tools(tools)
+        if normalized_tools is not None:
+            body["tools"] = normalized_tools
+        response = self._responses_http(
+            "POST",
+            XAI_RESPONSES_URL,
+            tag=tag,
+            model=pin,
+            parent_id=parent_id,
+            labels=labels,
+            json=body,
+        )
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Responses returned non-JSON response") from exc
+        out = _parse_response_payload(payload)
+        usage = out.get("usage") if isinstance(out.get("usage"), dict) else None
+        self._record_responses(
+            tag=tag,
+            model=str(out.get("model") or pin),
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+            usage=usage,
+        )
+        return out
+
+    def get_response(
+        self,
+        response_id: str,
+        *,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Fetch a stored response via xAI REST ``GET /v1/responses/{id}``."""
+        tag = self._require_purpose_if_metered(purpose)
+        url = _response_resource_url(response_id)
+        pin = (self.model or "").strip() or "responses"
+        response = self._responses_http(
+            "GET",
+            url,
+            tag=tag,
+            model=pin,
+            parent_id=parent_id,
+            labels=labels,
+        )
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Responses get returned non-JSON response") from exc
+        out = _parse_response_payload(payload)
+        # GET is a fetch, not a generation — do not re-count stored usage tokens.
+        self._record_responses(
+            tag=tag,
+            model=str(out.get("model") or pin),
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
         )
         return out
 
@@ -2615,6 +2782,53 @@ def _file_resource_url(file_id: str) -> str:
     if not cleaned:
         raise RuntimeError("file_id is empty")
     return f"{XAI_FILES_URL}/{cleaned}"
+
+
+def _response_resource_url(response_id: str) -> str:
+    cleaned = (response_id or "").strip()
+    if not cleaned:
+        raise RuntimeError("Response id is empty")
+    return f"{XAI_RESPONSES_URL}/{cleaned}"
+
+
+def _normalize_response_input(value: Any) -> str | list[Any]:
+    """Reject empty input before HTTP. OpenAPI ``ModelInput`` is string or list."""
+    if isinstance(value, str):
+        if not value.strip():
+            raise RuntimeError("Response input is empty")
+        return value
+    if isinstance(value, list):
+        if not value:
+            raise RuntimeError("Response input is empty")
+        return value
+    raise RuntimeError("Response input must be a string or list")
+
+
+def _normalize_response_tools(
+    tools: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]] | None:
+    """Pass tools through when given. Omit (None) means never default-on."""
+    if tools is None:
+        return None
+    if not isinstance(tools, list):
+        raise RuntimeError("Response tools must be a list")
+    if len(tools) > XAI_RESPONSES_MAX_TOOLS:
+        raise RuntimeError(
+            f"Response tools list exceeds {XAI_RESPONSES_MAX_TOOLS} items"
+        )
+    return tools
+
+
+def _parse_response_payload(payload: Any) -> dict[str, Any]:
+    """Return the documented REST object; require ``id``."""
+    if not isinstance(payload, dict):
+        raise RuntimeError("Responses response is not a JSON object")
+    raw_id = payload.get("id")
+    if raw_id is None or not str(raw_id).strip():
+        raise RuntimeError("Responses response missing id")
+    out = dict(payload)
+    out["id"] = str(raw_id).strip()
+    return out
 
 
 def _parse_file_metadata(payload: Any) -> dict[str, Any]:

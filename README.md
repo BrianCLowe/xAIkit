@@ -352,6 +352,26 @@ schema = {
 data = client.chat_json("Name a color", schema=schema)
 ```
 
+## Responses API (built-in tools)
+
+Additive REST wrap of `POST /v1/responses`. **Chat remains the default text path** (`chat` / `chat_stream`). Built-in server tools (web search, X search, code interpreter, collections/`file_search`, image generation) are **opt-in** — they are never sent unless you pass `tools=`.
+
+```python
+from xaikit import MockChatProvider, XaiClient
+
+client = XaiClient(provider=MockChatProvider(), api_key="test-key")
+# Live: XaiClient(api_key=os.environ["XAI_API_KEY"])
+
+out = client.create_response(
+    "What is 101*3?",
+    tools=[{"type": "code_interpreter"}],  # omit tools= for text-only
+)
+# out["id"] / out["output"] / out["usage"]
+# client.get_response(out["id"])
+```
+
+When a usage meter is attached, `purpose=` is required. Events use `modality="responses"`. The public pricing table has no Responses/tools rate, so the meter records tokens without inventing USD.
+
 ## Opt-in dev completion traces *(default off)*
 
 ```python

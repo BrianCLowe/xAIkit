@@ -1,6 +1,6 @@
 # ApiCoverage — TODO
 
-**Last Updated**: 2026-08-13 *(collections on XaiClient)*  
+**Last Updated**: 2026-08-13 *(Responses API on XaiClient)*  
 **Related Spec**: [ApiCoverage.md](ApiCoverage.md)
 
 ---
@@ -9,7 +9,7 @@
 
 **Active task:** Remainder unordered — implement against [ApiCoverage.md](ApiCoverage.md); do not invent a second client.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — Collections (`XaiClient.create_collection` / `upload_document` / `search_collections` / `get_collection` / `list_collections` / `delete_collection`) + UsageObservability `modality="collections"`
+**Last session:** 2026-08-13 — Responses (`XaiClient.create_response` / `get_response`) + UsageObservability `modality="responses"`; chat stays the paved text path
 
 ---
 
@@ -21,7 +21,7 @@
 
 *(no order — pick when a caller needs the surface; **homes** on [ApiCoverage.md](ApiCoverage.md))*
 
-- [ ] Built-in agent tools / Responses API — additive; do not replace `chat`
+*(none)*
 
 ## Low Priority / Future Ideas
 
@@ -51,3 +51,4 @@
 - [x] Tokenizer — `XaiClient.tokenize` REST `/v1/tokenize-text`; meter `modality="tokenize"` (2026-08-13)
 - [x] Batch — `XaiClient` create/add/get/list/cancel/list_results via SDK `call_batch_rpc`; meter `modality="batch"` (2026-08-13)
 - [x] Collections / documents — `XaiClient` create/get/list/delete/upload_document/search via SDK `call_collections_rpc`; meter `modality="collections"` (2026-08-13)
+- [x] Built-in agent tools / Responses API — `XaiClient.create_response` / `get_response` REST `/v1/responses`; tools opt-in; meter `modality="responses"`; do not replace `chat` (2026-08-13)
