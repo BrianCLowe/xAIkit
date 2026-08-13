@@ -156,6 +156,26 @@ status = client.get_batch(job["id"])
 
 When a usage meter is attached, `purpose=` is required. Events use `modality="batch"`. The public pricing table has no batch rate, so the meter records purpose/success without inventing USD.
 
+## Collections
+
+SDK collections on `XaiClient` (mocked helper in tests — never hits gRPC). `create_collection` / `upload_document` / `search_collections` cover the upload-and-query path; `get_collection` / `list_collections` / `delete_collection` are included. Returns JSON dicts (no protobuf). Empty name / collection id / query / file bytes are rejected before the RPC.
+
+Live create / get / list / delete / upload use xAI's management API. Set `XAI_MANAGEMENT_KEY` in the environment (the SDK reads it). Search uses the regular API key. This client does not take a second key argument.
+
+```python
+from xaikit import MockChatProvider, XaiClient
+
+client = XaiClient(provider=MockChatProvider(), api_key="test-key")
+# Live: XaiClient(api_key=os.environ["XAI_API_KEY"])  # plus XAI_MANAGEMENT_KEY in env
+
+coll = client.create_collection("docs")
+client.upload_document(coll["id"], "note.txt", b"hello world")
+hits = client.search_collections("hello", coll["id"])
+# hits["matches"][0]["chunk_content"] / file_id / score
+```
+
+When a usage meter is attached, `purpose=` is required. Events use `modality="collections"`. The public pricing table has no collections rate, so the meter records purpose/success without inventing USD.
+
 ## Video generation
 
 REST Imagine video on `XaiClient` (mocked HTTP in tests; live calls need `XAI_API_KEY`). Default `wait=True` polls until the clip is ready; `wait=False` returns `request_id` for `poll_video`.

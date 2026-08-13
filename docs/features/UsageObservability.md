@@ -1,6 +1,6 @@
 # UsageObservability
 
-**Last Updated**: 2026-08-13 *(batch modality)*  
+**Last Updated**: 2026-08-13 *(collections modality)*  
 **Related TODO**: [UsageObservability-TODO.md](UsageObservability-TODO.md)
 
 ## Overview
@@ -18,7 +18,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 ## Behavior (stable)
 
 - Usage events: purpose, model, tokens, estimated USD, success, thought_level, modality, labels, parent_id
-- Modalities used today: `chat`, `stt`, `tts`, `imagine`, `video`, `realtime`, `files`, `embed`, `tokenize`, `batch`
+- Modalities used today: `chat`, `stt`, `tts`, `imagine`, `video`, `realtime`, `files`, `embed`, `tokenize`, `batch`, `collections`
 - Gap notes scrub secret-ish strings and cap length
 - Meter/trace failures must not break the user-facing call (logged)
 
@@ -34,6 +34,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 | 2026-08-13 | Embeddings: `modality="embed"`; no default price row | Public table https://docs.x.ai/developers/pricing has no embeddings rate. OpenAPI `prompt_text_token_price` examples conflict (10 vs 100 cents/M) — do not invent USD. Meter purpose/success/tokens; `apply_price_table=False` |
 | 2026-08-13 | Tokenizer: `modality="tokenize"`; no default price row | Public table has no tokenizer rate. Meter purpose/success and token count from the token list; `apply_price_table=False` |
 | 2026-08-13 | Batch: `modality="batch"`; no default price row | Public table has no batch rate. Meter purpose/success on batch RPCs; `apply_price_table=False` |
+| 2026-08-13 | Collections: `modality="collections"`; no default price row | Public table has no collections rate. Meter purpose/success on collection RPCs; `apply_price_table=False` |
 
 ## Dependencies
 
@@ -52,7 +53,8 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - [x] Embed modality when embed ships
 - [x] Tokenize modality when tokenizer ships
 - [x] Batch modality when batch ships
+- [x] Collections modality when collections ships
 
 ## Current status
 
-- **Last reconciled with code**: 2026-08-13 (`modality="batch"`; no default batch price row)
+- **Last reconciled with code**: 2026-08-13 (`modality="collections"`; no default collections price row)

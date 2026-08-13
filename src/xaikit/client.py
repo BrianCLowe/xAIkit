@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import time
 from collections.abc import Iterator, Sequence
@@ -28,6 +29,14 @@ from xaikit.catalog import (
     DEFAULT_VIDEO_MODEL,
     normalize_thought_level,
     resolve_model_selection,
+)
+from xaikit.collections import (
+    call_collections_rpc,
+    collection_to_dict,
+    document_to_dict,
+    list_collections_to_dict,
+    normalize_collection_ids,
+    search_to_dict,
 )
 from xaikit.credentials import CredentialStore
 from xaikit.provider import ChatProvider, SdkChatProvider
@@ -156,7 +165,14 @@ class XaiClient:
                     "CredentialStore, or use provider=MockChatProvider for offline."
                 )
             self.api_key = key
-            self._client = Client(api_key=key)
+            # SDK collections create/upload use the management channel. Pass
+            # XAI_MANAGEMENT_KEY through if present — do not store a second key
+            # on this client. Search uses the regular API channel.
+            management_api_key = (os.environ.get("XAI_MANAGEMENT_KEY") or "").strip() or None
+            self._client = Client(
+                api_key=key,
+                management_api_key=management_api_key,
+            )
             self._provider = SdkChatProvider(self._client)
 
         self._usage_meter = usage_meter
@@ -1533,6 +1549,323 @@ class XaiClient:
             )
             raise RuntimeError(f"Batch list results failed: {exc}") from exc
         self._record_batch(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return out
+
+    def _record_collections(
+        self,
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        success: bool,
+        error: str | None = None,
+    ) -> None:
+        self._record(
+            purpose=tag,
+            usage=None,
+            parent_id=parent_id,
+            labels=labels,
+            success=success,
+            thought_level=None,
+            error=error,
+            modality="collections",
+            model="collections",
+            apply_price_table=False,
+        )
+
+    def _collections_rpc(
+        self,
+        operation: str,
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        failed: str,
+        **kwargs: Any,
+    ) -> Any:
+        try:
+            return call_collections_rpc(
+                operation,
+                sdk_client=self._client,
+                **kwargs,
+            )
+        except Exception as exc:
+            self._record_collections(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            logger.exception("xAI collections %s failed", operation)
+            raise RuntimeError(f"{failed}: {exc}") from exc
+
+    def create_collection(
+        self,
+        name: str,
+        *,
+        model_name: str | None = None,
+        chunk_configuration: dict[str, Any] | None = None,
+        description: str | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Create a collection (SDK ``client.collections.create``). Returns ``{id, name, …}``.
+
+        Live create/get/list/delete/upload use the management API. Set
+        ``XAI_MANAGEMENT_KEY`` in the environment; this client does not take a
+        second key argument.
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        cleaned = (name or "").strip()
+        if not cleaned:
+            raise RuntimeError("Collection name is empty")
+        pin = (model_name or "").strip() or None
+        desc = (description or "").strip() or None
+        raw = self._collections_rpc(
+            "create",
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            failed="Collection create failed",
+            name=cleaned,
+            model_name=pin,
+            chunk_configuration=chunk_configuration,
+            description=desc,
+        )
+        try:
+            out = collection_to_dict(raw)
+        except Exception as exc:
+            self._record_collections(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            raise RuntimeError(f"Collection create failed: {exc}") from exc
+        self._record_collections(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return out
+
+    def get_collection(
+        self,
+        collection_id: str,
+        *,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Fetch collection metadata (SDK ``client.collections.get``)."""
+        tag = self._require_purpose_if_metered(purpose)
+        cid = (collection_id or "").strip()
+        if not cid:
+            raise RuntimeError("Collection id is empty")
+        raw = self._collections_rpc(
+            "get",
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            failed="Collection get failed",
+            collection_id=cid,
+        )
+        try:
+            out = collection_to_dict(raw)
+        except Exception as exc:
+            self._record_collections(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            raise RuntimeError(f"Collection get failed: {exc}") from exc
+        self._record_collections(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return out
+
+    def list_collections(
+        self,
+        *,
+        limit: int | None = None,
+        pagination_token: str | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """List collections (SDK ``client.collections.list``). Returns ``{collections, pagination_token}``."""
+        tag = self._require_purpose_if_metered(purpose)
+        raw = self._collections_rpc(
+            "list",
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            failed="Collection list failed",
+            limit=limit,
+            pagination_token=(pagination_token or "").strip() or None,
+        )
+        try:
+            out = list_collections_to_dict(raw)
+        except Exception as exc:
+            self._record_collections(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            raise RuntimeError(f"Collection list failed: {exc}") from exc
+        self._record_collections(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return out
+
+    def delete_collection(
+        self,
+        collection_id: str,
+        *,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Delete a collection (SDK ``client.collections.delete``)."""
+        tag = self._require_purpose_if_metered(purpose)
+        cid = (collection_id or "").strip()
+        if not cid:
+            raise RuntimeError("Collection id is empty")
+        raw = self._collections_rpc(
+            "delete",
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            failed="Collection delete failed",
+            collection_id=cid,
+        )
+        out: dict[str, Any]
+        if isinstance(raw, dict):
+            out = dict(raw)
+            out.setdefault("id", cid)
+            out.setdefault("deleted", True)
+        else:
+            out = {"id": cid, "deleted": True}
+        self._record_collections(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return out
+
+    def upload_document(
+        self,
+        collection_id: str,
+        name: str,
+        data: bytes,
+        *,
+        fields: dict[str, str] | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Upload document bytes into a collection (SDK ``client.collections.upload_document``)."""
+        tag = self._require_purpose_if_metered(purpose)
+        cid = (collection_id or "").strip()
+        if not cid:
+            raise RuntimeError("Collection id is empty")
+        filename = (name or "").strip()
+        if not filename:
+            raise RuntimeError("Document name is empty")
+        if not data:
+            raise RuntimeError("Document data is empty")
+        raw = self._collections_rpc(
+            "upload_document",
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            failed="Document upload failed",
+            collection_id=cid,
+            name=filename,
+            data=data,
+            fields=fields,
+        )
+        try:
+            out = document_to_dict(raw)
+        except Exception as exc:
+            self._record_collections(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            raise RuntimeError(f"Document upload failed: {exc}") from exc
+        self._record_collections(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+        )
+        return out
+
+    def search_collections(
+        self,
+        query: str,
+        collection_ids: str | list[str] | tuple[str, ...],
+        *,
+        limit: int | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        """Search collections (SDK ``client.collections.search``). Returns ``{matches}``.
+
+        *collection_ids* may be one id string or a list. Search uses the regular
+        API key (not the management key).
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        cleaned = (query or "").strip()
+        if not cleaned:
+            raise RuntimeError("Search query is empty")
+        ids = normalize_collection_ids(collection_ids)
+        raw = self._collections_rpc(
+            "search",
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            failed="Collection search failed",
+            query=cleaned,
+            collection_ids=ids,
+            limit=limit,
+        )
+        try:
+            out = search_to_dict(raw)
+        except Exception as exc:
+            self._record_collections(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                error=_error_class(exc),
+            )
+            raise RuntimeError(f"Collection search failed: {exc}") from exc
+        self._record_collections(
             tag=tag,
             parent_id=parent_id,
             labels=labels,
