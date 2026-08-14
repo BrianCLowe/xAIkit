@@ -7,9 +7,9 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Multi-image edit — `edit_image` still one source; docs allow up to 3.  
+**Active task:** — (MediaRest High/Medium empty)  
 **Blocked by:** —  
-**Last session:** 2026-08-14 — REST TTS knobs on `synthesize_speech` (`output_format` nest, speed/latency/normalize/timestamps/`replace`, 15k cap). Next: Multi-image edit.
+**Last session:** 2026-08-14 — Multi-image edit (`images=` 2–3 sources; one source still wires `image`). Next product work is human extras on this stem / VideoGeneration 1080p contraction on [VideoGeneration-TODO.md](VideoGeneration-TODO.md).
 
 ---
 
@@ -17,11 +17,11 @@
 
 *library-only · exercise path: `uv run pytest` (mocked). Same contraction pattern as `contract_thought_level` — do not send knobs a SKU rejects.*
 
-*(none — next unit is Medium Multi-image edit)*
+*(none)*
 
 ## Medium Priority
 
-- [ ] **Multi-image edit** — docs allow up to **3** source images on edit (URL / data URI / `file_id`, mixable). `edit_image` is still one source. Keep JSON `/v1/images/edits`. Cite: https://docs.x.ai/developers/model-capabilities/images/multi-image-editing
+*(none)*
 
 ## Low Priority / Future Ideas
 
@@ -54,6 +54,7 @@ Library look-list — reply in chat when done (do not mark this row yourself).
 
 ## Completed
 
+- [x] **Multi-image edit** — `edit_image` accepts up to **3** source images (URL / data URI / `file_id`, mixable). One source still wires `image`; 2–3 via `images=` wire `images`. Keep JSON `/v1/images/edits`. Offline tests in `tests/test_media_wiring.py` (+ async twin). (2026-08-14)
 - [x] **REST TTS knobs** — `synthesize_speech` forwards the unary docs set: `output_format` (`codec` / `sample_rate` / `bit_rate`), `speed` (0.7–1.5), `optimize_streaming_latency`, `text_normalization`, `with_timestamps`, `replace`. Rejects empty and **>15,000** chars before HTTP. Flat knobs match streaming names and nest as `output_format` on the wire. Offline tests in `tests/test_media_wiring.py` (+ async twin). (2026-08-14)
 - [x] **Imagine generate knobs + contraction** — `generate_image` forwards `resolution` (`1k` \| `2k`), `quality` (`low` \| `medium`, **`grok-imagine-image-2.0` only**), `response_format` (`b64_json`). Unknown `aspect_ratio` / `resolution` omitted (Imagine list incl. `auto`, `19.5:9`, `20:9`). `quality` omitted on `grok-imagine-image` / `grok-imagine-image-quality`. Offline tests in `tests/test_media_wiring.py`. (2026-08-14)
 - [x] `transcribe` / `synthesize_speech` / `generate_image` (2026-08-12 — in tree)

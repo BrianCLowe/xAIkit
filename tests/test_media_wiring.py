@@ -791,6 +791,143 @@ def test_edit_image_requires_purpose_when_metered() -> None:
         client.edit_image("sketch", image_url="https://example.com/src.png")
 
 
+def test_edit_image_images_two_mixed_kinds_wires_images_array(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _Capture()
+    cap.install(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json={"data": [{"url": "https://example.com/out.png"}]},
+            request=httpx.Request("POST", XAI_IMAGE_EDITS_URL),
+        ),
+    )
+
+    client.edit_image(
+        "blend <IMAGE_0> with <IMAGE_1>",
+        images=[
+            "https://example.com/a.png",
+            {"file_id": "file-style-2"},
+        ],
+    )
+
+    body = cap.calls[0]["json"]
+    assert cap.calls[0]["url"] == XAI_IMAGE_EDITS_URL
+    assert "image" not in body
+    assert body["prompt"] == "blend <IMAGE_0> with <IMAGE_1>"
+    assert body["images"] == [
+        {"url": "https://example.com/a.png", "type": "image_url"},
+        {"file_id": "file-style-2"},
+    ]
+    assert "files" not in cap.calls[0]
+    assert "data" not in cap.calls[0]
+
+
+def test_edit_image_images_three_mixed_kinds_wires_images_array(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _Capture()
+    cap.install(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json={"data": [{"url": "https://example.com/out.png"}]},
+            request=httpx.Request("POST", XAI_IMAGE_EDITS_URL),
+        ),
+    )
+
+    client.edit_image(
+        "compose three refs",
+        images=[
+            "https://example.com/a.png",
+            "data:image/png;base64,abc",
+            {"file_id": "file-3"},
+        ],
+    )
+
+    body = cap.calls[0]["json"]
+    assert "image" not in body
+    assert body["images"] == [
+        {"url": "https://example.com/a.png", "type": "image_url"},
+        {"url": "data:image/png;base64,abc", "type": "image_url"},
+        {"file_id": "file-3"},
+    ]
+
+
+def test_edit_image_images_one_item_still_wires_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _Capture()
+    cap.install(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json={"data": [{"url": "https://example.com/out.png"}]},
+            request=httpx.Request("POST", XAI_IMAGE_EDITS_URL),
+        ),
+    )
+
+    client.edit_image("sketch", images=["https://example.com/only.png"])
+    body = cap.calls[0]["json"]
+    assert "images" not in body
+    assert body["image"] == {
+        "url": "https://example.com/only.png",
+        "type": "image_url",
+    }
+
+
+def test_edit_image_rejects_more_than_three_images_without_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _Capture()
+    cap.install(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json={"data": [{"url": "https://example.com/x.png"}]},
+            request=httpx.Request("POST", XAI_IMAGE_EDITS_URL),
+        ),
+    )
+    with pytest.raises(ValueError, match="at most 3"):
+        client.edit_image(
+            "too many",
+            images=[
+                "https://example.com/1.png",
+                "https://example.com/2.png",
+                "https://example.com/3.png",
+                "https://example.com/4.png",
+            ],
+        )
+    assert cap.calls == []
+
+
+def test_edit_image_rejects_single_and_images_without_http(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _Capture()
+    cap.install(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json={"data": [{"url": "https://example.com/x.png"}]},
+            request=httpx.Request("POST", XAI_IMAGE_EDITS_URL),
+        ),
+    )
+    with pytest.raises(ValueError, match="cannot be combined"):
+        client.edit_image(
+            "sketch",
+            image_url="https://example.com/src.png",
+            images=["https://example.com/other.png", {"file_id": "file-2"}],
+        )
+    assert cap.calls == []
+
+
 def test_edit_image_http_error_records_failed_usage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

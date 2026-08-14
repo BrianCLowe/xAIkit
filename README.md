@@ -180,7 +180,7 @@ When `model` is omitted, chat resolve falls back to `BOOTSTRAP_MODEL` (`grok-4.6
 
 ## Image generation and edit
 
-REST Imagine images on `XaiClient` (mocked HTTP in tests; live calls need `XAI_API_KEY`). `edit_image` posts JSON to `/v1/images/edits` (not OpenAI multipart). Source image is a public URL, data URI, or a `file_id` from `upload_file`.
+REST Imagine images on `XaiClient` (mocked HTTP in tests; live calls need `XAI_API_KEY`). `edit_image` posts JSON to `/v1/images/edits` (not OpenAI multipart). One source is a public URL, data URI, or a `file_id` from `upload_file`. Pass `images=` (2–3 entries, mixable kinds) for multi-image edit; the prompt may refer to `<IMAGE_0>`, `<IMAGE_1>`, `<IMAGE_2>`.
 
 ```python
 from xaikit import MockChatProvider, XaiClient
@@ -200,6 +200,10 @@ edited = client.edit_image(
     image_url=out["url"],  # or image_file_id="file-..."
 )
 # edited["url"] / edited["b64_json"] / edited["file_id"]
+# collage = client.edit_image(
+#     "Put <IMAGE_0> in the style of <IMAGE_1>",
+#     images=["https://example.com/a.png", {"file_id": "file-style"}],
+# )
 ```
 
 Default model is `grok-imagine-image-quality`. Optional generate knobs: `aspect_ratio` (Imagine list, including `auto` / `19.5:9` / `20:9`), `resolution` (`1k` | `2k`), `response_format` (`b64_json`), and `quality` (`low` | `medium`) on `grok-imagine-image-2.0` only. Unknown aspect/resolution values are omitted. When Imagine returns `file_output.file_id`, both methods surface it as `file_id`.
