@@ -7,9 +7,9 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Media knob gap — start with Imagine generate knobs + per-model contraction.  
+**Active task:** Multi-image edit — `edit_image` still one source; docs allow up to 3.  
 **Blocked by:** —  
-**Last session:** 2026-08-14 — Audited image/video/audio/vision vs docs. Chat `thought_level` already contracted. Queued Imagine generate + REST TTS + multi-image edit here; video 1080p contraction on [VideoGeneration-TODO.md](VideoGeneration-TODO.md). Human extras look-list unchanged.
+**Last session:** 2026-08-14 — REST TTS knobs on `synthesize_speech` (`output_format` nest, speed/latency/normalize/timestamps/`replace`, 15k cap). Next: Multi-image edit.
 
 ---
 
@@ -17,8 +17,7 @@
 
 *library-only · exercise path: `uv run pytest` (mocked). Same contraction pattern as `contract_thought_level` — do not send knobs a SKU rejects.*
 
-- [ ] **Imagine generate knobs + contraction** — `generate_image` is missing official knobs: `resolution` (`1k` \| `2k`), `quality` (`low` \| `medium`, default `medium`, **`grok-imagine-image-2.0` only**), `response_format` (`b64_json`; edit already has this). Contract: omit `quality` on `grok-imagine-image` / `grok-imagine-image-quality` (default pin today). Validate `aspect_ratio` against the Imagine list (incl. `auto`, `19.5:9`, `20:9`) or omit unknown — do not 400. Offline tests in `tests/test_media_wiring.py`. Cite: https://docs.x.ai/developers/model-capabilities/images/generation
-- [ ] **REST TTS knobs** — `synthesize_speech` only sends `text` / `voice_id` / `language`. Forward the unary docs set: `output_format` (`codec` / `sample_rate` / `bit_rate`), `speed` (0.7–1.5), `optimize_streaming_latency`, `text_normalization`, `with_timestamps`, `replace`. Reject empty and **>15,000** chars before HTTP. Streaming TTS already has most of these as query knobs — unary should match. Offline tests. Cite: https://docs.x.ai/developers/model-capabilities/audio/text-to-speech
+*(none — next unit is Medium Multi-image edit)*
 
 ## Medium Priority
 
@@ -55,6 +54,8 @@ Library look-list — reply in chat when done (do not mark this row yourself).
 
 ## Completed
 
+- [x] **REST TTS knobs** — `synthesize_speech` forwards the unary docs set: `output_format` (`codec` / `sample_rate` / `bit_rate`), `speed` (0.7–1.5), `optimize_streaming_latency`, `text_normalization`, `with_timestamps`, `replace`. Rejects empty and **>15,000** chars before HTTP. Flat knobs match streaming names and nest as `output_format` on the wire. Offline tests in `tests/test_media_wiring.py` (+ async twin). (2026-08-14)
+- [x] **Imagine generate knobs + contraction** — `generate_image` forwards `resolution` (`1k` \| `2k`), `quality` (`low` \| `medium`, **`grok-imagine-image-2.0` only**), `response_format` (`b64_json`). Unknown `aspect_ratio` / `resolution` omitted (Imagine list incl. `auto`, `19.5:9`, `20:9`). `quality` omitted on `grok-imagine-image` / `grok-imagine-image-quality`. Offline tests in `tests/test_media_wiring.py`. (2026-08-14)
 - [x] `transcribe` / `synthesize_speech` / `generate_image` (2026-08-12 — in tree)
 - [x] Media REST wiring tests (PR #2; 2026-08-12)
 - [x] Env-gated live TTS / STT / Imagine smokes (2026-08-12)

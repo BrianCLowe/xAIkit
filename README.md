@@ -188,7 +188,13 @@ from xaikit import MockChatProvider, XaiClient
 client = XaiClient(provider=MockChatProvider(), api_key="test-key")
 # Live: XaiClient(api_key=os.environ["XAI_API_KEY"])
 
-out = client.generate_image("A red cube on a table", aspect_ratio="1:1")
+out = client.generate_image(
+    "A red cube on a table",
+    aspect_ratio="1:1",
+    resolution="2k",
+    response_format="b64_json",
+)
+# quality= ("low" | "medium") is grok-imagine-image-2.0 only
 edited = client.edit_image(
     "Make it a pencil sketch",
     image_url=out["url"],  # or image_file_id="file-..."
@@ -196,7 +202,7 @@ edited = client.edit_image(
 # edited["url"] / edited["b64_json"] / edited["file_id"]
 ```
 
-Default model is `grok-imagine-image-quality`. When Imagine returns `file_output.file_id`, both methods surface it as `file_id`.
+Default model is `grok-imagine-image-quality`. Optional generate knobs: `aspect_ratio` (Imagine list, including `auto` / `19.5:9` / `20:9`), `resolution` (`1k` | `2k`), `response_format` (`b64_json`), and `quality` (`low` | `medium`) on `grok-imagine-image-2.0` only. Unknown aspect/resolution values are omitted. When Imagine returns `file_output.file_id`, both methods surface it as `file_id`.
 
 ## Files
 
@@ -405,7 +411,19 @@ with client.open_tts_session(language="en", voice="eve", codec="mp3") as session
             break
 ```
 
-REST unary synthesis stays on `synthesize_speech`. Offline tests mock the socket.
+REST unary synthesis stays on `synthesize_speech`. Optional knobs match the streaming set (`codec`, `sample_rate`, `bit_rate`, `speed`, `optimize_streaming_latency`, `text_normalization`, `with_timestamps`, `replace`) and nest `codec` / `sample_rate` / `bit_rate` as `output_format` on the wire. Text over 15,000 characters is rejected before HTTP. `with_timestamps=True` returns a JSON envelope (`application/json`) instead of raw audio bytes.
+
+```python
+audio, content_type = client.synthesize_speech(
+    "Hello from REST TTS.",
+    voice_id="eve",
+    codec="wav",
+    sample_rate=24000,
+    speed=1.0,
+)
+```
+
+Offline tests mock the socket.
 
 List built-in TTS voices (not team-scoped custom clones):
 

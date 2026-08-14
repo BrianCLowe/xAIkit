@@ -19,7 +19,9 @@ from xaikit import (
     MockChatProvider,
     UsageMeter,
     XAI_EMBEDDINGS_URL,
+    XAI_IMAGES_URL,
     XAI_STT_WS_URL,
+    XAI_TTS_URL,
     default_retry_policy,
 )
 from xaikit.provider import ProviderResponse, ProviderStreamChunk
@@ -244,6 +246,95 @@ def test_async_embed_posts_json_with_auth_and_meters(
         assert ev.modality == "embed"
         assert ev.success is True
         assert ev.estimated_usd is None
+
+    asyncio.run(_run())
+
+
+def test_async_generate_image_forwards_knobs_and_omits_quality_on_default_sku(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _run() -> None:
+        client = _client()
+        cap = _AsyncHttpCapture(
+            httpx.Response(
+                200,
+                json={"data": [{"url": "https://example.com/img.png"}]},
+                request=httpx.Request("POST", XAI_IMAGES_URL),
+            )
+        )
+        cap.install(monkeypatch)
+        await client.generate_image(
+            "a cube",
+            aspect_ratio="20:9",
+            resolution="2k",
+            quality="low",
+            response_format="b64_json",
+        )
+        body = cap.calls[0]["json"]
+        assert cap.calls[0]["url"] == XAI_IMAGES_URL
+        assert body["aspect_ratio"] == "20:9"
+        assert body["resolution"] == "2k"
+        assert body["response_format"] == "b64_json"
+        assert "quality" not in body
+
+        cap.calls.clear()
+        await client.generate_image(
+            "a cube",
+            model="grok-imagine-image-2.0",
+            quality="medium",
+        )
+        assert cap.calls[0]["json"]["quality"] == "medium"
+
+    asyncio.run(_run())
+
+
+def test_async_synthesize_speech_forwards_unary_knobs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _run() -> None:
+        client = _client()
+        cap = _AsyncHttpCapture(
+            httpx.Response(
+                200,
+                content=b"ID3fake",
+                headers={"content-type": "audio/mpeg"},
+                request=httpx.Request("POST", XAI_TTS_URL),
+            )
+        )
+        cap.install(monkeypatch)
+        audio, content_type = await client.synthesize_speech(
+            "hello knobs",
+            voice_id="ara",
+            codec="mp3",
+            sample_rate=24000,
+            bit_rate=128000,
+            speed=0.9,
+            optimize_streaming_latency=0,
+            text_normalization=False,
+            replace={"XAI": "x A I"},
+        )
+        assert audio == b"ID3fake"
+        assert content_type == "audio/mpeg"
+        assert cap.calls[0]["url"] == XAI_TTS_URL
+        assert cap.calls[0]["json"] == {
+            "text": "hello knobs",
+            "voice_id": "ara",
+            "language": "en",
+            "output_format": {
+                "codec": "mp3",
+                "sample_rate": 24000,
+                "bit_rate": 128000,
+            },
+            "speed": 0.9,
+            "optimize_streaming_latency": 0,
+            "text_normalization": False,
+            "replace": {"XAI": "x A I"},
+        }
+
+        cap.calls.clear()
+        with pytest.raises(RuntimeError, match="15000"):
+            await client.synthesize_speech("x" * 15001)
+        assert cap.calls == []
 
     asyncio.run(_run())
 

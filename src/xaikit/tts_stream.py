@@ -26,7 +26,15 @@ DEFAULT_TTS_WS_LANGUAGE = "en"
 DEFAULT_TTS_CODEC = "mp3"
 TTS_CODECS = frozenset({"mp3", "wav", "pcm", "mulaw", "ulaw", "alaw"})
 TTS_SAMPLE_RATES = frozenset({8000, 16000, 22050, 24000, 44100, 48000})
+TTS_BIT_RATES = frozenset({32000, 64000, 96000, 128000, 192000})
+TTS_SPEED_MIN = 0.7
+TTS_SPEED_MAX = 1.5
+TTS_OPTIMIZE_LATENCY = frozenset({0, 1, 2})
 TTS_MAX_DELTA_CHARS = 15000
+_TTS_REST_ACCEPT_AUDIO = "audio/mpeg, application/octet-stream, */*"
+_TTS_REST_ACCEPT_TIMESTAMPS = (
+    "application/json, audio/mpeg, application/octet-stream, */*"
+)
 
 _NORMAL_CLOSE_CODES = frozenset({1000, 1001})
 _AUDIO_DELTA_TYPE = "audio.delta"
@@ -61,6 +69,210 @@ def _qs_bool(value: bool) -> str:
     return "true" if value else "false"
 
 
+def normalize_tts_codec(
+    codec: str | None,
+    *,
+    default: str | None = None,
+) -> str | None:
+    """Keep official codecs (incl. ``ulaw`` as the streaming ``mulaw`` alias)."""
+    raw = (codec or "").strip().lower()
+    if not raw:
+        raw = (default or "").strip().lower()
+    if not raw:
+        return None
+    if raw not in TTS_CODECS:
+        raise RuntimeError(
+            f"TTS codec must be one of {sorted(TTS_CODECS)}, got {codec!r}"
+        )
+    return raw
+
+
+def normalize_tts_sample_rate(sample_rate: int | None) -> int | None:
+    if sample_rate is None:
+        return None
+    try:
+        rate = int(sample_rate)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("TTS sample_rate must be an integer") from exc
+    if rate not in TTS_SAMPLE_RATES:
+        raise RuntimeError(
+            f"TTS sample_rate must be one of {sorted(TTS_SAMPLE_RATES)}, got {sample_rate!r}"
+        )
+    return rate
+
+
+def normalize_tts_bit_rate(
+    bit_rate: int | None,
+    *,
+    codec: str | None = None,
+) -> int | None:
+    """MP3-only bit rates from the unary TTS docs. Omit when unset."""
+    if bit_rate is None:
+        return None
+    try:
+        rate = int(bit_rate)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("TTS bit_rate must be an integer") from exc
+    if rate not in TTS_BIT_RATES:
+        raise RuntimeError(
+            f"TTS bit_rate must be one of {sorted(TTS_BIT_RATES)}, got {bit_rate!r}"
+        )
+    codec_clean = (codec or "mp3").strip().lower() or "mp3"
+    if codec_clean != "mp3":
+        raise RuntimeError("TTS bit_rate is only valid for codec 'mp3'")
+    return rate
+
+
+def normalize_tts_speed(speed: float | None) -> float | None:
+    if speed is None:
+        return None
+    try:
+        value = float(speed)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("TTS speed must be a number") from exc
+    if value < TTS_SPEED_MIN or value > TTS_SPEED_MAX:
+        raise RuntimeError(
+            f"TTS speed must be between {TTS_SPEED_MIN} and {TTS_SPEED_MAX}, got {speed!r}"
+        )
+    return value
+
+
+def normalize_tts_optimize_latency(value: int | None) -> int | None:
+    if value is None:
+        return None
+    try:
+        level = int(value)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("TTS optimize_streaming_latency must be an integer") from exc
+    if level not in TTS_OPTIMIZE_LATENCY:
+        raise RuntimeError(
+            f"TTS optimize_streaming_latency must be one of "
+            f"{sorted(TTS_OPTIMIZE_LATENCY)}, got {value!r}"
+        )
+    return level
+
+
+def normalize_tts_replace(
+    replace: Mapping[str, str] | None,
+) -> dict[str, str] | None:
+    if replace is None:
+        return None
+    if not isinstance(replace, Mapping):
+        raise RuntimeError(
+            "TTS replace must be an object map of phrase to spoken substitution"
+        )
+    out: dict[str, str] = {}
+    for key, val in replace.items():
+        if not isinstance(key, str) or not isinstance(val, str):
+            raise RuntimeError("TTS replace keys and values must be strings")
+        phrase = key.strip()
+        if not phrase:
+            continue
+        out[phrase] = val
+    return out or None
+
+
+def _merge_tts_output_format(
+    output_format: Mapping[str, Any] | None,
+    *,
+    codec: str | None,
+    sample_rate: int | None,
+    bit_rate: int | None,
+) -> dict[str, Any]:
+    merged: dict[str, Any] = {}
+    if output_format is not None:
+        if not isinstance(output_format, Mapping):
+            raise RuntimeError("TTS output_format must be an object")
+        if output_format.get("codec") is not None:
+            merged["codec"] = output_format["codec"]
+        if output_format.get("sample_rate") is not None:
+            merged["sample_rate"] = output_format["sample_rate"]
+        if output_format.get("bit_rate") is not None:
+            merged["bit_rate"] = output_format["bit_rate"]
+    if codec is not None:
+        merged["codec"] = codec
+    if sample_rate is not None:
+        merged["sample_rate"] = sample_rate
+    if bit_rate is not None:
+        merged["bit_rate"] = bit_rate
+    return merged
+
+
+def tts_rest_accept(*, with_timestamps: bool | None = None) -> str:
+    """Accept header for unary TTS. Default path stays audio (today's wire)."""
+    if with_timestamps:
+        return _TTS_REST_ACCEPT_TIMESTAMPS
+    return _TTS_REST_ACCEPT_AUDIO
+
+
+def tts_rest_body(
+    text: str,
+    *,
+    voice_id: str,
+    language: str,
+    codec: str | None = None,
+    sample_rate: int | None = None,
+    bit_rate: int | None = None,
+    output_format: Mapping[str, Any] | None = None,
+    speed: float | None = None,
+    optimize_streaming_latency: int | None = None,
+    text_normalization: bool | None = None,
+    with_timestamps: bool | None = None,
+    replace: Mapping[str, str] | None = None,
+) -> dict[str, Any]:
+    """Unary TTS JSON body. Unset optional knobs are omitted.
+
+    Flat ``codec`` / ``sample_rate`` / ``bit_rate`` match streaming callers and
+    nest as ``output_format`` on the wire. ``output_format=`` is also accepted;
+    flat knobs win on conflict.
+    """
+    cleaned = (text or "").strip()
+    if not cleaned:
+        raise RuntimeError("TTS text is empty")
+    if len(cleaned) > TTS_MAX_DELTA_CHARS:
+        raise RuntimeError(f"TTS text exceeds {TTS_MAX_DELTA_CHARS} characters")
+
+    body: dict[str, Any] = {
+        "text": cleaned,
+        "voice_id": voice_id,
+        "language": language,
+    }
+
+    fmt = _merge_tts_output_format(
+        output_format,
+        codec=codec,
+        sample_rate=sample_rate,
+        bit_rate=bit_rate,
+    )
+    codec_clean = normalize_tts_codec(fmt.get("codec"))
+    rate_clean = normalize_tts_sample_rate(fmt.get("sample_rate"))
+    bit_clean = normalize_tts_bit_rate(fmt.get("bit_rate"), codec=codec_clean)
+    nested: dict[str, Any] = {}
+    if codec_clean is not None:
+        nested["codec"] = codec_clean
+    if rate_clean is not None:
+        nested["sample_rate"] = rate_clean
+    if bit_clean is not None:
+        nested["bit_rate"] = bit_clean
+    if nested:
+        body["output_format"] = nested
+
+    speed_clean = normalize_tts_speed(speed)
+    if speed_clean is not None:
+        body["speed"] = speed_clean
+    latency_clean = normalize_tts_optimize_latency(optimize_streaming_latency)
+    if latency_clean is not None:
+        body["optimize_streaming_latency"] = latency_clean
+    if text_normalization is not None:
+        body["text_normalization"] = bool(text_normalization)
+    if with_timestamps is not None:
+        body["with_timestamps"] = bool(with_timestamps)
+    replace_clean = normalize_tts_replace(replace)
+    if replace_clean is not None:
+        body["replace"] = replace_clean
+    return body
+
+
 def tts_session_url(
     *,
     base: str = XAI_TTS_WS_URL,
@@ -75,11 +287,9 @@ def tts_session_url(
     with_timestamps: bool | None = None,
 ) -> str:
     """``wss://api.x.ai/v1/tts?language=…&voice=…&codec=…`` plus optional knobs."""
-    codec_clean = (codec or DEFAULT_TTS_CODEC).strip().lower()
-    if codec_clean not in TTS_CODECS:
-        raise RuntimeError(
-            f"TTS codec must be one of {sorted(TTS_CODECS)}, got {codec!r}"
-        )
+    codec_clean = normalize_tts_codec(codec, default=DEFAULT_TTS_CODEC)
+    if codec_clean is None:
+        codec_clean = DEFAULT_TTS_CODEC
     voice_clean = (voice or DEFAULT_TTS_WS_VOICE).strip() or DEFAULT_TTS_WS_VOICE
     language_clean = (language or DEFAULT_TTS_WS_LANGUAGE).strip() or DEFAULT_TTS_WS_LANGUAGE
 
@@ -111,15 +321,8 @@ def tts_session_url(
     pairs.append(("voice", voice_clean))
     pairs.append(("codec", codec_clean))
 
-    if sample_rate is not None:
-        try:
-            rate = int(sample_rate)
-        except (TypeError, ValueError) as exc:
-            raise RuntimeError("TTS sample_rate must be an integer") from exc
-        if rate not in TTS_SAMPLE_RATES:
-            raise RuntimeError(
-                f"TTS sample_rate must be one of {sorted(TTS_SAMPLE_RATES)}, got {sample_rate!r}"
-            )
+    rate = normalize_tts_sample_rate(sample_rate)
+    if rate is not None:
         pairs.append(("sample_rate", str(rate)))
     if bit_rate is not None:
         pairs.append(("bit_rate", str(int(bit_rate))))
