@@ -54,4 +54,4 @@ Do not commit `.env` / API keys. Live xAI calls are optional and not default CI.
 
 - Before claiming code is good, run **Cheap / default**. After packaging/PyPI edits, also run **Package**.
 - Do not invent extra required tools. Live-key smokes stay optional and env-gated (`XAITKIT_LIVE=1` plus `XAI_API_KEY` — see Human-TODO Done).
-- PyPI publish: bump `pyproject.toml` version (and the `PackageNotFoundError` fallback in `src/xaikit/__init__.py`), merge to master, then tag `v<that-version>` (currently `v0.1.0a3`). Never reuse a version. Trusted Publishing — no tokens in the repo.
+- PyPI publish: bump `pyproject.toml` version (and the `PackageNotFoundError` fallback in `src/xaikit/__init__.py`), merge to master, then tag `v<that-version>` (currently `v0.1.0a4`). Never reuse a version. Trusted Publishing — no tokens in the repo.
