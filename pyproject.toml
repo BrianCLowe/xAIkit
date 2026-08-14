@@ -1,6 +1,6 @@
 [project]
 name = "xaikit-py"
-version = "0.1.0a4"
+version = "0.1.0a5"
 description = "Unofficial Python kit for the xAI (Grok) API: typed client, catalog, usage metering, media, and realtime voice"
 readme = "README.md"
 license = "MIT"

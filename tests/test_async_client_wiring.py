@@ -330,6 +330,14 @@ def test_async_edit_image_images_mixed_kinds_and_rejects_over_max(
         }
 
         cap.calls.clear()
+        await client.edit_image(
+            "sketch",
+            image_url="https://example.com/one.png",
+            aspect_ratio="21:9",
+        )
+        assert "aspect_ratio" not in cap.calls[0]["json"]
+
+        cap.calls.clear()
         with pytest.raises(ValueError, match="at most 3"):
             await client.edit_image(
                 "too many",

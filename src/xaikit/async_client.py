@@ -24,6 +24,7 @@ from xaikit.catalog import (
     BOOTSTRAP_MODEL,
     DEFAULT_IMAGE_MODEL,
     DEFAULT_VIDEO_MODEL,
+    contract_imagine_aspect_ratio,
     imagine_generate_knobs,
     normalize_thought_level,
     resolve_model_selection,
@@ -1920,8 +1921,9 @@ class AsyncXaiClient(XaiClient):
                 image, url=image_url, file_id=image_file_id, images=images
             )
         )
-        if aspect_ratio:
-            body["aspect_ratio"] = aspect_ratio
+        aspect = contract_imagine_aspect_ratio(aspect_ratio)
+        if aspect:
+            body["aspect_ratio"] = aspect
         if response_format:
             body["response_format"] = response_format
         return await self._submit_imagine(

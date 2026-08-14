@@ -27,6 +27,7 @@ from xaikit.catalog import (
     BOOTSTRAP_MODEL,
     DEFAULT_IMAGE_MODEL,
     DEFAULT_VIDEO_MODEL,
+    contract_imagine_aspect_ratio,
     contract_thought_level,
     imagine_generate_knobs,
     normalize_thought_level,
@@ -2613,7 +2614,8 @@ class XaiClient:
         One source (``image`` / ``image_url`` / ``image_file_id``) wires ``image``.
         Two or three sources via ``images=`` wire ``images``. Prompt may refer to
         ``<IMAGE_0>`` / ``<IMAGE_1>`` / ``<IMAGE_2>``; the kit does not rewrite it.
-        Default output aspect follows the first input; ``aspect_ratio`` overrides.
+        Default output aspect follows the first input; ``aspect_ratio`` overrides
+        (unknown values omitted, same list as generate).
         """
         tag = self._require_purpose_if_metered(purpose)
         cleaned = (prompt or "").strip()
@@ -2631,8 +2633,9 @@ class XaiClient:
                 image, url=image_url, file_id=image_file_id, images=images
             )
         )
-        if aspect_ratio:
-            body["aspect_ratio"] = aspect_ratio
+        aspect = contract_imagine_aspect_ratio(aspect_ratio)
+        if aspect:
+            body["aspect_ratio"] = aspect
         if response_format:
             body["response_format"] = response_format
 

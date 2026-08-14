@@ -880,6 +880,36 @@ def test_edit_image_images_one_item_still_wires_image(
     }
 
 
+def test_edit_image_forwards_known_aspect_and_omits_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _Capture()
+    cap.install(
+        monkeypatch,
+        httpx.Response(
+            200,
+            json={"data": [{"url": "https://example.com/out.png"}]},
+            request=httpx.Request("POST", XAI_IMAGE_EDITS_URL),
+        ),
+    )
+
+    client.edit_image(
+        "sketch",
+        image_url="https://example.com/src.png",
+        aspect_ratio="16:9",
+    )
+    assert cap.calls[0]["json"]["aspect_ratio"] == "16:9"
+
+    cap.calls.clear()
+    client.edit_image(
+        "sketch",
+        image_url="https://example.com/src.png",
+        aspect_ratio="21:9",
+    )
+    assert "aspect_ratio" not in cap.calls[0]["json"]
+
+
 def test_edit_image_rejects_more_than_three_images_without_http(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
