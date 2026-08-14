@@ -33,9 +33,9 @@ Library-only look-list — reply in chat when done (do not mark this row yoursel
 
 - **Surfaces:** `XaiClient.generate_video` / `extend_video` / `poll_video` / `download_video`; README **Video generation** section
 - **Placement:** `src/xaikit/client.py`; constants exported from `xaikit` (`DEFAULT_VIDEO_MODEL`, `XAI_VIDEOS_URL`, …)
-- **Copy:** README example uses `wait=False` + `poll_video`; default live path is `wait=True`
+- **Copy:** README example uses `wait=False` + `poll_video`; default live path is `wait=True`; 1080p is contracted per model/mode
 - **Happy path:** `uv run pytest tests/test_video_wiring.py` (offline). Optional live start-only: `XAITKIT_LIVE=1 XAITKIT_LIVE_VIDEO=1 uv run pytest tests/test_live_smoke.py -m live -k video -v` (needs `XAI_API_KEY`; slow/expensive)
-- **Rough edges:** live wait can take minutes; `file_id` is passthrough only (Files upload is ApiCoverage); video **edits** and catalog `role=video` are not in this stem
+- **Rough edges:** live wait can take minutes; `file_id` is passthrough only (Files upload is ApiCoverage); video **edits** and catalog `role=video` are not in this stem; `1080p` stays only on `grok-imagine-video-1.5` T2V/I2V — R2V and older `grok-imagine-video` clamp to `720p`
 
 ## Cross-Feature Dependencies & Integration Notes
 

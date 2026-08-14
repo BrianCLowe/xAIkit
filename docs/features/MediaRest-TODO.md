@@ -44,6 +44,16 @@ Library look-list — reply in chat when done (do not mark this row yourself).
 - **Happy path:** `uv run pytest tests/test_media_wiring.py tests/test_stt_stream_wiring.py tests/test_tts_stream_wiring.py tests/test_tts_voices_wiring.py`
 - **Rough edges:** custom-voice clone is out of kit; live STT needs `XAITKIT_LIVE_STT=1`
 
+## Human verify (orchestration 2026-08-14)
+
+Library-only look-list for this drain — reply in chat when done (do not mark this row yourself).
+
+- **Surfaces:** `generate_image` knobs (`resolution` / `quality` / `response_format`); `synthesize_speech` unary knobs (`output_format`, `speed`, latency, normalize, timestamps, `replace`); `edit_image` `images=` (up to 3)
+- **Placement:** `src/xaikit/client.py`, `async_client.py`, `catalog.py` (`imagine_generate_knobs`), `tts_stream.py` (`tts_rest_body`)
+- **Copy:** README generate/TTS/edit knobs; `quality` is 2.0-only; unary TTS 15k cap; one source still wires `image`
+- **Happy path:** `uv run pytest tests/test_media_wiring.py tests/test_async_client_wiring.py`
+- **Rough edges:** unknown Imagine aspect/resolution omitted (no 400); `with_timestamps=True` returns JSON bytes; extras streaming/roster stay on the 2026-08-13 list
+
 ## Cross-Feature Dependencies
 
 - **library-only** — mocked HTTP/WS tests, not a recorder UI.
