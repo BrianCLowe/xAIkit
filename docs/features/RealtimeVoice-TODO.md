@@ -7,11 +7,9 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** *(stem shipped — High/Medium/Low drained)*  
+**Active task:** *(stem shipped — High/Medium/Low drained; human verify Done)*  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — README recv loop for realtime (still no mic/speaker)
-
-*Human verify look-list is open (orchestration 2026-08-13). Do not add a recorder UI.*
+**Last session:** 2026-08-13 — Human verify closed via Rivenquill live STS conversation mode (mint + browser WS + server VAD).
 
 ---
 
@@ -29,13 +27,7 @@
 
 ## Human verify (orchestration 2026-08-13)
 
-Library-only look-list — reply in chat when done (do not mark this row yourself).
-
-- **Surfaces:** `open_realtime_session` / `RealtimeSession`; `create_realtime_client_secret`; `realtime_client_secret_protocol`; README **Realtime voice**
-- **Placement:** `src/xaikit/client.py`, `src/xaikit/realtime.py`
-- **Copy:** mint example uses `secret["value"]`; custom `voice=` ids work like `eve`
-- **Happy path:** `uv run pytest tests/test_realtime_wiring.py tests/test_realtime_client_secrets.py`. Optional live: `XAITKIT_LIVE=1 XAITKIT_LIVE_VOICE=1`
-- **Rough edges:** no product login / clone API; mint is not an STS audio-minute; `get_response`-style 401 skips the meter
+- [x] **2026-08-13 — Live via Rivenquill** — Ephemeral mint + browser STS + server VAD confirmed (consumer proof of kit mint/protocol/realtime path). Dual-write: [Human-TODO.md](../Human-TODO.md) Done. Chat-UI transcript jank is Rivenquill product, not kit.
 
 ## Cross-Feature Dependencies & Integration Notes
 
@@ -56,3 +48,4 @@ Library-only look-list — reply in chat when done (do not mark this row yoursel
 - [x] Catalog: voice models in resolve helpers — shipped on [Catalog-TODO.md](Catalog-TODO.md) (`role=voice`; 2026-08-13); closed here as a stale pointer (not this slice)
 - [x] Custom voice `voice_id` on the realtime path — `voice=` forwards opaque ids unchanged on `session.update`; empty/whitespace keeps default; no allowlist; clone/roster not this stem (2026-08-13)
 - [x] README end-to-end-ish recv loop (app owns mic/speaker) (2026-08-13)
+- [x] Human verify look-list (orchestration 2026-08-13) — Rivenquill live STS consumer proof (2026-08-13)

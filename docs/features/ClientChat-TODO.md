@@ -1,15 +1,15 @@
 # ClientChat — TODO
 
-**Last Updated**: 2026-08-13 *(async client twin)*  
+**Last Updated**: 2026-08-13  
 **Related Spec**: [ClientChat.md](ClientChat.md)
 
 ---
 
 ## Current focus *(session handoff)*
 
-**Active task:** Chat extras + async twin shipped. Human verify look-list is open.  
+**Active task:** Human verify **extras** still open (tools/vision/`service_tier`/`AsyncXaiClient`). Core chat closed via Rivenquill.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — `AsyncXaiClient` same-name twin (covering [ApiCoverage-TODO.md](ApiCoverage-TODO.md) async client)
+**Last session:** 2026-08-13 — Split human verify: Rivenquill confirmed Quill chat + `chat_json`/`schema=`; extras remain.
 
 ---
 
@@ -27,12 +27,18 @@
 
 ## Human verify (orchestration 2026-08-13)
 
-Library-only look-list — reply in chat when done (do not mark this row yourself).
+### Core — done (consumer proof)
 
-- **Surfaces:** `chat` / `chat_stream` / `chat_json` tools + vision parts + `schema=`; `service_tier`; `AsyncXaiClient`
+- [x] **2026-08-13 — Live via Rivenquill** — Quill chat + structured `chat_json`/`schema=` (propose-edits and related) against PyPI `xaikit-py`. Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done.
+
+### Extras — still open
+
+Library look-list — reply in chat when done (do not mark this row yourself).
+
+- **Surfaces:** tools / vision parts; `service_tier`; `AsyncXaiClient` (Rivenquill does not exercise these)
 - **Placement:** `src/xaikit/client.py`, `provider.py`, `async_client.py`
 - **Copy:** README tools/vision/schema + async example; blank tool args stay `""` not `{}`
-- **Happy path:** `uv run pytest tests/test_chat_knobs.py tests/test_chat_tools.py tests/test_async_client_wiring.py`
+- **Happy path:** `uv run pytest tests/test_chat_tools.py tests/test_async_client_wiring.py` (+ knobs if touching tiers)
 - **Rough edges:** app owns the tool loop; Responses API does not replace `chat`
 
 ## Cross-Feature Dependencies & Integration Notes

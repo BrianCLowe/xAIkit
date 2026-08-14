@@ -11,19 +11,10 @@
 
 ## Open
 
-- [ ] **GitHub About + topics** (`procure`) — 2026-08-13 — Cloud Agents cannot write repo settings. On the repo homepage, click the gear next to **About** (or Settings → General). Paste:
-
-  - **Description:** `Unofficial Python kit for the xAI (Grok) API — typed client, catalog, usage metering, media, and realtime voice. Not a multi-provider SDK.`
-  - **Website:** `https://pypi.org/project/xaikit-py/`
-  - **Topics** (paste as tags): `python`, `grok`, `grok-api`, `llm`, `sdk`, `generative-ai`, `python-sdk`, `text-to-speech`, `speech-to-text`, `image-generation`, `video-generation`
-  - **Do not** add topic `xai` — on GitHub that tag is mostly explainable-AI, the same collision as PyPI `xai-kit`. Prefer `grok` / `grok-api`.
-
-  PyPI summary/keywords are already in `pyproject.toml` (next publish). Owner: this file. Blocks: none
 - [ ] **VideoGeneration library look-list** (`playtest`) — 2026-08-12 — Confirm generate/extend/poll/download + README example feel right; optional live start-only smoke if you want. Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md) · Blocks: none
-- [ ] **RealtimeVoice library look-list** (`playtest`) — 2026-08-13 — Session + ephemeral mint + custom `voice=` (orchestration). Owner: [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md) · Blocks: none
-- [ ] **MediaRest library look-list** (`playtest`) — 2026-08-13 — Image edit, streaming STT/TTS, voice roster (orchestration). Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md) · Blocks: none
+- [ ] **MediaRest extras look-list** (`playtest`) — 2026-08-13 — Split from fat MediaRest row: `edit_image`, streaming STT/TTS (`open_stt_session` / `open_tts_session`), TTS voice roster. Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md) · Blocks: none
 - [ ] **Catalog library look-list** (`playtest`) — 2026-08-13 — `role=`, grok-4.6 bootstrap, persist_path (orchestration). Owner: [Catalog-TODO.md](features/Catalog-TODO.md) · Blocks: none
-- [ ] **ClientChat library look-list** (`playtest`) — 2026-08-13 — Tools/vision/schema, service_tier, AsyncXaiClient (orchestration). Owner: [ClientChat-TODO.md](features/ClientChat-TODO.md) · Blocks: none
+- [ ] **ClientChat extras look-list** (`playtest`) — 2026-08-13 — Split from fat ClientChat row: tools/vision parts, `service_tier`, `AsyncXaiClient` (Rivenquill did not exercise these). Owner: [ClientChat-TODO.md](features/ClientChat-TODO.md) · Blocks: none
 - [ ] **ApiCoverage library look-list** (`playtest`) — 2026-08-13 — Files, embed, tokenize, batch, collections, Responses, deferred chat (orchestration). Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) · Blocks: none
 - [ ] **UsageObservability library look-list** (`playtest`) — 2026-08-13 — New modalities + optional OTel sink (orchestration). Owner: [UsageObservability-TODO.md](features/UsageObservability-TODO.md) · Blocks: none
 - [ ] **ConnectAuth library look-list** (`playtest`) — 2026-08-13 — Caller-supplied OAuth URLs (orchestration). Owner: [ConnectAuth-TODO.md](features/ConnectAuth-TODO.md) · Blocks: none
@@ -32,6 +23,9 @@
 
 ## Done
 
+- [x] **RealtimeVoice library look-list** (`playtest`) — 2026-08-13 — Live via Rivenquill conversation mode: ephemeral mint + browser STS WS + server VAD confirmed working (consumer proof). Kit surfaces exercised: `create_realtime_client_secret` / protocol / realtime session path. Owner: [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md)
+- [x] **ClientChat core — live via Rivenquill** (`playtest`) — 2026-08-13 — Quill chat + `chat_json`/`schema=` (propose-edits / structured paths) confirmed working in Rivenquill against PyPI `xaikit-py`. Does **not** cover tools/vision/`service_tier`/`AsyncXaiClient` (see Open extras). Owner: [ClientChat-TODO.md](features/ClientChat-TODO.md)
+- [x] **MediaRest core — Imagine + unary STT/TTS via Rivenquill** (`playtest`) — 2026-08-13 — `generate_image` (Imagine) + voice chat (`transcribe` → chat → `synthesize_speech`) confirmed in Rivenquill. Does **not** cover `edit_image` / streaming STT/TTS / voice roster (see Open extras). Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md)
 - [x] **Confirm Document Map + ship-first prefs** (`decide`) — 2026-08-12 — User confirmed doc shape (map + ship-first). Owner: [Master_Index.md](Master_Index.md)
 - [x] **Priority after video** (`decide`) — 2026-08-12 — Next slice is **realtime voice**; remaining API surfaces have no order preference. Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) · split: [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md)
 - [x] **Optional live xAI key for smoke** (`procure`) — 2026-08-12 — Environment set up; key in local env only (not git)
@@ -46,7 +40,9 @@
 - Work **Open**, then tell the agent in chat so they sync owner TODOs.
 - Keep secrets out of git.
 - Orchestration look-lists are **library-only** (paths + pytest), not a UI tour. Reply in chat when a row is done.
+- Consumer proof (e.g. Rivenquill) can close a **core** slice; leave **extras** open when the fat look-list bundled unused surfaces.
 
 ## Instructions for AI Agents
 
 - Dual-write human-gated tasks. Do not mark done from assumptions.
+- When a consumer confirms a subset: **split** the Human-TODO row + owner Human verify section (Done = exercised; Open = remainder). Do not close RealtimeVoice from Rivenquill voice chat (that path is REST STT/TTS).

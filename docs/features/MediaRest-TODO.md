@@ -7,9 +7,9 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Stem shipped — High / Medium / Low drained. Human verify look-list is open.  
+**Active task:** Human verify **extras** still open (`edit_image` / streaming STT/TTS / voice roster). Core Imagine + unary STT/TTS closed via Rivenquill.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — Voice roster helper (`list_tts_voices` / `get_tts_voice`) over `GET /v1/tts/voices` (not custom-voices clone)
+**Last session:** 2026-08-13 — Split human verify: Rivenquill confirmed `generate_image` + voice chat (`transcribe` / `synthesize_speech`); extras remain.
 
 ---
 
@@ -27,7 +27,14 @@
 
 ## Human verify (orchestration 2026-08-13)
 
-Library-only look-list — reply in chat when done (do not mark this row yourself).
+### Core — done (consumer proof)
+
+- [x] **2026-08-13 — Live via Rivenquill** — Imagine (`generate_image`) + voice conversation (`transcribe` → chat → `synthesize_speech`). Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done.  
+  Note: Rivenquill voice is **not** STS realtime and **not** streaming STT/TTS sessions.
+
+### Extras — still open
+
+Library look-list — reply in chat when done (do not mark this row yourself).
 
 - **Surfaces:** `edit_image`; `open_stt_session` / `SttSession`; `open_tts_session` / `TtsSession`; `list_tts_voices` / `get_tts_voice`; README streaming STT/TTS + voice roster
 - **Placement:** `src/xaikit/client.py`, `stt_stream.py`, `tts_stream.py`
