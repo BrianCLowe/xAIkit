@@ -11,7 +11,6 @@
 
 ## Open
 
-- [ ] **Tag `v0.1.0a4`** (`procure`) — 2026-08-14 — After this version bump lands on master, tag `v0.1.0a4` to publish via Trusted Publishing. Owner: this file · Blocks: none
 - [ ] **MediaRest knobs look-list** (`playtest`) — 2026-08-14 — Orchestration drain: Imagine generate knobs (`resolution`/`quality`/`response_format`), unary TTS knobs, `edit_image` `images=` (up to 3). Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md) · Blocks: none
 - [ ] **VideoGeneration library look-list** (`playtest`) — 2026-08-12 — Confirm generate/extend/poll/download + README example feel right; 1080p contraction (1.5 T2V/I2V only; R2V/older → 720p); optional live start-only smoke if you want. Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md) · Blocks: none
 - [ ] **MediaRest extras look-list** (`playtest`) — 2026-08-13 — Split from fat MediaRest row: `edit_image`, streaming STT/TTS (`open_stt_session` / `open_tts_session`), TTS voice roster. Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md) · Blocks: none
@@ -33,6 +32,7 @@
 - [x] **Confirm Document Map + ship-first prefs** (`decide`) — 2026-08-12 — User confirmed doc shape (map + ship-first). Owner: [Master_Index.md](Master_Index.md)
 - [x] **Priority after video** (`decide`) — 2026-08-12 — Next slice is **realtime voice**; remaining API surfaces have no order preference. Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) · split: [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md)
 - [x] **Optional live xAI key for smoke** (`procure`) — 2026-08-12 — Environment set up; key in local env only (not git)
+- [x] **Tag `v0.1.0a4`** (`procure`) — 2026-08-14 — Pushed on `1fa0fd6`; Publish to PyPI succeeded ([run](https://github.com/BrianCLowe/xAIkit/actions/runs/31769957480)). Live: [xaikit-py 0.1.0a4](https://pypi.org/project/xaikit-py/0.1.0a4/). Owner: this file
 - [x] **Tag `v0.1.0a3`** (`procure`) — 2026-08-13 — Pushed on `a859769`; Publish to PyPI succeeded ([run](https://github.com/BrianCLowe/xAIkit/actions/runs/31733361715)). Live: [xaikit-py 0.1.0a3](https://pypi.org/project/xaikit-py/0.1.0a3/). Owner: this file
 - [x] **Tag `v0.1.0a2`** (`procure`) — 2026-08-13 — Pushed on `34835b9`; Publish to PyPI succeeded ([run](https://github.com/BrianCLowe/xAIkit/actions/runs/31730769690)). Live: [xaikit-py 0.1.0a2](https://pypi.org/project/xaikit-py/0.1.0a2/). Owner: this file
 - [x] **PyPI pending Trusted Publisher for `xaikit-py`** (`procure`) — 2026-08-13 — Account [BrianCLowe](https://pypi.org/user/BrianCLowe/). Name `xaikit` was too similar to existing `xai-kit`; pending publisher is **`xaikit-py`** (display xAIkit-py). Owner: this file. First upload still needs tag `v0.1.0a1` after the dist name lands on master.
