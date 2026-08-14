@@ -330,7 +330,7 @@ status = client.poll_video(started["request_id"])
 # bytes = client.download_video(status["url"])  # when status == "done"
 ```
 
-`extend_video(prompt, video_url=...)` continues a clip. Default model is `grok-imagine-video-1.5`.
+`extend_video(prompt, video_url=...)` continues a clip. Default model is `grok-imagine-video-1.5`. `1080p` is kept on that 1.5 SKU for text-to-video and image-to-video; reference-to-video and older `grok-imagine-video` send `720p` instead.
 
 ## Realtime voice
 

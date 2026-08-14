@@ -9,7 +9,7 @@
 
 **Active task:** — (MediaRest High/Medium empty)  
 **Blocked by:** —  
-**Last session:** 2026-08-14 — Multi-image edit (`images=` 2–3 sources; one source still wires `image`). Next product work is human extras on this stem / VideoGeneration 1080p contraction on [VideoGeneration-TODO.md](VideoGeneration-TODO.md).
+**Last session:** 2026-08-14 — Multi-image edit (`images=` 2–3 sources; one source still wires `image`). High/Medium empty; human extras look-list still open. Video 1080p contraction is done on [VideoGeneration-TODO.md](VideoGeneration-TODO.md).
 
 ---
 
@@ -25,7 +25,7 @@
 
 ## Low Priority / Future Ideas
 
-*(none — video 1080p contraction lives on [VideoGeneration-TODO.md](VideoGeneration-TODO.md); vision `detail` already on chat parts; STS `reasoning_effort` stays `high`\|`none` on [RealtimeVoice](RealtimeVoice.md))*
+*(none — vision `detail` already on chat parts; STS `reasoning_effort` stays `high`\|`none` on [RealtimeVoice](RealtimeVoice.md))*
 
 ## Human verify (orchestration 2026-08-13)
 
@@ -50,7 +50,7 @@ Library look-list — reply in chat when done (do not mark this row yourself).
 - Files upload / `file_id` minting stays on [ApiCoverage-TODO.md](ApiCoverage-TODO.md); this stem forwards `file_id` on the wire and surfaces Imagine `file_output.file_id`.
 - STS (`wss://api.x.ai/v1/realtime`) stays on [RealtimeVoice-TODO.md](RealtimeVoice-TODO.md). Streaming TTS-only WS (`wss://api.x.ai/v1/tts`) lives here — same home as streaming STT (`/v1/stt` ≠ `/v1/realtime`).
 - Custom-voice clone (`POST /v1/custom-voices`) stays out of kit; opaque custom ids already pass through on TTS/realtime `voice=` / `voice_id=`.
-- Video 1080p contraction is [VideoGeneration-TODO.md](VideoGeneration-TODO.md), not this stem.
+- Video 1080p contraction is done on [VideoGeneration-TODO.md](VideoGeneration-TODO.md), not this stem.
 
 ## Completed
 

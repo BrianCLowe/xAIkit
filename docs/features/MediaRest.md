@@ -80,5 +80,5 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 ## Current status
 
 - **Shipped** (library-only): REST STT/TTS (unary knobs + 15k cap) / Imagine (generate knobs + per-SKU `quality` contraction + multi-image edit) + streaming STT/TTS + built-in TTS voice roster
-- **Queued**: none on this stem (video 1080p contraction is [VideoGeneration-TODO.md](VideoGeneration-TODO.md); human extras look-list stays open)
+- **Queued**: none on this stem (human extras look-list stays open)
 - **Last reconciled with code**: 2026-08-14 (multi-image edit)

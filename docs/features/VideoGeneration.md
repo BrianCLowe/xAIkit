@@ -23,7 +23,7 @@ Upstream: `POST /v1/videos/generations`, `POST /v1/videos/extensions`, `GET /v1/
 
 Constants: `XAI_VIDEOS_URL`, `XAI_VIDEO_EXTENSIONS_URL`, `XAI_VIDEO_STATUS_URL` (`https://api.x.ai/v1/videos/{request_id}`), `DEFAULT_VIDEO_MODEL` (`grok-imagine-video-1.5`).
 
-Knobs forwarded on generate (omit unset optionals): `prompt`, `model`, `duration` (1–15s), `aspect_ratio`, `resolution`, `image` (`url` / `file_id` via `image_url=` / `image_file_id=` or a dict), `reference_images`, `reference_audios` (`voice_id`, max 3). `purpose` / `parent_id` / `labels` like other media.
+Knobs forwarded on generate (omit unset optionals): `prompt`, `model`, `duration` (1–15s), `aspect_ratio`, `resolution` (`480p` / `720p` / `1080p`; `1080p` contracted to `720p` unless `grok-imagine-video-1.5` T2V/I2V), `image` (`url` / `file_id` via `image_url=` / `image_file_id=` or a dict), `reference_images`, `reference_audios` (`voice_id`, max 3). `purpose` / `parent_id` / `labels` like other media. Extend never sends `aspect_ratio` / `resolution`.
 
 Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `duration`, `model`, `respect_moderation`.
 
@@ -37,6 +37,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 - Purpose required when a meter is attached
 - Failures record failed usage with `modality="video"`; transport errors are `RuntimeError`
 - Offline contract tests assert URL/auth/JSON body without a live key
+- `1080p` is sent only for `grok-imagine-video-1.5` T2V/I2V; R2V and older `grok-imagine-video` contract `1080p` → `720p` (do not 400). Unknown resolution still rejected. Extend never sends `aspect_ratio` / `resolution`
 - Optional live start-only smoke: `XAITKIT_LIVE=1` **and** `XAITKIT_LIVE_VIDEO=1` (slow/expensive; skipped by default live suite)
 
 ## Decisions
@@ -48,7 +49,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 | 2026-08-12 | REST `httpx` for video (not the chat SDK provider) | Matches image/STT/TTS; contract-tested via mocked `httpx.post` / `httpx.get` |
 | 2026-08-12 | Frozen names: `generate_video`, `extend_video`, `poll_video`, `download_video`; `wait=True` by default | Aligns with xAI SDK poll-by-default plus an explicit request-id path |
 | 2026-08-12 | `ModelPrice.per_second_usd` (+ optional resolution map); 480p default | Video is billed per second by resolution, not tokens. Public rates are estimates, not a billing authority |
-| 2026-08-14 | Contract 1080p per model/mode (queued) | Docs: 1080p is 1.5 T2V/I2V only; R2V max 720p. Kit currently allowlists 1080p for every path. [VideoGeneration-TODO.md](VideoGeneration-TODO.md) |
+| 2026-08-14 | Contract 1080p → 720p on unsupported model/mode | Docs: 1080p is 1.5 T2V/I2V only; R2V max 720p; older `grok-imagine-video` has no 1080p. Clamp to 720p (not omit) so the caller still gets HD. Helper: `_contract_video_resolution` next to `_optional_resolution`. |
 
 ## Dependencies
 
@@ -66,10 +67,10 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 - [x] Extend + poll (or SDK wait) documented and tested
 - [x] Meter purpose + video modality
 - [x] Offline contract tests; optional live smoke stays env-gated
-- [ ] 1080p contracted: `grok-imagine-video-1.5` T2V/I2V only; R2V / older video → 720p
+- [x] 1080p contracted: `grok-imagine-video-1.5` T2V/I2V only; R2V / older video → 720p
 
 ## Current status
 
-- **Shipped** (library-only): generate / extend / poll / download + meter + default prices + `prefer_latest_video_model`
-- **Queued**: 1080p per-model/mode contraction ([VideoGeneration-TODO.md](VideoGeneration-TODO.md))
-- **Last reconciled with code**: 2026-08-14 (knob-gap TODO; 1080p still uncontracted)
+- **Shipped** (library-only): generate / extend / poll / download + meter + default prices + `prefer_latest_video_model` + 1080p per-model/mode contraction
+- **Queued**: none on this stem (human look-list still open)
+- **Last reconciled with code**: 2026-08-14 (1080p contracted)

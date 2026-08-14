@@ -2702,6 +2702,10 @@ class XaiClient:
 
         Default ``wait=True`` polls until ``done``. Pass ``wait=False`` to return
         the start payload (``request_id``) and call :meth:`poll_video` yourself.
+
+        ``1080p`` is kept on ``grok-imagine-video-1.5`` text-to-video and
+        image-to-video; reference-to-video and older ``grok-imagine-video``
+        contract it to ``720p``.
         """
         tag = self._require_purpose_if_metered(purpose)
         video_model = self._effective_video_model(model)
@@ -2722,7 +2726,7 @@ class XaiClient:
         if duration is not None and not (1 <= int(duration) <= 15):
             raise ValueError("duration must be between 1 and 15 seconds")
         aspect = _optional_aspect_ratio(aspect_ratio)
-        res = _optional_resolution(resolution)
+        res = _contract_video_resolution(resolution, video_model, is_r2v=is_r2v)
 
         body: dict[str, Any] = {"model": video_model}
         if cleaned:
@@ -3800,6 +3804,37 @@ def _optional_resolution(value: str | None) -> str | None:
         return None
     if raw not in _VIDEO_RESOLUTIONS:
         raise ValueError(f"resolution must be one of {sorted(_VIDEO_RESOLUTIONS)}")
+    return raw
+
+
+_VIDEO_1080P_SKU_MARK = "imagine-video-1.5"
+
+
+def _video_supports_1080p(model: str | None, *, is_r2v: bool = False) -> bool:
+    """True only for ``grok-imagine-video-1.5`` text-to-video / image-to-video."""
+    if is_r2v:
+        return False
+    slug = (model or "").strip().lower().replace("_", "-")
+    return _VIDEO_1080P_SKU_MARK in slug
+
+
+def _contract_video_resolution(
+    value: str | None,
+    model: str | None,
+    *,
+    is_r2v: bool = False,
+) -> str | None:
+    """Allowlist then clamp ``1080p`` → ``720p`` when the SKU/mode rejects it.
+
+    Official docs: 1080p is ``grok-imagine-video-1.5`` T2V/I2V only; R2V is
+    capped at 720p; older ``grok-imagine-video`` has no 1080p. Unknown values
+    still raise via :func:`_optional_resolution` (do not invent 4k).
+    """
+    raw = _optional_resolution(value)
+    if raw is None:
+        return None
+    if raw == "1080p" and not _video_supports_1080p(model, is_r2v=is_r2v):
+        return "720p"
     return raw
 
 
