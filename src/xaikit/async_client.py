@@ -20,7 +20,14 @@ from xaikit.batch import (
     list_results_to_dict,
     normalize_batch_requests,
 )
-from xaikit.catalog import BOOTSTRAP_MODEL, DEFAULT_IMAGE_MODEL, DEFAULT_VIDEO_MODEL, normalize_thought_level, resolve_model_selection
+from xaikit.catalog import (
+    BOOTSTRAP_MODEL,
+    DEFAULT_IMAGE_MODEL,
+    DEFAULT_VIDEO_MODEL,
+    imagine_generate_knobs,
+    normalize_thought_level,
+    resolve_model_selection,
+)
 from xaikit.client import (
     DEFAULT_FILE_PURPOSE,
     DEFAULT_TTS_VOICE_ID,
@@ -119,6 +126,8 @@ from xaikit.tts_stream import (
     XAI_TTS_WS_URL,
     AsyncTtsSession,
     connect_tts_websocket_async,
+    tts_rest_accept,
+    tts_rest_body,
     tts_session_url,
 )
 from xaikit.types import CompletionResponse, StreamChunk
@@ -893,23 +902,38 @@ class AsyncXaiClient(XaiClient):
         *,
         voice_id: str = DEFAULT_TTS_VOICE_ID,
         language: str = "en",
+        codec: str | None = None,
+        sample_rate: int | None = None,
+        bit_rate: int | None = None,
+        output_format: dict[str, Any] | None = None,
+        speed: float | None = None,
+        optimize_streaming_latency: int | None = None,
+        text_normalization: bool | None = None,
+        with_timestamps: bool | None = None,
+        replace: dict[str, str] | None = None,
         purpose: str | None = None,
         parent_id: str | None = None,
         labels: dict[str, str] | None = None,
     ) -> tuple[bytes, str]:
         tag = self._require_purpose_if_metered(purpose)
-        cleaned = (text or "").strip()
-        if not cleaned:
-            raise RuntimeError("TTS text is empty")
+        body = tts_rest_body(
+            text,
+            voice_id=voice_id or DEFAULT_TTS_VOICE_ID,
+            language=language or "en",
+            codec=codec,
+            sample_rate=sample_rate,
+            bit_rate=bit_rate,
+            output_format=output_format,
+            speed=speed,
+            optimize_streaming_latency=optimize_streaming_latency,
+            text_normalization=text_normalization,
+            with_timestamps=with_timestamps,
+            replace=replace,
+        )
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "Accept": "audio/mpeg, application/octet-stream, */*",
-        }
-        body = {
-            "text": cleaned,
-            "voice_id": voice_id or DEFAULT_TTS_VOICE_ID,
-            "language": language or "en",
+            "Accept": tts_rest_accept(with_timestamps=with_timestamps),
         }
 
         def _fail(err: str) -> None:
@@ -938,8 +962,10 @@ class AsyncXaiClient(XaiClient):
         audio = response.content
         if not audio:
             raise RuntimeError("TTS returned empty audio")
-        content_type = response.headers.get("content-type") or "audio/mpeg"
-        content_type = content_type.split(";")[0].strip() or "audio/mpeg"
+        content_type = response.headers.get("content-type") or ""
+        content_type = content_type.split(";")[0].strip()
+        if not content_type:
+            content_type = "application/json" if with_timestamps else "audio/mpeg"
         self._record(
             purpose=tag,
             usage=None,
@@ -1826,6 +1852,9 @@ class AsyncXaiClient(XaiClient):
         model: str | None = None,
         aspect_ratio: str | None = None,
         n: int = 1,
+        resolution: str | None = None,
+        quality: str | None = None,
+        response_format: str | None = None,
         purpose: str | None = None,
         parent_id: str | None = None,
         labels: dict[str, str] | None = None,
@@ -1840,8 +1869,15 @@ class AsyncXaiClient(XaiClient):
             "prompt": cleaned,
             "n": max(1, min(int(n or 1), 4)),
         }
-        if aspect_ratio:
-            body["aspect_ratio"] = aspect_ratio
+        body.update(
+            imagine_generate_knobs(
+                image_model,
+                aspect_ratio=aspect_ratio,
+                resolution=resolution,
+                quality=quality,
+                response_format=response_format,
+            )
+        )
         return await self._submit_imagine(
             XAI_IMAGES_URL,
             body,

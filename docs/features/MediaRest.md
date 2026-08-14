@@ -15,13 +15,13 @@ REST modalities on `XaiClient` via `httpx` (not the chat provider): speech-to-te
   - `transcribe(file_bytes, filename, content_type, language, purpose, …)` → `str`
   - `open_stt_session(...)` → `SttSession` (context manager)
   - `SttSession.send_audio(bytes)`, `finalize()`, `audio_done()`, `recv()`, `events()`, `close()`
-  - `synthesize_speech(text, voice_id, language, purpose, …)` → `(bytes, content_type)`
+  - `synthesize_speech(text, voice_id, language, codec, sample_rate, bit_rate, output_format, speed, optimize_streaming_latency, text_normalization, with_timestamps, replace, purpose, …)` → `(bytes, content_type)`
   - `list_tts_voices(*, purpose, parent_id, labels)` → list of dicts (upstream `voices` array)
   - `get_tts_voice(voice_id, *, purpose, …)` → one voice dict
   - `open_tts_session(...)` → `TtsSession` (context manager)
   - `TtsSession.send_text(delta)`, `text_done()`, `text_clear()`, `update_session(replace)`, `recv()`, `events()`, `close()`
   - `decode_tts_audio(event)` — base64 from `audio.delta`
-  - `generate_image(prompt, model, aspect_ratio, n, purpose, …)` → `{url, b64_json, model, file_id}`
+  - `generate_image(prompt, model, aspect_ratio, n, resolution, quality, response_format, purpose, …)` → `{url, b64_json, model, file_id}`
   - `edit_image(prompt, image url|file_id, …)` → same shape (`file_id` when upstream returns it)
 
 Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://api.x.ai/v1/stt`), `XAI_TTS_URL` (`https://api.x.ai/v1/tts`), `XAI_TTS_VOICES_URL` (`https://api.x.ai/v1/tts/voices`), `XAI_TTS_WS_URL` (`wss://api.x.ai/v1/tts`), `XAI_IMAGES_URL`, `XAI_IMAGE_EDITS_URL`, `DEFAULT_TTS_VOICE_ID` (`eve`), `DEFAULT_IMAGE_MODEL` (`grok-imagine-image-quality`). Tests monkeypatch `connect_stt_websocket` / `connect_tts_websocket` (no live socket). Roster tests mock `httpx.get`.
@@ -31,11 +31,11 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 - STT: POST multipart `file` + `format=true` + `language`; Bearer token; 120s timeout
 - Streaming STT: connect `wss://api.x.ai/v1/stt` with query knobs (no setup message); wait for `transcript.created` before sending; client audio is **raw binary** frames (not base64); client JSON `{"type": "finalize"}` and `{"type": "audio.done"}`; server events `transcript.created` / `transcript.partial` / `transcript.done` / `error` (error → `RuntimeError`); empty audio rejected before send
 - Query knobs on STT open: `sample_rate` (default 16000), `encoding` (`pcm` \| `mulaw` \| `alaw`), `interim_results`, `endpointing`, `language`, `diarize`, `filler_words`, `multichannel`, `channels`, `keyterm` (repeatable), `smart_turn`, `smart_turn_timeout`, `vad_threshold`
-- TTS REST: JSON `{text, voice_id, language}`; Accept audio; strips surrounding whitespace on text
+- TTS REST: JSON `{text, voice_id, language}` plus optional `output_format` `{codec, sample_rate, bit_rate}`, `speed` (0.7–1.5), `optimize_streaming_latency` (`0` / `1` / `2`), `text_normalization`, `with_timestamps`, `replace`. Flat `codec=` / `sample_rate=` / `bit_rate=` match streaming names and nest as `output_format` on the wire (`output_format=` also accepted; flat wins). Unset optional knobs omitted (do not send MP3 24 kHz / 128 kbps defaults). Accept audio; `with_timestamps=True` Accept includes `application/json` and returns the JSON envelope as bytes. Strips surrounding whitespace; empty and **>15,000** chars rejected before HTTP. Invalid `codec` / `sample_rate` / `bit_rate` / `speed` / latency rejected before HTTP (same `TTS_CODECS` / `TTS_SAMPLE_RATES` as streaming; `ulaw` stays the `mulaw` alias). Cite: https://docs.x.ai/developers/model-capabilities/audio/text-to-speech
 - TTS voice roster: `GET /v1/tts/voices` with Bearer `api_key`; returns the `voices` array as JSON dicts (`voice_id` / `name` / `language`) as-is. Omitting `voices`, a non-list, or an empty list → `RuntimeError`. Optional `GET /v1/tts/voices/{voice_id}` returns one object; empty/blank `voice_id` is rejected before HTTP. Missing key fails before HTTP. Does not wrap `GET`/`POST /v1/custom-voices` — custom ids already pass through on TTS/realtime `voice=` / `voice_id=`
 - Streaming TTS: connect `wss://api.x.ai/v1/tts` with query knobs (no setup message); client JSON `{"type": "text.delta", "delta": …}`, `{"type": "text.done"}`, `{"type": "text.clear"}`, optional `{"type": "session.update", "replace": {…}}`; server events `audio.delta` (base64) / `audio.done` / `audio.clear` / `error` (error → `RuntimeError`). Empty text and `text.delta` over 15,000 characters rejected before send. Invalid `codec` / `sample_rate` rejected before connect
 - Query knobs on TTS open: `voice` (query `voice=`, default `eve`), `language` (required upstream; kit default `"en"`), `codec` (default `mp3`; `mp3` \| `wav` \| `pcm` \| `mulaw`/`ulaw` \| `alaw`), `sample_rate` (omit unless set; 8000, 16000, 22050, 24000, 44100, 48000), `bit_rate` (omit unless set; MP3), `speed` (omit unless set), `optimize_streaming_latency` (omit unless set), `text_normalization` / `with_timestamps` (omit unless set)
-- Image generate: JSON `{model, prompt, n}` with `n` clamped 1–4; `aspect_ratio` omitted when unset; per-call `model` overrides `XaiClient.image_model`
+- Image generate: JSON `{model, prompt, n}` with `n` clamped 1–4; per-call `model` overrides `XaiClient.image_model`. Optional knobs: `aspect_ratio` (Imagine list incl. `auto` / `19.5:9` / `20:9`), `resolution` (`1k` \| `2k`), `response_format` (`b64_json`), `quality` (`low` \| `medium`, **`grok-imagine-image-2.0` only**). Unknown `aspect_ratio` / `resolution` / `quality` are omitted (do not 400). `quality` is omitted on `grok-imagine-image` / `grok-imagine-image-quality` (default pin) even if the caller passed it. Cite: https://docs.x.ai/developers/model-capabilities/images/generation
 - Image edit: JSON `POST /v1/images/edits` (not OpenAI multipart) with model, prompt, source `image` (`url` + `type=image_url`, or `file_id` passthrough), `n` clamped 1–4; `aspect_ratio` / `response_format` omitted when unset
 - Purpose required when metered; success/failure usage with modalities `stt` / `tts` / `imagine`. Streaming STT records once per session (close or first failure) with wall-clock `duration`, `modality="stt"`, `model="stt"`. Streaming TTS records once per session the same way with `modality="tts"`, `model="tts"`, `apply_price_table=False` (no invented USD; REST TTS has no price row). Voice roster listing uses the same `tts` modality with `apply_price_table=False` (listing is not billed audio). 401 skips the meter then raises
 - 401 and ≥400 mapped to `RuntimeError`; empty audio/prompt/file/image rejected before HTTP
@@ -53,6 +53,8 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 | 2026-08-13 | Streaming TTS is `TtsSession` via `open_tts_session` on this stem, not `RealtimeSession` | Distinct upstream socket (`wss://api.x.ai/v1/tts` vs `/v1/realtime`); same home pattern as streaming STT. REST `synthesize_speech` stays. Query `voice=` (not JSON `voice_id`). No default `tts` price row — `apply_price_table=False`. Cite: https://docs.x.ai/developers/model-capabilities/audio/text-to-speech#streaming-tts-websocket |
 | 2026-08-13 | TTS voice roster is `list_tts_voices` (`GET /v1/tts/voices`); thin `get_tts_voice`; no custom-voices clone | Built-in roster so callers are not stuck on hard-coded `eve`. Custom ids already pass through on TTS/realtime `voice=` / `voice_id=`. Team-scoped clone stays out of kit. Listing meters `modality="tts"` with `apply_price_table=False` |
 | 2026-08-14 | Queue Imagine generate + REST TTS knobs; contract per SKU | Audit vs docs: generate missing `resolution`/`quality`/`response_format`; unary TTS missing the streaming set. Same contraction idea as chat `thought_level`. Work on [MediaRest-TODO.md](MediaRest-TODO.md) |
+| 2026-08-14 | Imagine generate knobs omit unknown; `quality` only on 2.0 | Official generate set is `resolution`/`quality`/`response_format` plus the Imagine aspect list. Do not 400 on unknown aspect/resolution; contract `quality` off non-2.0 SKUs (`grok-imagine-image`, `grok-imagine-image-quality`). Helpers: `imagine_generate_knobs` in catalog (same idea as `contract_thought_level`) |
+| 2026-08-14 | REST unary TTS knobs use streaming names; nest format on the wire | Official unary body uses `output_format`. Callers use the same `codec` / `sample_rate` / `bit_rate` / `speed` / … kwargs as `open_tts_session`. Reject invalid + >15k before HTTP. `with_timestamps=True` returns JSON bytes. Helper: `tts_rest_body` in `tts_stream` (same allowlists as streaming). |
 
 ## Dependencies
 
@@ -70,12 +72,12 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 - [x] Streaming STT if still unary-transcribe (STS is [RealtimeVoice](RealtimeVoice.md))
 - [x] Streaming TTS-only WS (`open_tts_session` / `TtsSession` on `wss://api.x.ai/v1/tts`; not STS)
 - [x] Voice roster helper (`list_tts_voices` / `GET /v1/tts/voices`; optional `get_tts_voice`)
-- [ ] `generate_image` forwards `resolution` / `quality` / `response_format`; `quality` omitted on non-2.0 Imagine SKUs
-- [ ] REST `synthesize_speech` forwards unary TTS knobs (`output_format`, `speed`, latency opt, normalize, timestamps, `replace`); >15k chars rejected before HTTP
+- [x] `generate_image` forwards `resolution` / `quality` / `response_format`; `quality` omitted on non-2.0 Imagine SKUs
+- [x] REST `synthesize_speech` forwards unary TTS knobs (`output_format`, `speed`, latency opt, normalize, timestamps, `replace`); >15k chars rejected before HTTP
 - [ ] `edit_image` accepts up to 3 source images
 
 ## Current status
 
-- **Shipped** (library-only): REST STT/TTS/Imagine + streaming STT/TTS + built-in TTS voice roster
-- **Queued**: Imagine generate knobs + REST TTS knobs + multi-image edit ([MediaRest-TODO.md](MediaRest-TODO.md))
-- **Last reconciled with code**: 2026-08-14 (knob-gap TODOs; generate/unary TTS still the thin set)
+- **Shipped** (library-only): REST STT/TTS (unary knobs + 15k cap) / Imagine (generate knobs + per-SKU `quality` contraction) + streaming STT/TTS + built-in TTS voice roster
+- **Queued**: multi-image edit ([MediaRest-TODO.md](MediaRest-TODO.md))
+- **Last reconciled with code**: 2026-08-14 (REST TTS knobs)

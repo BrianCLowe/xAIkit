@@ -254,6 +254,98 @@ def contract_thought_level(level: str | None, model: str | None = None) -> str |
     return canonical
 
 
+# Imagine generate knobs (REST /v1/images/generations).
+# quality is grok-imagine-image-2.0 only — omit on other SKUs.
+# Unknown aspect_ratio / resolution: omit (do not 400).
+IMAGINE_ASPECT_RATIOS = frozenset(
+    {
+        "1:1",
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "3:2",
+        "2:3",
+        "2:1",
+        "1:2",
+        "19.5:9",
+        "9:19.5",
+        "20:9",
+        "9:20",
+        "auto",
+    }
+)
+IMAGINE_RESOLUTIONS = frozenset({"1k", "2k"})
+IMAGINE_QUALITIES = frozenset({"low", "medium"})
+_IMAGINE_QUALITY_SKU_MARK = "imagine-image-2.0"
+
+
+def imagine_supports_quality(model: str | None) -> bool:
+    """True only for the Imagine 2.0 image SKU (``grok-imagine-image-2.0``)."""
+    slug = (model or "").strip().lower().replace("_", "-")
+    return _IMAGINE_QUALITY_SKU_MARK in slug
+
+
+def contract_imagine_aspect_ratio(value: str | None) -> str | None:
+    """Keep official Imagine ratios (incl. ``auto``, ``19.5:9``, ``20:9``); omit unknown."""
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    if raw not in IMAGINE_ASPECT_RATIOS:
+        logger.warning("Unknown Imagine aspect_ratio %r — omitting", value)
+        return None
+    return raw
+
+
+def contract_imagine_resolution(value: str | None) -> str | None:
+    """Keep ``1k`` | ``2k``; omit unknown (do not 400)."""
+    raw = (value or "").strip().lower()
+    if not raw:
+        return None
+    if raw not in IMAGINE_RESOLUTIONS:
+        logger.warning("Unknown Imagine resolution %r — omitting", value)
+        return None
+    return raw
+
+
+def contract_imagine_quality(quality: str | None, model: str | None = None) -> str | None:
+    """Keep ``low`` | ``medium`` on Imagine 2.0; omit on other SKUs and unknown values."""
+    raw = (quality or "").strip().lower()
+    if not raw:
+        return None
+    if raw not in IMAGINE_QUALITIES:
+        logger.warning("Unknown Imagine quality %r — omitting", quality)
+        return None
+    if not imagine_supports_quality(model):
+        return None
+    return raw
+
+
+def imagine_generate_knobs(
+    model: str,
+    *,
+    aspect_ratio: str | None = None,
+    resolution: str | None = None,
+    quality: str | None = None,
+    response_format: str | None = None,
+) -> dict[str, str]:
+    """Optional Imagine generate fields this SKU accepts. Unknown knobs omitted."""
+    out: dict[str, str] = {}
+    aspect = contract_imagine_aspect_ratio(aspect_ratio)
+    if aspect:
+        out["aspect_ratio"] = aspect
+    res = contract_imagine_resolution(resolution)
+    if res:
+        out["resolution"] = res
+    q = contract_imagine_quality(quality, model)
+    if q:
+        out["quality"] = q
+    fmt = (response_format or "").strip()
+    if fmt:
+        out["response_format"] = fmt
+    return out
+
+
 def load_fixture_catalog(path: Path | str) -> list[ModelInfo]:
     """Load offline catalog fixture (JSON list or {models: [...]})."""
     p = Path(path)
