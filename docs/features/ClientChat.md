@@ -1,6 +1,6 @@
 # ClientChat
 
-**Last Updated**: 2026-08-13 *(async client twin)*  
+**Last Updated**: 2026-08-14 *(4.6 thought levels)*  
 **Related TODO**: [ClientChat-TODO.md](ClientChat-TODO.md)
 
 ## Overview
@@ -15,7 +15,7 @@ The same methods accept tool defs, multimodal content parts, and native structur
 - **Does not own**: product prompts, the app’s tool *loop* (kit never executes tools), UI, media REST (see [MediaRest](MediaRest.md)), Responses-as-default / built-in agent tools
 - **Public API**: `XaiClient`, `AsyncXaiClient`, `ChatProvider`, `AsyncChatProvider`, `MockChatProvider`, `SdkChatProvider`, `AsyncSdkChatProvider`, `CompletionResponse`, `StreamChunk`
 
-Knobs forwarded to the provider: `model`, `temperature`, `max_tokens`, `thought_level`, `system_prompt`, `tools` / `tool_choice` / `parallel_tool_calls`, multimodal `content` parts, `chat_json` `schema` / `response_format`, `service_tier` (`"default"` | `"priority"`; omit when `None`). `effort` is an alias for `thought_level`. `thought_level` maps to xAI `reasoning_effort` (`low` \| `high`; `med`/`medium`/`mid` → `low`).
+Knobs forwarded to the provider: `model`, `temperature`, `max_tokens`, `thought_level`, `system_prompt`, `tools` / `tool_choice` / `parallel_tool_calls`, multimodal `content` parts, `chat_json` `schema` / `response_format`, `service_tier` (`"default"` | `"priority"`; omit when `None`). `effort` is an alias for `thought_level`. `thought_level` maps to xAI `reasoning_effort` (`low` \| `medium` \| `high` \| `xhigh` on 4.6+). Send path contracts via `contract_thought_level` for thinner families (4.5 `xhigh`→`high`; older `medium`→`low` and `xhigh`→`high`; non-reasoning omits). Meter records the contracted (on-the-wire) value.
 
 Deferred chat is a separate REST pair (`create_deferred_chat` / `get_deferred_chat`) — not an overload of `chat` → `CompletionResponse`. Constant `XAI_DEFERRED_CHAT_URL`.
 
@@ -47,6 +47,7 @@ When a `UsageMeter` is attached, `purpose` is required. Without a meter, purpose
 | 2026-08-13 | Mock dict replies with a `tool_calls` key are structured (not `json.dumps`’d) | Lets tests script tool calls without breaking existing `chat_json` dict replies |
 | 2026-08-13 | Deferred chat is `create_deferred_chat` + `get_deferred_chat`, not a `chat(..., deferred=True)` return-type fork | `CompletionResponse` would lie for `{request_id}`; matches files/responses helpers. SDK has no `deferred=` on create. |
 | 2026-08-13 | `AsyncXaiClient` is a same-name async twin (not chat-only; REST/WS included) | ApiCoverage: no split feature set. Real `httpx.AsyncClient` / async websockets / `xai_sdk.AsyncClient` — not `asyncio.to_thread` around sync I/O. |
+| 2026-08-14 | 4.6 thought levels + per-model contraction | Flagship can pass `xhigh`/`medium`. Older models get the documented clamp instead of a 400 or a silent API remap the meter would miss. |
 
 ## Dependencies
 
@@ -72,4 +73,4 @@ When a `UsageMeter` is attached, `purpose` is required. Without a meter, purpose
 ## Current status
 
 - **In progress**: none on chat path (async twin shipped)
-- **Last reconciled with code**: 2026-08-13
+- **Last reconciled with code**: 2026-08-14

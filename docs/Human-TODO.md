@@ -13,7 +13,7 @@
 
 - [ ] **VideoGeneration library look-list** (`playtest`) — 2026-08-12 — Confirm generate/extend/poll/download + README example feel right; optional live start-only smoke if you want. Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md) · Blocks: none
 - [ ] **MediaRest extras look-list** (`playtest`) — 2026-08-13 — Split from fat MediaRest row: `edit_image`, streaming STT/TTS (`open_stt_session` / `open_tts_session`), TTS voice roster. Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md) · Blocks: none
-- [ ] **Catalog library look-list** (`playtest`) — 2026-08-13 — `role=`, grok-4.6 bootstrap, persist_path (orchestration). Owner: [Catalog-TODO.md](features/Catalog-TODO.md) · Blocks: none
+- [ ] **Catalog extras look-list** (`playtest`) — 2026-08-13 — Split from fat Catalog row: `persist_path=` / `save_catalog_snapshot`; `role=video` (Rivenquill has no video job). Owner: [Catalog-TODO.md](features/Catalog-TODO.md) · Blocks: none
 - [ ] **ClientChat extras look-list** (`playtest`) — 2026-08-13 — Split from fat ClientChat row: tools/vision parts, `service_tier`, `AsyncXaiClient` (Rivenquill did not exercise these). Owner: [ClientChat-TODO.md](features/ClientChat-TODO.md) · Blocks: none
 - [ ] **ApiCoverage library look-list** (`playtest`) — 2026-08-13 — Files, embed, tokenize, batch, collections, Responses, deferred chat (orchestration). Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) · Blocks: none
 - [ ] **UsageObservability library look-list** (`playtest`) — 2026-08-13 — New modalities + optional OTel sink (orchestration). Owner: [UsageObservability-TODO.md](features/UsageObservability-TODO.md) · Blocks: none
@@ -23,6 +23,8 @@
 
 ## Done
 
+- [x] **Catalog core — role, model, effort via Rivenquill** (`playtest`) — 2026-08-13 — Live: `role=chat` + intent/pin + `thought_level` in the Quill picker; Imagine/voice use admin `best` (`role=image` / `role=voice`). `BOOTSTRAP_MODEL` (`grok-4.6`) is the resolve fallback. Does **not** cover persist snapshot or `role=video` (see Open extras). Owner: [Catalog-TODO.md](features/Catalog-TODO.md)
+- [x] **Alert when xAI ships a new model / resolution** (`procure`) — 2026-08-14 — Daily GitHub Action `Watch xAI models` diffs public docs vs `scripts/data/xai_models_watch.json` and opens an issue labeled `xai-models`. Watch the repo's issues (or that label). When it fires: check knobs/families/prices, then `uv run python scripts/watch_xai_models.py --write-baseline` and close the issue. Owner: [Catalog-TODO.md](features/Catalog-TODO.md)
 - [x] **RealtimeVoice library look-list** (`playtest`) — 2026-08-13 — Live via Rivenquill conversation mode: ephemeral mint + browser STS WS + server VAD confirmed working (consumer proof). Kit surfaces exercised: `create_realtime_client_secret` / protocol / realtime session path. Owner: [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md)
 - [x] **ClientChat core — live via Rivenquill** (`playtest`) — 2026-08-13 — Quill chat + `chat_json`/`schema=` (propose-edits / structured paths) confirmed working in Rivenquill against PyPI `xaikit-py`. Does **not** cover tools/vision/`service_tier`/`AsyncXaiClient` (see Open extras). Owner: [ClientChat-TODO.md](features/ClientChat-TODO.md)
 - [x] **MediaRest core — Imagine + unary STT/TTS via Rivenquill** (`playtest`) — 2026-08-13 — `generate_image` (Imagine) + voice chat (`transcribe` → chat → `synthesize_speech`) confirmed in Rivenquill. Does **not** cover `edit_image` / streaming STT/TTS / voice roster (see Open extras). Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md)

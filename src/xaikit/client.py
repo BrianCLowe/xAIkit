@@ -27,6 +27,7 @@ from xaikit.catalog import (
     BOOTSTRAP_MODEL,
     DEFAULT_IMAGE_MODEL,
     DEFAULT_VIDEO_MODEL,
+    contract_thought_level,
     normalize_thought_level,
     resolve_model_selection,
 )
@@ -244,11 +245,14 @@ class XaiClient:
         thought_level: str | None = None,
         *,
         effort: str | None = None,
+        model: str | None = None,
     ) -> str | None:
         level_in = thought_level if thought_level is not None else effort
         if level_in is not None:
-            return normalize_thought_level(level_in)
-        return self.thought_level
+            canonical = normalize_thought_level(level_in)
+        else:
+            canonical = self.thought_level
+        return contract_thought_level(canonical, model or self.model)
 
     def _complete(
         self,
@@ -835,7 +839,7 @@ class XaiClient:
         if not pin:
             raise RuntimeError("model is required for create_deferred_chat")
         tier = _normalize_service_tier(service_tier)
-        level = self._effective_thought_level(thought_level, effort=effort)
+        level = self._effective_thought_level(thought_level, effort=effort, model=pin)
         rest_messages = list(messages)
         if system_prompt:
             rest_messages.insert(0, {"role": "system", "content": system_prompt})

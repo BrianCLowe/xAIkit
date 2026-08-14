@@ -1,6 +1,6 @@
 # VideoGeneration
 
-**Last Updated**: 2026-08-12  
+**Last Updated**: 2026-08-14  
 **Related TODO**: [VideoGeneration-TODO.md](VideoGeneration-TODO.md)
 
 ## Overview
@@ -48,6 +48,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 | 2026-08-12 | REST `httpx` for video (not the chat SDK provider) | Matches image/STT/TTS; contract-tested via mocked `httpx.post` / `httpx.get` |
 | 2026-08-12 | Frozen names: `generate_video`, `extend_video`, `poll_video`, `download_video`; `wait=True` by default | Aligns with xAI SDK poll-by-default plus an explicit request-id path |
 | 2026-08-12 | `ModelPrice.per_second_usd` (+ optional resolution map); 480p default | Video is billed per second by resolution, not tokens. Public rates are estimates, not a billing authority |
+| 2026-08-14 | Contract 1080p per model/mode (queued) | Docs: 1080p is 1.5 T2V/I2V only; R2V max 720p. Kit currently allowlists 1080p for every path. [VideoGeneration-TODO.md](VideoGeneration-TODO.md) |
 
 ## Dependencies
 
@@ -65,8 +66,10 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 - [x] Extend + poll (or SDK wait) documented and tested
 - [x] Meter purpose + video modality
 - [x] Offline contract tests; optional live smoke stays env-gated
+- [ ] 1080p contracted: `grok-imagine-video-1.5` T2V/I2V only; R2V / older video → 720p
 
 ## Current status
 
 - **Shipped** (library-only): generate / extend / poll / download + meter + default prices + `prefer_latest_video_model`
-- **Last reconciled with code**: 2026-08-12
+- **Queued**: 1080p per-model/mode contraction ([VideoGeneration-TODO.md](VideoGeneration-TODO.md))
+- **Last reconciled with code**: 2026-08-14 (knob-gap TODO; 1080p still uncontracted)

@@ -732,7 +732,7 @@ class AsyncXaiClient(XaiClient):
         if not pin:
             raise RuntimeError("model is required for create_deferred_chat")
         tier = _normalize_service_tier(service_tier)
-        level = self._effective_thought_level(thought_level, effort=effort)
+        level = self._effective_thought_level(thought_level, effort=effort, model=pin)
         rest_messages = list(messages)
         if system_prompt:
             rest_messages.insert(0, {"role": "system", "content": system_prompt})

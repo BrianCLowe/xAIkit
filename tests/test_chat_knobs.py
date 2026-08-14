@@ -9,16 +9,18 @@ from xaikit import (
     MockChatProvider,
     UsageMeter,
     XaiClient,
+    contract_thought_level,
     default_retry_policy,
+    effort_options,
     normalize_thought_level,
 )
 from xaikit.provider import _sdk_chat_kwargs
 
 
 def _client(provider: MockChatProvider, **kwargs) -> XaiClient:
+    kwargs.setdefault("model", "grok-3-mini")
     return XaiClient(
         provider=provider,
-        model="grok-3-mini",
         retry_policy=default_retry_policy(max_attempts=1),
         **kwargs,
     )
@@ -53,10 +55,29 @@ def test_effort_alias_maps_like_thought_level_on_chat() -> None:
 
     client.chat(
         [{"role": "user", "content": "hi"}],
-        effort="medium",  # product alias → API low
+        effort="medium",  # grok-3-mini is low|high only → contracts to low
     )
 
     assert provider.calls[0]["thought_level"] == "low"
+
+
+def test_medium_and_xhigh_pass_through_on_grok_46() -> None:
+    provider = MockChatProvider(replies="ok")
+    client = _client(provider, model="grok-4.6")
+
+    client.chat([{"role": "user", "content": "hi"}], thought_level="medium")
+    client.chat([{"role": "user", "content": "hi"}], thought_level="xhigh")
+
+    assert provider.calls[0]["thought_level"] == "medium"
+    assert provider.calls[1]["thought_level"] == "xhigh"
+
+
+def test_xhigh_contracts_to_high_on_grok_45() -> None:
+    provider = MockChatProvider(replies="ok")
+    client = _client(provider, model="grok-4.5")
+
+    client.chat([{"role": "user", "content": "hi"}], thought_level="xhigh")
+    assert provider.calls[0]["thought_level"] == "high"
 
 
 def test_call_thought_level_overrides_client_default() -> None:
@@ -148,14 +169,48 @@ def test_meter_records_purpose_labels_and_thought_level_from_knobs() -> None:
         ("  ", None),
         ("low", "low"),
         ("HIGH", "high"),
-        ("med", "low"),
-        ("medium", "low"),
-        ("mid", "low"),
+        ("med", "medium"),
+        ("medium", "medium"),
+        ("mid", "medium"),
+        ("xhigh", "xhigh"),
+        ("x-high", "xhigh"),
+        ("extra_high", "xhigh"),
+        ("max", "xhigh"),
         ("nope", None),
     ],
 )
 def test_normalize_thought_level_contract(raw: str | None, expected: str | None) -> None:
     assert normalize_thought_level(raw) == expected
+
+
+@pytest.mark.parametrize(
+    ("level", "model", "expected"),
+    [
+        ("xhigh", "grok-4.6", "xhigh"),
+        ("medium", "grok-4.6", "medium"),
+        ("xhigh", "grok-4.5", "high"),
+        ("medium", "grok-4.5", "medium"),
+        ("xhigh", "grok-4.20-0309-reasoning", "high"),
+        ("medium", "grok-4.20-0309-reasoning", "low"),
+        ("xhigh", "grok-4.20-0309-non-reasoning", None),
+        ("low", "grok-4.20-0309-non-reasoning", None),
+        ("xhigh", "grok-4.20-multi-agent-0309", "xhigh"),
+        ("medium", "grok-3-mini", "low"),
+        ("xhigh", None, "xhigh"),
+    ],
+)
+def test_contract_thought_level_by_model(
+    level: str, model: str | None, expected: str | None
+) -> None:
+    assert contract_thought_level(level, model) == expected
+
+
+def test_effort_options_full_set_and_per_model() -> None:
+    assert effort_options() == ["low", "medium", "high", "xhigh"]
+    assert effort_options("grok-4.6") == ["low", "medium", "high", "xhigh"]
+    assert effort_options("grok-4.5") == ["low", "medium", "high"]
+    assert effort_options("grok-4.20-0309-non-reasoning") == []
+    assert effort_options("grok-3-mini") == ["low", "high"]
 
 
 def test_sdk_chat_kwargs_maps_thought_level_to_reasoning_effort() -> None:
@@ -181,6 +236,30 @@ def test_sdk_chat_kwargs_maps_thought_level_to_reasoning_effort() -> None:
     assert "max_tokens" not in omitted
     assert "reasoning_effort" not in omitted
     assert "service_tier" not in omitted
+
+    xhigh_46 = _sdk_chat_kwargs(
+        model="grok-4.6",
+        temperature=0.5,
+        max_tokens=None,
+        thought_level="xhigh",
+    )
+    assert xhigh_46["reasoning_effort"] == "xhigh"
+
+    xhigh_45 = _sdk_chat_kwargs(
+        model="grok-4.5",
+        temperature=0.5,
+        max_tokens=None,
+        thought_level="xhigh",
+    )
+    assert xhigh_45["reasoning_effort"] == "high"
+
+    omitted_nr = _sdk_chat_kwargs(
+        model="grok-4.20-0309-non-reasoning",
+        temperature=0.5,
+        max_tokens=None,
+        thought_level="high",
+    )
+    assert "reasoning_effort" not in omitted_nr
 
 
 def test_chat_forwards_service_tier_to_mock() -> None:

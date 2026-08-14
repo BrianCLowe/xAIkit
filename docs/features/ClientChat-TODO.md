@@ -1,6 +1,6 @@
 # ClientChat — TODO
 
-**Last Updated**: 2026-08-13  
+**Last Updated**: 2026-08-14  
 **Related Spec**: [ClientChat.md](ClientChat.md)
 
 ---
@@ -44,6 +44,7 @@ Library look-list — reply in chat when done (do not mark this row yourself).
 ## Cross-Feature Dependencies & Integration Notes
 
 - **library-only** — exercise path is `uv run pytest` / mock provider, not a UI. Optional live: `XAITKIT_LIVE=1 uv run pytest tests/test_live_smoke.py -m live`.
+- Vision `detail` (`auto`/`low`/`high`) is already on chat parts — no new knob TODO. Imagine generate/edit knobs live on [MediaRest-TODO.md](MediaRest-TODO.md).
 
 ## Completed
 
@@ -56,3 +57,4 @@ Library look-list — reply in chat when done (do not mark this row yourself).
 - [x] Native structured outputs — `chat_json` uses xAI schema / `response_format` (fence-strip fallback) (2026-08-13)
 - [x] Service tier / deferred chat helpers — covering [ApiCoverage-TODO.md](ApiCoverage-TODO.md) (`service_tier` on chat; `create_deferred_chat` / `get_deferred_chat`) (2026-08-13)
 - [x] Async `XaiClient` twin if callers need it (xai-sdk has `aio`) — `AsyncXaiClient`; covering [ApiCoverage-TODO.md](ApiCoverage-TODO.md) (2026-08-13)
+- [x] 4.6 `reasoning_effort` set (`low`/`medium`/`high`/`xhigh`) with per-model contraction (2026-08-14)

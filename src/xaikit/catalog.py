@@ -53,9 +53,15 @@ _INTENT_ALIASES = {
 }
 KNOWN_INTENTS = frozenset(_INTENT_ALIASES.keys())
 
-# xAI SDK reasoning_effort currently accepts only low | high.
-THOUGHT_LEVELS_API = frozenset({"low", "high"})
-EFFORT_OPTIONS = ("low", "high")
+# Canonical 4.6 set. Older families contract via contract_thought_level().
+THOUGHT_LEVELS_API = ("low", "medium", "high", "xhigh")
+EFFORT_OPTIONS = THOUGHT_LEVELS_API
+_THOUGHT_LEVELS_SET = frozenset(THOUGHT_LEVELS_API)
+
+_FAMILY_FULL = "full"  # 4.6+, 4.20-multi-agent: low|medium|high|xhigh
+_FAMILY_NO_XHIGH = "no_xhigh"  # 4.5: low|medium|high (xhigh → high)
+_FAMILY_LOW_HIGH = "low_high"  # older / unknown reasoners
+_FAMILY_NONE = "none"  # non-reasoning SKUs: omit the knob
 
 _FetchFn = Callable[[str], list[ModelInfo]]
 _TaskAssignFn = Callable[[str], str | None]
@@ -114,8 +120,19 @@ def inject_catalog(models: Sequence[ModelInfo] | None) -> None:
     clear_catalog_cache()
 
 
-def effort_options() -> list[str]:
-    """UI-queryable effort / thought_level options (xAI: low|high)."""
+def effort_options(model: str | None = None) -> list[str]:
+    """UI-queryable effort / thought_level options.
+
+    No ``model`` → full 4.6 set (``low`` | ``medium`` | ``high`` | ``xhigh``).
+    With ``model`` → levels that family actually accepts (empty if none).
+    """
+    family = reasoning_knob_family(model) if model else _FAMILY_FULL
+    if family == _FAMILY_NONE:
+        return []
+    if family == _FAMILY_LOW_HIGH:
+        return ["low", "high"]
+    if family == _FAMILY_NO_XHIGH:
+        return ["low", "medium", "high"]
     return list(EFFORT_OPTIONS)
 
 
@@ -147,25 +164,94 @@ def normalize_role(role: str | None) -> str:
     return ROLE_CHAT
 
 
-def normalize_thought_level(level: str | None) -> str | None:
-    """Map product thought/effort levels to xAI ``reasoning_effort`` values.
+def reasoning_knob_family(model: str | None) -> str:
+    """Which ``reasoning_effort`` set a model accepts.
 
-    API supports ``low`` | ``high`` only. ``med`` / ``medium`` map to ``low``.
-    Empty → None (omit knob).
+    ``grok-4.20`` is *older* than ``grok-4.5`` / ``grok-4.6`` despite the
+    larger minor — do not treat numeric 20 as “4.6 and later”.
+    """
+    slug = (model or "").strip().lower().replace("_", "-")
+    if not slug:
+        return _FAMILY_FULL
+    if "non-reasoning" in slug:
+        return _FAMILY_NONE
+    if "multi-agent" in slug:
+        return _FAMILY_FULL
+    if re.search(r"grok-4[.-]20(?!\d)", slug):
+        return _FAMILY_LOW_HIGH
+    if re.search(r"grok-4[.-]5(?!\d)", slug):
+        return _FAMILY_NO_XHIGH
+    matched = re.search(r"grok-(\d+)(?:[.-](\d+))?", slug)
+    if matched:
+        major = int(matched.group(1))
+        minor = int(matched.group(2) or 0)
+        if major > 4 or (major == 4 and minor >= 6):
+            return _FAMILY_FULL
+    return _FAMILY_LOW_HIGH
+
+
+def normalize_thought_level(level: str | None) -> str | None:
+    """Map product thought/effort levels to canonical 4.6 API values.
+
+    Canonical: ``low`` | ``medium`` | ``high`` | ``xhigh``.
+    Aliases: ``med``/``mid`` → ``medium``; ``x-high``/``extra``/``max`` → ``xhigh``.
+    Empty / unknown → None (omit knob). Does not contract for a specific model —
+    see :func:`contract_thought_level`.
     """
     if level is None:
         return None
-    raw = str(level).strip().lower()
+    raw = str(level).strip().lower().replace(" ", "-").replace("_", "-")
     if not raw:
         return None
-    if raw in ("med", "medium", "mid"):
-        return "low"
-    if raw in ("effort", "thought_level", "reasoning_effort"):
+    if raw in ("effort", "thought-level", "reasoning-effort"):
         return None
-    if raw in THOUGHT_LEVELS_API:
+    aliases = {
+        "low": "low",
+        "lo": "low",
+        "medium": "medium",
+        "med": "medium",
+        "mid": "medium",
+        "high": "high",
+        "hi": "high",
+        "xhigh": "xhigh",
+        "x-high": "xhigh",
+        "xh": "xhigh",
+        "extra": "xhigh",
+        "extra-high": "xhigh",
+        "max": "xhigh",
+        "maximum": "xhigh",
+    }
+    if raw in aliases:
+        return aliases[raw]
+    if raw in _THOUGHT_LEVELS_SET:
         return raw
     logger.warning("Unknown thought_level %r — ignoring", level)
     return None
+
+
+def contract_thought_level(level: str | None, model: str | None = None) -> str | None:
+    """Normalize then clamp to what ``model`` accepts.
+
+    * 4.6+ / multi-agent: pass through
+    * 4.5: ``xhigh`` → ``high``
+    * older / unknown reasoners: ``xhigh`` → ``high``, ``medium`` → ``low``
+    * ``*-non-reasoning*``: omit the knob
+    """
+    canonical = normalize_thought_level(level)
+    if canonical is None:
+        return None
+    family = reasoning_knob_family(model)
+    if family == _FAMILY_NONE:
+        return None
+    if family == _FAMILY_FULL:
+        return canonical
+    if family == _FAMILY_NO_XHIGH:
+        return "high" if canonical == "xhigh" else canonical
+    if canonical == "xhigh":
+        return "high"
+    if canonical == "medium":
+        return "low"
+    return canonical
 
 
 def load_fixture_catalog(path: Path | str) -> list[ModelInfo]:

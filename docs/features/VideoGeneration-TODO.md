@@ -1,15 +1,15 @@
 # VideoGeneration — TODO
 
-**Last Updated**: 2026-08-12  
+**Last Updated**: 2026-08-14  
 **Related Spec**: [VideoGeneration.md](VideoGeneration.md)
 
 ---
 
 ## Current focus *(session handoff)*
 
-**Active task:** Stem shipped (library-only). Human verify look-list is open. Agent TODOs on the map are drained.  
+**Active task:** Contract 1080p per model/mode (docs gap; generate already forwards the knob).  
 **Blocked by:** —  
-**Last session:** 2026-08-12 — shipped T2V / I2V / R2V / extend / poll-wait / download / meter+prices / prefer_latest_video_model with mocked contract tests
+**Last session:** 2026-08-14 — Media knob audit. Generate/extend knobs are present; 1080p is **not** contracted. Imagine generate + REST TTS queued on [MediaRest-TODO.md](MediaRest-TODO.md). Human look-list still open.
 
 *library-only · exercise path: `uv run pytest` + optional `XAITKIT_LIVE=1` + `XAITKIT_LIVE_VIDEO=1` start-only smoke. Do not add a UI. Files upload stays on ApiCoverage. Video edits (`POST /v1/videos/edits`) not in this stem.*
 
@@ -17,15 +17,15 @@
 
 ## High Priority / Next Actions
 
-*(none — High drained)*
+- [ ] **Resolution contraction** — kit allowlist is `480p`/`720p`/`1080p` for every model and mode. Docs: `1080p` only on `grok-imagine-video-1.5` **T2V / I2V**; **R2V capped at 720p**; older `grok-imagine-video` (no `-1.5`) should not send 1080p. Contract `1080p` → `720p` (or omit) on those paths. Extend still must not send `aspect_ratio` / `resolution`. Offline tests in `tests/test_video_wiring.py`. Cite: https://docs.x.ai/developers/model-capabilities/video/generation
 
 ## Medium Priority
 
-*(none — Medium drained)*
+*(none)*
 
 ## Low Priority / Future Ideas
 
-*(none — Low drained; video edits / Files upload / catalog `role=video` live on other stems)*
+*(none — video edits / Files upload / catalog `role=video` live on other stems)*
 
 ## Human verify (orchestration 2026-08-12)
 

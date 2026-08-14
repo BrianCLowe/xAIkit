@@ -7,9 +7,9 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Stem shipped — Catalog High / Medium / Low drained. Human verify look-list is open.  
+**Active task:** Stem shipped — Catalog High / Medium / Low drained. Human verify **extras** still open (`persist_path` / `role=video`). Model-watch Action is the inbox when public docs drift.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — opt-in `persist_path` + `save_catalog_snapshot` (memory cache still wins; write failure does not fail `list_models`)
+**Last session:** 2026-08-13 — Split human verify: Rivenquill confirmed role + model (intent/pin) + effort; persist/`role=video` remain.
 
 ---
 
@@ -27,11 +27,17 @@
 
 ## Human verify (orchestration 2026-08-13)
 
-Library-only look-list — reply in chat when done (do not mark this row yourself).
+### Core — done (consumer proof)
 
-- **Surfaces:** `role=` resolve; `BOOTSTRAP_MODEL` (`grok-4.6`); `list_models(..., persist_path=)` / `save_catalog_snapshot`
+- [x] **2026-08-13 — Live via Rivenquill** — `role=chat` + intent/pin (`best` / `economy` / `cheapest` / SKU) + `thought_level` (default / low / high) in the Quill chat picker. Imagine and conversation mode resolve admin `best` on `role=image` / `role=voice`. `BOOTSTRAP_MODEL` (`grok-4.6`) is the kit resolve fallback. Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done.
+
+### Extras — still open
+
+Library look-list — reply in chat when done (do not mark this row yourself).
+
+- **Surfaces:** `list_models(..., persist_path=)` / `save_catalog_snapshot`; `role=video` resolve (Rivenquill has no video job)
 - **Placement:** `src/xaikit/catalog.py`; default prices in `pricing.py`
-- **Copy:** README bootstrap slug + persist_path one-liner
+- **Copy:** README persist_path one-liner
 - **Happy path:** `uv run pytest tests/test_catalog.py`
 - **Rough edges:** persist is opt-in (no default path); mock HTTP tests may still pin dummy `grok-3-mini`
 
@@ -44,3 +50,5 @@ Library-only look-list — reply in chat when done (do not mark this row yoursel
 - [x] Role-filtered resolve — `role=image|video|voice` using the same cheapest / economy / best rules (2026-08-13)
 - [x] Surface image/video/voice models in fetch (not chat-only `list_language_models`) (2026-08-13)
 - [x] Refresh bootstrap / fixture models when xAI retires slugs (2026-08-13 — `BOOTSTRAP_MODEL=grok-4.6`; offline cheap row `grok-4.3`; grok-3-mini out of fallback)
+- [x] 4.6 thought levels + per-model contraction (`contract_thought_level`, `effort_options(model=)`) (2026-08-14)
+- [x] Public-docs model watch — new slugs (Imagine 3.0) and resolution tokens (4k) open a `xai-models` GitHub issue (2026-08-14)

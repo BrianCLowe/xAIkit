@@ -1,0 +1,77 @@
+name: Watch xAI models
+
+on:
+  schedule:
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: watch-xai-models
+  cancel-in-progress: true
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.10"
+
+      - name: Scan public xAI docs
+        id: scan
+        run: |
+          set +e
+          uv run python scripts/watch_xai_models.py --github-output "$GITHUB_OUTPUT"
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      - name: Open or update issue when docs changed
+        if: steps.scan.outputs.has_new == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW_SLUGS: ${{ steps.scan.outputs.new_slugs }}
+          NEW_RES: ${{ steps.scan.outputs.new_resolutions }}
+        run: |
+          set -euo pipefail
+          gh label create xai-models --description "Public xAI model/docs drift" --color 1D76DB --force
+          title="xAI public docs added models or resolutions"
+          body="$(cat <<EOF
+          Public xAI docs drifted from \`scripts/data/xai_models_watch.json\`.
+
+          **New slugs:** \`${NEW_SLUGS:-none}\`
+          **New resolutions:** \`${NEW_RES:-none}\`
+
+          Check whether the kit needs a knob / family / price update:
+
+          - [ ] Catalog family rules (\`thought_level\`, non-reasoning, 4.6+)
+          - [ ] Imagine \`quality\` / \`resolution\` (2.0 vs later; 4k?)
+          - [ ] Video 1080p contraction / new caps
+          - [ ] \`pricing.py\` defaults + \`PRICE_TABLE_FETCHED\`
+          - [ ] \`BOOTSTRAP_MODEL\` if the flagship moved
+          - [ ] Refresh baseline: \`uv run python scripts/watch_xai_models.py --write-baseline\`
+
+          Sources: models, pricing, release notes, Imagine image + video generation pages.
+          EOF
+          )"
+          existing="$(gh issue list --label xai-models --state open --json number --jq '.[0].number')"
+          if [ -n "$existing" ]; then
+            echo "issue #$existing already open — not re-commenting"
+          else
+            gh issue create --title "$title" --label xai-models --body "$body"
+          fi
+
+      - name: Fail fetch errors
+        if: steps.scan.outputs.exit_code == '1'
+        run: |
+          echo "watch_xai_models.py failed to fetch public docs"
+          exit 1

@@ -1,6 +1,6 @@
 # Catalog
 
-**Last Updated**: 2026-08-13  
+**Last Updated**: 2026-08-14  
 **Related TODO**: [Catalog-TODO.md](Catalog-TODO.md)
 
 ## Overview
@@ -13,11 +13,11 @@ The same `cheapest` / `economy` / `best` intents run on a **role-filtered** pool
 
 - **Owns**: fetch/cache/list `ModelInfo`; resolve `cheapest` / `economy` / `best` / pin / task hook / bootstrap. `role=` selects the pool
 - **Does not own**: billing UI, per-app task names (apps inject `set_task_assignment`)
-- **Public API**: `list_models` (`persist_path=`), `save_catalog_snapshot`, `inject_catalog`, `resolve_model`, `resolve_model_selection` (`role=`), `normalize_thought_level`, `normalize_intent`, `effort_options`, `intent_options`, `BOOTSTRAP_MODEL`, `ModelInfo`, `ModelSelection`
+- **Public API**: `list_models` (`persist_path=`), `save_catalog_snapshot`, `inject_catalog`, `resolve_model`, `resolve_model_selection` (`role=`), `normalize_thought_level`, `contract_thought_level`, `normalize_intent`, `effort_options` (`model=`), `intent_options`, `BOOTSTRAP_MODEL`, `ModelInfo`, `ModelSelection`
 
 Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook → prefer_latest → bootstrap** (`grok-4.6` for chat; image/video/voice use that role’s default slug when the pool is empty). Offline with no key/fixture, `list_models` injects `grok-4.6` plus cheaper-band `grok-4.3`.
 
-`normalize_thought_level`: API `low`\|`high` only; empty/unknown → omit knob.
+`normalize_thought_level`: canonical `low`\|`medium`\|`high`\|`xhigh` (4.6 set). `med`/`mid` → `medium`; `x-high`/`extra`/`max` → `xhigh`; empty/unknown → omit knob. `contract_thought_level(level, model)` clamps to what that family accepts (4.6+/multi-agent pass through; 4.5 `xhigh`→`high`; older reasoners also `medium`→`low`; `*-non-reasoning*` omits). `effort_options(model=)` returns that family's list (empty when none). `grok-4.20` is older than `grok-4.5` — do not treat numeric 20 as “4.6 and later”.
 
 `intent_options()`: `cheapest`, `economy`, `best`. Overlap is allowed when the lineup is thin. `economy` is the cheaper-than-flagship rung, not a performance-per-dollar optimum.
 
@@ -49,6 +49,7 @@ Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook �
 | 2026-08-13 | Bootstrap `grok-4.6`; offline fallback `grok-4.6` + `grok-4.3` | Public models page (fetched 2026-08-13): chat/code default is Grok 4.6. `grok-3-mini` is off that table — cheap offline row is `grok-4.3` ($1.25 in / $2.50 out under 200k). Cite: https://docs.x.ai/docs/models and https://docs.x.ai/developers/pricing |
 | 2026-08-13 | Opt-in `persist_path` only; log-and-continue on write failure | Callers pass a path — kit never writes cwd/home by default. A full disk must not block metering/chat. Cache clear does not delete the snapshot file |
 | 2026-08-13 | Persist writes via temp file + `os.replace` | In-place `write_text` would truncate the last good snapshot on a mid-write failure |
+| 2026-08-14 | Thought levels are the 4.6 set; contract per model | 4.6 has `low`/`medium`/`high`/`xhigh`. 4.5 has no `xhigh` (API treats it as `high`). Older/unknown reasoners only `low`/`high`. Non-reasoning SKUs omit the knob. `medium` is a real value now (no longer collapsed to `low` on 4.6) |
 
 ## Dependencies
 
@@ -69,4 +70,4 @@ Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook �
 ## Current status
 
 - **In progress**: none — High / Medium / Low drained
-- **Last reconciled with code**: 2026-08-13 (opt-in `persist_path` + `save_catalog_snapshot`)
+- **Last reconciled with code**: 2026-08-14 (`contract_thought_level` + 4.6 effort set)

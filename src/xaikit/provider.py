@@ -12,6 +12,8 @@ from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
+from xaikit.catalog import contract_thought_level
+
 
 @dataclass
 class ProviderResponse:
@@ -408,8 +410,9 @@ def _sdk_chat_kwargs(
     }
     if max_tokens is not None:
         kwargs["max_tokens"] = max_tokens
-    if thought_level:
-        kwargs["reasoning_effort"] = thought_level
+    level = contract_thought_level(thought_level, model)
+    if level:
+        kwargs["reasoning_effort"] = level
     if tools is not None:
         kwargs["tools"] = [_sdk_tool(t) for t in tools]
     if tool_choice is not None:

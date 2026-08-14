@@ -1,29 +1,32 @@
 # MediaRest — TODO
 
-**Last Updated**: 2026-08-13  
+**Last Updated**: 2026-08-14  
 **Related Spec**: [MediaRest.md](MediaRest.md)
 
 ---
 
 ## Current focus *(session handoff)*
 
-**Active task:** Human verify **extras** still open (`edit_image` / streaming STT/TTS / voice roster). Core Imagine + unary STT/TTS closed via Rivenquill.  
+**Active task:** Media knob gap — start with Imagine generate knobs + per-model contraction.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — Split human verify: Rivenquill confirmed `generate_image` + voice chat (`transcribe` / `synthesize_speech`); extras remain.
+**Last session:** 2026-08-14 — Audited image/video/audio/vision vs docs. Chat `thought_level` already contracted. Queued Imagine generate + REST TTS + multi-image edit here; video 1080p contraction on [VideoGeneration-TODO.md](VideoGeneration-TODO.md). Human extras look-list unchanged.
 
 ---
 
 ## High Priority / Next Actions
 
-*(none blocking)*
+*library-only · exercise path: `uv run pytest` (mocked). Same contraction pattern as `contract_thought_level` — do not send knobs a SKU rejects.*
+
+- [ ] **Imagine generate knobs + contraction** — `generate_image` is missing official knobs: `resolution` (`1k` \| `2k`), `quality` (`low` \| `medium`, default `medium`, **`grok-imagine-image-2.0` only**), `response_format` (`b64_json`; edit already has this). Contract: omit `quality` on `grok-imagine-image` / `grok-imagine-image-quality` (default pin today). Validate `aspect_ratio` against the Imagine list (incl. `auto`, `19.5:9`, `20:9`) or omit unknown — do not 400. Offline tests in `tests/test_media_wiring.py`. Cite: https://docs.x.ai/developers/model-capabilities/images/generation
+- [ ] **REST TTS knobs** — `synthesize_speech` only sends `text` / `voice_id` / `language`. Forward the unary docs set: `output_format` (`codec` / `sample_rate` / `bit_rate`), `speed` (0.7–1.5), `optimize_streaming_latency`, `text_normalization`, `with_timestamps`, `replace`. Reject empty and **>15,000** chars before HTTP. Streaming TTS already has most of these as query knobs — unary should match. Offline tests. Cite: https://docs.x.ai/developers/model-capabilities/audio/text-to-speech
 
 ## Medium Priority
 
-*(none)*
+- [ ] **Multi-image edit** — docs allow up to **3** source images on edit (URL / data URI / `file_id`, mixable). `edit_image` is still one source. Keep JSON `/v1/images/edits`. Cite: https://docs.x.ai/developers/model-capabilities/images/multi-image-editing
 
 ## Low Priority / Future Ideas
 
-*(none)*
+*(none — video 1080p contraction lives on [VideoGeneration-TODO.md](VideoGeneration-TODO.md); vision `detail` already on chat parts; STS `reasoning_effort` stays `high`\|`none` on [RealtimeVoice](RealtimeVoice.md))*
 
 ## Human verify (orchestration 2026-08-13)
 
@@ -48,6 +51,7 @@ Library look-list — reply in chat when done (do not mark this row yourself).
 - Files upload / `file_id` minting stays on [ApiCoverage-TODO.md](ApiCoverage-TODO.md); this stem forwards `file_id` on the wire and surfaces Imagine `file_output.file_id`.
 - STS (`wss://api.x.ai/v1/realtime`) stays on [RealtimeVoice-TODO.md](RealtimeVoice-TODO.md). Streaming TTS-only WS (`wss://api.x.ai/v1/tts`) lives here — same home as streaming STT (`/v1/stt` ≠ `/v1/realtime`).
 - Custom-voice clone (`POST /v1/custom-voices`) stays out of kit; opaque custom ids already pass through on TTS/realtime `voice=` / `voice_id=`.
+- Video 1080p contraction is [VideoGeneration-TODO.md](VideoGeneration-TODO.md), not this stem.
 
 ## Completed
 

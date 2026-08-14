@@ -1,6 +1,6 @@
 # MediaRest
 
-**Last Updated**: 2026-08-13  
+**Last Updated**: 2026-08-14  
 **Related TODO**: [MediaRest-TODO.md](MediaRest-TODO.md)
 
 ## Overview
@@ -52,6 +52,7 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 | 2026-08-13 | Default price row `stt` at `$0.20/hour` (`per_minute_usd = 0.20/60`) for streaming wall-clock estimates | Public Voice table: Speech to Text `$0.20 / hr` (Streaming). REST `$0.10 / hr` is not estimated (unary `transcribe` records no duration). Estimates, not billing. Cite: https://docs.x.ai/developers/pricing |
 | 2026-08-13 | Streaming TTS is `TtsSession` via `open_tts_session` on this stem, not `RealtimeSession` | Distinct upstream socket (`wss://api.x.ai/v1/tts` vs `/v1/realtime`); same home pattern as streaming STT. REST `synthesize_speech` stays. Query `voice=` (not JSON `voice_id`). No default `tts` price row — `apply_price_table=False`. Cite: https://docs.x.ai/developers/model-capabilities/audio/text-to-speech#streaming-tts-websocket |
 | 2026-08-13 | TTS voice roster is `list_tts_voices` (`GET /v1/tts/voices`); thin `get_tts_voice`; no custom-voices clone | Built-in roster so callers are not stuck on hard-coded `eve`. Custom ids already pass through on TTS/realtime `voice=` / `voice_id=`. Team-scoped clone stays out of kit. Listing meters `modality="tts"` with `apply_price_table=False` |
+| 2026-08-14 | Queue Imagine generate + REST TTS knobs; contract per SKU | Audit vs docs: generate missing `resolution`/`quality`/`response_format`; unary TTS missing the streaming set. Same contraction idea as chat `thought_level`. Work on [MediaRest-TODO.md](MediaRest-TODO.md) |
 
 ## Dependencies
 
@@ -69,8 +70,12 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 - [x] Streaming STT if still unary-transcribe (STS is [RealtimeVoice](RealtimeVoice.md))
 - [x] Streaming TTS-only WS (`open_tts_session` / `TtsSession` on `wss://api.x.ai/v1/tts`; not STS)
 - [x] Voice roster helper (`list_tts_voices` / `GET /v1/tts/voices`; optional `get_tts_voice`)
+- [ ] `generate_image` forwards `resolution` / `quality` / `response_format`; `quality` omitted on non-2.0 Imagine SKUs
+- [ ] REST `synthesize_speech` forwards unary TTS knobs (`output_format`, `speed`, latency opt, normalize, timestamps, `replace`); >15k chars rejected before HTTP
+- [ ] `edit_image` accepts up to 3 source images
 
 ## Current status
 
 - **Shipped** (library-only): REST STT/TTS/Imagine + streaming STT/TTS + built-in TTS voice roster
-- **Last reconciled with code**: 2026-08-13 (`list_tts_voices` / `get_tts_voice` + mocked `httpx.get` tests)
+- **Queued**: Imagine generate knobs + REST TTS knobs + multi-image edit ([MediaRest-TODO.md](MediaRest-TODO.md))
+- **Last reconciled with code**: 2026-08-14 (knob-gap TODOs; generate/unary TTS still the thin set)
