@@ -50,4 +50,5 @@
 ## Instructions for AI Agents
 
 - Dual-write human-gated tasks. Do not mark done from assumptions.
+- Do **not** add Open rows for tagging `v*` / “mark the PyPI tag done.” Publish is the tag + Actions; a Done-only follow-up commit is wasted. Existing historical tag rows in Done can stay.
 - When a consumer confirms a subset: **split** the Human-TODO row + owner Human verify section (Done = exercised; Open = remainder). Do not close RealtimeVoice from Rivenquill voice chat (that path is REST STT/TTS).
