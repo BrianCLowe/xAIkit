@@ -11,7 +11,6 @@
 
 ## Open
 
-- [ ] **Tag `v0.1.0a5`** (`procure`) — 2026-08-14 — After this version bump lands on master, tag `v0.1.0a5` to publish via Trusted Publishing. Owner: this file · Blocks: none
 - [ ] **MediaRest knobs look-list** (`playtest`) — 2026-08-14 — Orchestration drain: Imagine generate knobs (`resolution`/`quality`/`response_format`), unary TTS knobs, `edit_image` `images=` (up to 3). Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md) · Blocks: none
 - [ ] **VideoGeneration library look-list** (`playtest`) — 2026-08-12 — Confirm generate/extend/poll/download + README example feel right; 1080p contraction (1.5 T2V/I2V only; R2V/older → 720p); optional live start-only smoke if you want. Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md) · Blocks: none
 - [ ] **MediaRest extras look-list** (`playtest`) — 2026-08-13 — Split from fat MediaRest row: `edit_image`, streaming STT/TTS (`open_stt_session` / `open_tts_session`), TTS voice roster. Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md) · Blocks: none
@@ -25,6 +24,7 @@
 
 ## Done
 
+- [x] **Tag `v0.1.0a5`** (`procure`) — 2026-08-14 — Pushed on `2981521`; Publish to PyPI succeeded ([run](https://github.com/BrianCLowe/xAIkit/actions/runs/31770753783)). Live: [xaikit-py 0.1.0a5](https://pypi.org/project/xaikit-py/0.1.0a5/). Owner: this file
 - [x] **Catalog core — role, model, effort via Rivenquill** (`playtest`) — 2026-08-13 — Live: `role=chat` + intent/pin + `thought_level` in the Quill picker; Imagine/voice use admin `best` (`role=image` / `role=voice`). `BOOTSTRAP_MODEL` (`grok-4.6`) is the resolve fallback. Does **not** cover persist snapshot or `role=video` (see Open extras). Owner: [Catalog-TODO.md](features/Catalog-TODO.md)
 - [x] **Alert when xAI ships a new model / resolution** (`procure`) — 2026-08-14 — Daily GitHub Action `Watch xAI models` diffs public docs vs `scripts/data/xai_models_watch.json` and opens an issue labeled `xai-models`. Watch the repo's issues (or that label). When it fires: check knobs/families/prices, then `uv run python scripts/watch_xai_models.py --write-baseline` and close the issue. Owner: [Catalog-TODO.md](features/Catalog-TODO.md)
 - [x] **RealtimeVoice library look-list** (`playtest`) — 2026-08-13 — Live via Rivenquill conversation mode: ephemeral mint + browser STS WS + server VAD confirmed working (consumer proof). Kit surfaces exercised: `create_realtime_client_secret` / protocol / realtime session path. Owner: [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md)
