@@ -1,6 +1,6 @@
 # xAIkit — Human TODO
 
-**Last Updated**: 2026-08-13  
+**Last Updated**: 2026-08-14  
 **Related**: [Master_Index.md](Master_Index.md) · [Tooling.md](Tooling.md)
 
 ---
@@ -11,7 +11,8 @@
 
 ## Open
 
-- [ ] **VideoGeneration library look-list** (`playtest`) — 2026-08-12 — Confirm generate/extend/poll/download + README example feel right; optional live start-only smoke if you want. Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md) · Blocks: none
+- [ ] **MediaRest knobs look-list** (`playtest`) — 2026-08-14 — Orchestration drain: Imagine generate knobs (`resolution`/`quality`/`response_format`), unary TTS knobs, `edit_image` `images=` (up to 3). Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md) · Blocks: none
+- [ ] **VideoGeneration library look-list** (`playtest`) — 2026-08-12 — Confirm generate/extend/poll/download + README example feel right; 1080p contraction (1.5 T2V/I2V only; R2V/older → 720p); optional live start-only smoke if you want. Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md) · Blocks: none
 - [ ] **MediaRest extras look-list** (`playtest`) — 2026-08-13 — Split from fat MediaRest row: `edit_image`, streaming STT/TTS (`open_stt_session` / `open_tts_session`), TTS voice roster. Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md) · Blocks: none
 - [ ] **Catalog extras look-list** (`playtest`) — 2026-08-13 — Split from fat Catalog row: `persist_path=` / `save_catalog_snapshot`; `role=video` (Rivenquill has no video job). Owner: [Catalog-TODO.md](features/Catalog-TODO.md) · Blocks: none
 - [ ] **ClientChat extras look-list** (`playtest`) — 2026-08-13 — Split from fat ClientChat row: tools/vision parts, `service_tier`, `AsyncXaiClient` (Rivenquill did not exercise these). Owner: [ClientChat-TODO.md](features/ClientChat-TODO.md) · Blocks: none
