@@ -2599,6 +2599,7 @@ class XaiClient:
         *,
         image_url: str | None = None,
         image_file_id: str | None = None,
+        images: Sequence[Any] | None = None,
         model: str | None = None,
         aspect_ratio: str | None = None,
         n: int = 1,
@@ -2607,22 +2608,29 @@ class XaiClient:
         parent_id: str | None = None,
         labels: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        """Edit an image via xAI Imagine JSON ``POST /v1/images/edits`` (not multipart)."""
+        """Edit an image via xAI Imagine JSON ``POST /v1/images/edits`` (not multipart).
+
+        One source (``image`` / ``image_url`` / ``image_file_id``) wires ``image``.
+        Two or three sources via ``images=`` wire ``images``. Prompt may refer to
+        ``<IMAGE_0>`` / ``<IMAGE_1>`` / ``<IMAGE_2>``; the kit does not rewrite it.
+        Default output aspect follows the first input; ``aspect_ratio`` overrides.
+        """
         tag = self._require_purpose_if_metered(purpose)
         cleaned = (prompt or "").strip()
         if not cleaned:
             raise RuntimeError("Image prompt is empty")
 
-        image_obj = _imagine_edit_image_ref(
-            image, url=image_url, file_id=image_file_id
-        )
         image_model = (model or self.image_model or DEFAULT_IMAGE_MODEL).strip()
         body: dict[str, Any] = {
             "model": image_model,
             "prompt": cleaned,
             "n": max(1, min(int(n or 1), 4)),
-            "image": image_obj,
         }
+        body.update(
+            _imagine_edit_source_fields(
+                image, url=image_url, file_id=image_file_id, images=images
+            )
+        )
         if aspect_ratio:
             body["aspect_ratio"] = aspect_ratio
         if response_format:
@@ -3689,6 +3697,9 @@ def _parse_imagine_result(payload: Any) -> tuple[str | None, str | None, str | N
     )
 
 
+_IMAGINE_EDIT_MAX_SOURCES = 3
+
+
 def _imagine_edit_image_ref(
     explicit: str | dict[str, Any] | None,
     *,
@@ -3713,6 +3724,63 @@ def _imagine_edit_image_ref(
     if file_s:
         return {"file_id": file_s}
     raise RuntimeError("Image url or file_id is empty")
+
+
+def _imagine_edit_single_provided(
+    image: str | dict[str, Any] | None,
+    *,
+    url: str | None,
+    file_id: str | None,
+) -> bool:
+    if isinstance(image, str):
+        if image.strip():
+            return True
+    elif image is not None:
+        return True
+    if url and str(url).strip():
+        return True
+    if file_id and str(file_id).strip():
+        return True
+    return False
+
+
+def _imagine_edit_parse_images(images: Sequence[Any] | None) -> list[dict[str, Any]]:
+    if not images:
+        return []
+    out: list[dict[str, Any]] = []
+    for item in images:
+        if isinstance(item, str):
+            out.append(_imagine_edit_image_ref(item))
+        elif isinstance(item, dict):
+            out.append(_imagine_edit_image_ref(item))
+        else:
+            raise ValueError(
+                "images entries must be url strings, data URIs, or {url|file_id} dicts"
+            )
+    return out
+
+
+def _imagine_edit_source_fields(
+    image: str | dict[str, Any] | None = None,
+    *,
+    url: str | None = None,
+    file_id: str | None = None,
+    images: Sequence[Any] | None = None,
+) -> dict[str, Any]:
+    """Wire one source as ``image``; two or three as ``images`` (max 3)."""
+    has_single = _imagine_edit_single_provided(image, url=url, file_id=file_id)
+    parsed = _imagine_edit_parse_images(images)
+    if has_single and parsed:
+        raise ValueError("image and images cannot be combined")
+    if len(parsed) > _IMAGINE_EDIT_MAX_SOURCES:
+        raise ValueError(
+            f"images accepts at most {_IMAGINE_EDIT_MAX_SOURCES} source images"
+        )
+    if len(parsed) >= 2:
+        return {"images": parsed}
+    if len(parsed) == 1:
+        return {"image": parsed[0]}
+    return {"image": _imagine_edit_image_ref(image, url=url, file_id=file_id)}
 
 
 def _optional_aspect_ratio(value: str | None) -> str | None:

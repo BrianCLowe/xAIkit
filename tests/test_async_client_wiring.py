@@ -19,6 +19,7 @@ from xaikit import (
     MockChatProvider,
     UsageMeter,
     XAI_EMBEDDINGS_URL,
+    XAI_IMAGE_EDITS_URL,
     XAI_IMAGES_URL,
     XAI_STT_WS_URL,
     XAI_TTS_URL,
@@ -284,6 +285,70 @@ def test_async_generate_image_forwards_knobs_and_omits_quality_on_default_sku(
             quality="medium",
         )
         assert cap.calls[0]["json"]["quality"] == "medium"
+
+    asyncio.run(_run())
+
+
+def test_async_edit_image_images_mixed_kinds_and_rejects_over_max(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _run() -> None:
+        client = _client()
+        cap = _AsyncHttpCapture(
+            httpx.Response(
+                200,
+                json={"data": [{"url": "https://example.com/out.png"}]},
+                request=httpx.Request("POST", XAI_IMAGE_EDITS_URL),
+            )
+        )
+        cap.install(monkeypatch)
+        await client.edit_image(
+            "blend <IMAGE_0> with <IMAGE_1>",
+            images=[
+                "https://example.com/a.png",
+                {"file_id": "file-style-2"},
+                "data:image/png;base64,abc",
+            ],
+        )
+        body = cap.calls[0]["json"]
+        assert cap.calls[0]["url"] == XAI_IMAGE_EDITS_URL
+        assert "image" not in body
+        assert body["prompt"] == "blend <IMAGE_0> with <IMAGE_1>"
+        assert body["images"] == [
+            {"url": "https://example.com/a.png", "type": "image_url"},
+            {"file_id": "file-style-2"},
+            {"url": "data:image/png;base64,abc", "type": "image_url"},
+        ]
+
+        cap.calls.clear()
+        await client.edit_image("sketch", image_url="https://example.com/one.png")
+        one = cap.calls[0]["json"]
+        assert "images" not in one
+        assert one["image"] == {
+            "url": "https://example.com/one.png",
+            "type": "image_url",
+        }
+
+        cap.calls.clear()
+        with pytest.raises(ValueError, match="at most 3"):
+            await client.edit_image(
+                "too many",
+                images=[
+                    "https://example.com/1.png",
+                    "https://example.com/2.png",
+                    "https://example.com/3.png",
+                    "https://example.com/4.png",
+                ],
+            )
+        with pytest.raises(ValueError, match="cannot be combined"):
+            await client.edit_image(
+                "sketch",
+                image_url="https://example.com/src.png",
+                images=["https://example.com/a.png", "https://example.com/b.png"],
+            )
+        with pytest.raises(RuntimeError, match="empty"):
+            await client.edit_image("sketch")
+        assert cap.calls == []
 
     asyncio.run(_run())
 

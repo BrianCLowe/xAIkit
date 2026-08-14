@@ -67,7 +67,7 @@ from xaikit.client import (
     _deferred_chat_resource_url,
     _error_class,
     _file_resource_url,
-    _imagine_edit_image_ref,
+    _imagine_edit_source_fields,
     _is_unauthorized_status,
     _normalize_embed_texts,
     _normalize_realtime_client_secret_expires_after,
@@ -1896,6 +1896,7 @@ class AsyncXaiClient(XaiClient):
         *,
         image_url: str | None = None,
         image_file_id: str | None = None,
+        images: Sequence[Any] | None = None,
         model: str | None = None,
         aspect_ratio: str | None = None,
         n: int = 1,
@@ -1908,14 +1909,17 @@ class AsyncXaiClient(XaiClient):
         cleaned = (prompt or "").strip()
         if not cleaned:
             raise RuntimeError("Image prompt is empty")
-        image_obj = _imagine_edit_image_ref(image, url=image_url, file_id=image_file_id)
         image_model = (model or self.image_model or DEFAULT_IMAGE_MODEL).strip()
         body: dict[str, Any] = {
             "model": image_model,
             "prompt": cleaned,
             "n": max(1, min(int(n or 1), 4)),
-            "image": image_obj,
         }
+        body.update(
+            _imagine_edit_source_fields(
+                image, url=image_url, file_id=image_file_id, images=images
+            )
+        )
         if aspect_ratio:
             body["aspect_ratio"] = aspect_ratio
         if response_format:
