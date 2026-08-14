@@ -7,9 +7,9 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Contract 1080p per model/mode (docs gap; generate already forwards the knob).  
+**Active task:** — (High/Medium empty)  
 **Blocked by:** —  
-**Last session:** 2026-08-14 — Media knob audit. Generate/extend knobs are present; 1080p is **not** contracted. Imagine generate + REST TTS queued on [MediaRest-TODO.md](MediaRest-TODO.md). Human look-list still open.
+**Last session:** 2026-08-14 — Contracted 1080p per model/mode (`grok-imagine-video-1.5` T2V/I2V keep 1080p; R2V and older `grok-imagine-video` → 720p). Human look-list still open.
 
 *library-only · exercise path: `uv run pytest` + optional `XAITKIT_LIVE=1` + `XAITKIT_LIVE_VIDEO=1` start-only smoke. Do not add a UI. Files upload stays on ApiCoverage. Video edits (`POST /v1/videos/edits`) not in this stem.*
 
@@ -17,7 +17,7 @@
 
 ## High Priority / Next Actions
 
-- [ ] **Resolution contraction** — kit allowlist is `480p`/`720p`/`1080p` for every model and mode. Docs: `1080p` only on `grok-imagine-video-1.5` **T2V / I2V**; **R2V capped at 720p**; older `grok-imagine-video` (no `-1.5`) should not send 1080p. Contract `1080p` → `720p` (or omit) on those paths. Extend still must not send `aspect_ratio` / `resolution`. Offline tests in `tests/test_video_wiring.py`. Cite: https://docs.x.ai/developers/model-capabilities/video/generation
+*(none)*
 
 ## Medium Priority
 
@@ -45,6 +45,7 @@ Library-only look-list — reply in chat when done (do not mark this row yoursel
 
 ## Completed
 
+- [x] **Resolution contraction** — kit allowlist is `480p`/`720p`/`1080p`. Docs: `1080p` only on `grok-imagine-video-1.5` **T2V / I2V**; **R2V capped at 720p**; older `grok-imagine-video` (no `-1.5`) does not send 1080p. Contract `1080p` → `720p` on those paths. Extend still omits `aspect_ratio` / `resolution`. Offline tests in `tests/test_video_wiring.py`. Cite: https://docs.x.ai/developers/model-capabilities/video/generation (2026-08-14)
 - [x] **`generate_video` T2V** — wrap `POST /v1/videos/generations`; knobs: model, prompt, duration, aspect_ratio, resolution (2026-08-12)
 - [x] **Poll / wait** — wait-by-default + `poll_video(request_id)` REST path (2026-08-12)
 - [x] **Contract tests** — `tests/test_video_wiring.py`: URL/auth/body, empty prompt, purpose-when-metered, usage modality (2026-08-12)

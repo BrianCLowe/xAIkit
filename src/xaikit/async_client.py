@@ -76,8 +76,8 @@ from xaikit.client import (
     _normalize_service_tier,
     _normalize_tokenize_text,
     _normalize_video_payload,
+    _contract_video_resolution,
     _optional_aspect_ratio,
-    _optional_resolution,
     _parse_deferred_create,
     _parse_embed_response,
     _parse_file_metadata,
@@ -1972,7 +1972,7 @@ class AsyncXaiClient(XaiClient):
         if duration is not None and not (1 <= int(duration) <= 15):
             raise ValueError("duration must be between 1 and 15 seconds")
         aspect = _optional_aspect_ratio(aspect_ratio)
-        res = _optional_resolution(resolution)
+        res = _contract_video_resolution(resolution, video_model, is_r2v=is_r2v)
         body: dict[str, Any] = {"model": video_model}
         if cleaned:
             body["prompt"] = cleaned

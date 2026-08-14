@@ -251,6 +251,8 @@ def test_extend_video_posts_extensions_url_with_video_url(
         "video": {"url": "https://example.com/clip.mp4"},
         "duration": 6,
     }
+    assert "resolution" not in call["json"]
+    assert "aspect_ratio" not in call["json"]
 
 
 def test_generate_video_wait_polls_pending_then_done(
@@ -432,3 +434,191 @@ def test_default_price_table_video_per_second_rates() -> None:
     assert table.estimate_usd(
         "grok-imagine-video", duration_seconds=1, resolution="720p"
     ) == pytest.approx(0.07)
+
+
+def test_contract_video_resolution_matrix() -> None:
+    from xaikit.client import _contract_video_resolution
+
+    assert (
+        _contract_video_resolution("1080p", "grok-imagine-video-1.5") == "1080p"
+    )
+    assert (
+        _contract_video_resolution(
+            "1080p", "grok-imagine-video-1.5", is_r2v=True
+        )
+        == "720p"
+    )
+    assert _contract_video_resolution("1080p", "grok-imagine-video") == "720p"
+    assert (
+        _contract_video_resolution("720p", "grok-imagine-video", is_r2v=True)
+        == "720p"
+    )
+    assert _contract_video_resolution("480p", "grok-imagine-video-1.5") == "480p"
+    assert _contract_video_resolution(None, "grok-imagine-video-1.5") is None
+    with pytest.raises(ValueError, match="resolution"):
+        _contract_video_resolution("4k", "grok-imagine-video-1.5")
+
+
+def test_generate_video_1_5_t2v_keeps_1080p(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _client()
+    cap = _HttpCapture()
+    cap.install_post(
+        monkeypatch,
+        _json_response("POST", XAI_VIDEOS_URL, 200, {"request_id": "req-1080-t2v"}),
+    )
+
+    client.generate_video("a cube", resolution="1080p", wait=False)
+
+    assert cap.posts[0]["json"]["model"] == DEFAULT_VIDEO_MODEL
+    assert cap.posts[0]["json"]["resolution"] == "1080p"
+
+
+def test_generate_video_1_5_i2v_keeps_1080p(monkeypatch: pytest.MonkeyPatch) -> None:
+    client = _client()
+    cap = _HttpCapture()
+    cap.install_post(
+        monkeypatch,
+        _json_response("POST", XAI_VIDEOS_URL, 200, {"request_id": "req-1080-i2v"}),
+    )
+
+    client.generate_video(
+        image_url="https://example.com/still.png",
+        resolution="1080p",
+        wait=False,
+    )
+
+    body = cap.posts[0]["json"]
+    assert body["image"] == {"url": "https://example.com/still.png"}
+    assert body["resolution"] == "1080p"
+
+
+def test_generate_video_1_5_r2v_contracts_1080p_to_720p(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _HttpCapture()
+    cap.install_post(
+        monkeypatch,
+        _json_response("POST", XAI_VIDEOS_URL, 200, {"request_id": "req-1080-r2v"}),
+    )
+
+    client.generate_video(
+        "walk the runway",
+        resolution="1080p",
+        reference_images=[{"url": "https://example.com/ref.png"}],
+        wait=False,
+    )
+
+    body = cap.posts[0]["json"]
+    assert body["reference_images"] == [{"url": "https://example.com/ref.png"}]
+    assert body["resolution"] == "720p"
+
+
+def test_generate_video_older_t2v_contracts_1080p_to_720p(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _HttpCapture()
+    cap.install_post(
+        monkeypatch,
+        _json_response("POST", XAI_VIDEOS_URL, 200, {"request_id": "req-1080-old"}),
+    )
+
+    client.generate_video(
+        "a cube",
+        model="grok-imagine-video",
+        resolution="1080p",
+        wait=False,
+    )
+
+    body = cap.posts[0]["json"]
+    assert body["model"] == "grok-imagine-video"
+    assert body["resolution"] == "720p"
+
+
+def test_generate_video_rejects_unknown_resolution_without_http() -> None:
+    client = _client()
+    with pytest.raises(ValueError, match="resolution"):
+        client.generate_video("a cube", resolution="4k", wait=False)
+
+
+def test_async_generate_video_contracts_1080p_like_sync(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import asyncio
+
+    from xaikit import AsyncXaiClient
+
+    class _AsyncHttpCapture:
+        def __init__(self) -> None:
+            self.calls: list[dict[str, Any]] = []
+
+        def install(self) -> None:
+            capture = self
+
+            class FakeAsyncClient:
+                def __init__(self, *args: Any, **kwargs: Any) -> None:
+                    pass
+
+                async def __aenter__(self) -> FakeAsyncClient:
+                    return self
+
+                async def __aexit__(self, *args: Any) -> bool:
+                    return False
+
+                async def request(
+                    self, method: str, url: str, **kwargs: Any
+                ) -> httpx.Response:
+                    capture.calls.append({"method": method, "url": url, **kwargs})
+                    return httpx.Response(
+                        200,
+                        json={"request_id": "req-async-1080"},
+                        request=httpx.Request(method, url),
+                    )
+
+            monkeypatch.setattr(
+                "xaikit.async_client.httpx.AsyncClient", FakeAsyncClient
+            )
+
+    async def _run() -> None:
+        client = AsyncXaiClient(
+            provider=MockChatProvider(),
+            model="grok-3-mini",
+            api_key="test-key",
+            retry_policy=default_retry_policy(max_attempts=1, backoff_seconds=0.0),
+        )
+        cap = _AsyncHttpCapture()
+        cap.install()
+
+        await client.generate_video("a cube", resolution="1080p", wait=False)
+        assert cap.calls[0]["json"]["resolution"] == "1080p"
+
+        cap.calls.clear()
+        await client.generate_video(
+            "walk",
+            resolution="1080p",
+            reference_images=[{"url": "https://example.com/ref.png"}],
+            wait=False,
+        )
+        assert cap.calls[0]["json"]["resolution"] == "720p"
+
+        cap.calls.clear()
+        await client.generate_video(
+            "a cube",
+            model="grok-imagine-video",
+            resolution="1080p",
+            wait=False,
+        )
+        assert cap.calls[0]["json"]["resolution"] == "720p"
+
+        cap.calls.clear()
+        await client.extend_video(
+            "zoom out",
+            video_url="https://example.com/clip.mp4",
+            wait=False,
+        )
+        ext = cap.calls[0]["json"]
+        assert "resolution" not in ext
+        assert "aspect_ratio" not in ext
+
+    asyncio.run(_run())
