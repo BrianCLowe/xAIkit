@@ -18,7 +18,6 @@ from xaikit.batch import (
     call_batch_rpc_async,
     list_batches_to_dict,
     list_results_to_dict,
-    normalize_batch_requests,
 )
 from xaikit.catalog import (
     BOOTSTRAP_MODEL,
@@ -1424,7 +1423,7 @@ class AsyncXaiClient(XaiClient):
         bid = (batch_id or "").strip()
         if not bid:
             raise RuntimeError("Batch id is empty")
-        normalized = normalize_batch_requests(requests, default_model=self.model)
+        normalized = self._contract_batch_requests(requests)
         raw = await self._batch_rpc(
             "add",
             tag=tag,

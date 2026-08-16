@@ -19,7 +19,7 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 
 `normalize_thought_level`: canonical `low`\|`medium`\|`high`\|`xhigh` (4.6 set). `med`/`mid` → `medium`; `x-high`/`extra`/`max` → `xhigh`; empty/unknown → omit knob. `contract_thought_level(level, model)` clamps to what that family accepts (4.6+/multi-agent pass through; 4.5 `xhigh`→`high`; older reasoners also `medium`→`low`; `*-non-reasoning*` omits). `effort_options(model=)` returns that family's list (empty when none). `grok-4.20` is older than `grok-4.5` — do not treat numeric 20 as “4.6 and later”.
 
-`feature_options(model=)`: extra capabilities (tools + media), not role tags. No model / `grok-4.6`+ chat → `web_search`, `x_search`, `code_execution`, `file_attachments`, `collections_search`, `image_understanding`, `x_video_understanding`, `mcp`. `grok-imagine-video` (quality) → `video_extend`, `video_edit`, `r2v`. `grok-imagine-video-1.5` → `1080p`, `r2v`. Unknown / older → `[]`. `resolve_model(..., need=)` / `need=["video_extend", …]` keeps only SKUs that have every requested extra, then runs cheapest / economy / best on that pool. Pin still wins. Empty need-filtered pool bootstraps a kit-known slug that has the extras (quality for extend, not 1.5).
+`feature_options(model=)`: extra capabilities (tools + media), not role tags. No model / `grok-4.6`+ chat → `web_search`, `x_search`, `code_execution`, `file_attachments`, `collections_search`, `image_understanding`, `x_video_understanding`, `mcp` (not `batch` — live Batch rejects 4.6/4.5). `grok-4.3` → `batch`. `grok-imagine-video` (quality) → `video_extend`, `video_edit`, `r2v`. `grok-imagine-video-1.5` → `1080p`, `r2v`. Unknown / older → `[]`. `resolve_model(..., need=)` / `need=["video_extend", …]` keeps only SKUs that have every requested extra, then runs cheapest / economy / best on that pool. Pin still wins. Empty need-filtered pool bootstraps a kit-known slug that has the extras (quality for extend; `grok-4.3` for batch).
 
 `intent_options()`: `cheapest`, `economy`, `best`. Overlap is allowed when the lineup is thin. `economy` is the cheaper-than-flagship rung, not a performance-per-dollar optimum.
 
@@ -54,6 +54,7 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 | 2026-08-13 | Persist writes via temp file + `os.replace` | In-place `write_text` would truncate the last good snapshot on a mid-write failure |
 | 2026-08-14 | Thought levels are the 4.6 set; contract per model | 4.6 has `low`/`medium`/`high`/`xhigh`. 4.5 has no `xhigh` (API treats it as `high`). Older/unknown reasoners only `low`/`high`. Non-reasoning SKUs omit the knob. `medium` is a real value now (no longer collapsed to `low` on 4.6) |
 | 2026-08-15 | Feature map feeds `best`: extras list + `need=` filter | 1.5 looked like best video (newest) but cannot extend/edit. `need=` keeps only SKUs that have the job extras, then cheapest/economy/best. Pin still wins. Settings UIs use `feature_options`. |
+| 2026-08-16 | `batch` extra on `grok-4.3` only (known) | Live Batch rejects 4.6/4.5. 4.5 is a known-empty extras family so contract remaps; unknown pins stay. |
 
 ## Dependencies
 
@@ -75,4 +76,4 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 ## Current status
 
 - **In progress**: none — High / Medium / Low drained. Feature map + `need=` shipped
-- **Last reconciled with code**: 2026-08-15 (`feature_options` + resolve `need=`)
+- **Last reconciled with code**: 2026-08-16 (`need=batch` → `grok-4.3`)

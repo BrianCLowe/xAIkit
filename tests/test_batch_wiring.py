@@ -18,9 +18,9 @@ from xaikit.batch import call_batch_rpc, list_results_to_dict
 
 
 def _client(*, usage_meter: UsageMeter | None = None, **kwargs: Any) -> XaiClient:
+    kwargs.setdefault("model", "grok-3-mini")
     return XaiClient(
         provider=MockChatProvider(),
-        model="grok-3-mini",
         api_key="test-key",
         usage_meter=usage_meter,
         retry_policy=default_retry_policy(max_attempts=1),
@@ -103,6 +103,34 @@ def test_add_batch_requests_passes_chat_shaped_dicts(
     assert call["requests"][0]["batch_request_id"] == "fr"
     assert call["requests"][0]["temperature"] == 0.2
     assert call["requests"][0]["max_tokens"] == 32
+
+
+def test_add_batch_requests_contracts_4_6_and_4_5(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client(model="grok-4.6")
+    cap = _RpcCapture({"id": "batch_1"})
+    cap.install(monkeypatch)
+
+    client.add_batch_requests(
+        "batch_1",
+        [{"messages": [{"role": "user", "content": "hi"}]}],
+    )
+    assert cap.calls[0]["requests"][0]["model"] == "grok-4.3"
+
+    cap.calls.clear()
+    client.add_batch_requests(
+        "batch_1",
+        [{"model": "grok-4.5", "messages": [{"role": "user", "content": "hi"}]}],
+    )
+    assert cap.calls[0]["requests"][0]["model"] == "grok-4.3"
+
+    cap.calls.clear()
+    client.add_batch_requests(
+        "batch_1",
+        [{"model": "grok-4.3", "messages": [{"role": "user", "content": "hi"}]}],
+    )
+    assert cap.calls[0]["requests"][0]["model"] == "grok-4.3"
 
 
 def test_get_and_list_results_helper_kwargs(

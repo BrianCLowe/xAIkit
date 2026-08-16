@@ -1,15 +1,15 @@
 # UsageObservability — TODO
 
-**Last Updated**: 2026-08-15  
+**Last Updated**: 2026-08-16  
 **Related Spec**: [UsageObservability.md](UsageObservability.md)
 
 ---
 
 ## Current focus *(session handoff)*
 
-**Active task:** Stem shipped — High/Medium/Low empty. Human verify **extras** still open (OTel + unused modalities).  
+**Active task:** — (OTel + unused modalities closed except embed).  
 **Blocked by:** —  
-**Last session:** 2026-08-15 — Reelwright live: purpose meter + `parent_id` rollup. OTel and unused modalities still open.
+**Last session:** 2026-08-16 — Tester: `OpenTelemetryUsageSink` + files/tokenize/batch/collections/responses/realtime mint. Embed modality split (empty team roster).
 
 ---
 
@@ -31,15 +31,19 @@
 
 - [x] **2026-08-15 — Live via Reelwright** — `UsageMeter` + `InMemoryUsageSink`; purpose tags (`roster.expand` / `image` / `voice`, `pipeline.plot` / `board` / `image` / `storyboard` / `video` / `extend`); `parent_id` = short id; `events(parent_id=)` rollup by purpose with estimated USD on the job desk. Modalities hit: chat, imagine, video, tts roster listing. Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done.
 
-### Extras — still open
+### Extras — done except embed modality
 
-Library-only look-list — reply in chat when done (do not mark this row yourself).
+- [x] **2026-08-16 — Live via xAIkit tester** — `OpenTelemetryUsageSink` paired with `InMemoryUsageSink`; modalities files / tokenize / batch / collections / responses / realtime mint. Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done (embed split).
 
-- **Surfaces still open:** `OpenTelemetryUsageSink`; modalities for files / embed / tokenize / batch / collections / responses / realtime mint
-- **Placement:** `src/xaikit/usage.py`; extra `xaikit[otel]`
-- **Copy:** README optional OTel one-liner; extra `xaikit-py[otel]`; counters `xaikit.usage.calls` / `xaikit.usage.tokens`
-- **Happy path:** `uv run pytest tests/test_otel_usage_sink.py tests/test_meter_mock.py`
-- **Rough edges:** `iter_events()` is export-only; pair with `InMemoryUsageSink`; no invented USD on new modalities
+### Embed modality — still open
+
+Library look-list — reply in chat when done (do not mark this row yourself). Same inbox row as ApiCoverage embed. Dual-write: [Human-TODO.md](../Human-TODO.md) Open.
+
+- **Surfaces:** `modality="embed"` on a live `embed` call
+- **Placement:** `src/xaikit/usage.py` (already records; blocked on team SKU)
+- **Copy:** no invented USD
+- **Happy path:** after embed live works, confirm the meter event
+- **Rough edges:** 2026-08-16 roster empty
 
 ## Cross-Feature Dependencies & Integration Notes
 

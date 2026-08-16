@@ -1,15 +1,15 @@
 # ConnectAuth — TODO
 
-**Last Updated**: 2026-08-13  
+**Last Updated**: 2026-08-16  
 **Related Spec**: [ConnectAuth.md](ConnectAuth.md)
 
 ---
 
 ## Current focus *(session handoff)*
 
-**Active task:** Stem shipped (library-only). OAuth URLs stay caller-supplied.  
+**Active task:** — (Human verify closed via tester 2026-08-16)  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — README: weekly Grok remaining is out of kit (no unofficial scrape)
+**Last session:** 2026-08-16 — Tester: caller-supplied authorize/token URLs (incl. `accounts.x.ai` when the app sets them); exchange stubbed. Dual-write Human-TODO Done.
 
 ---
 
@@ -23,13 +23,7 @@
 
 ## Human verify (orchestration 2026-08-13)
 
-Library-only look-list — reply in chat when done (do not mark this row yourself).
-
-- **Surfaces:** `build_oauth_authorize_url` / `exchange_oauth_code`; README Connect / OAuth
-- **Placement:** `src/xaikit/connect.py`
-- **Copy:** authorize/token URLs are **caller-supplied** — no xAI portal hosts in the kit
-- **Happy path:** `uv run pytest tests/test_connect_auth.py`
-- **Rough edges:** not product login; ephemeral realtime tokens live on RealtimeVoice
+- [x] **2026-08-16 — Live via xAIkit tester** — `build_oauth_authorize_url` uses caller `authorize_url` (app may pass `accounts.x.ai`; kit does not inject it); `exchange_oauth_code` posts caller `token_url`. Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done. Not a registered OAuth app / product login.
 
 ## Completed
 

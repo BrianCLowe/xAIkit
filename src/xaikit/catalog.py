@@ -157,7 +157,8 @@ def feature_options(model: str | None = None) -> list[str]:
     """UI-queryable extra capabilities for a SKU (tools + media knobs).
 
     No ``model`` → current chat flagship extras (Grok 4.6 set).
-    ``grok-4.6`` and later chat SKUs → that set. Imagine **quality**
+    ``grok-4.6`` and later chat SKUs → that set (not ``batch``).
+    ``grok-4.3`` → ``batch``. Imagine **quality**
     (``grok-imagine-video`` without ``-1.5``) → extend / edit / R2V.
     ``grok-imagine-video-1.5`` → 1080p / R2V (no extend or edit).
     Unknown or older SKUs → empty (do not invent).
@@ -171,6 +172,8 @@ def feature_options(model: str | None = None) -> list[str]:
         return list(video)
     if _is_chat_4_6_or_later(slug):
         return list(_CHAT_EXTRAS_4_6)
+    if _is_chat_4_3(slug):
+        return ["batch"]
     return []
 
 
@@ -199,9 +202,34 @@ def contract_model_for_need(
     if not needed:
         return slug
     extras = feature_options(slug) if slug else []
-    if slug and (not extras or needed <= set(extras)):
+    known = bool(slug) and _known_feature_sku(slug)
+    if slug and not extras and not known:
+        return slug
+    if slug and needed <= set(extras):
         return slug
     return resolve_model(intent=INTENT_BEST, role=role, need=need, catalog=catalog)
+
+
+def _is_chat_4_5(slug: str) -> bool:
+    if "imagine" in slug or "voice" in slug:
+        return False
+    return bool(re.search(r"grok-4[.-]5(?!\d)", slug))
+
+
+def _is_chat_4_3(slug: str) -> bool:
+    if "imagine" in slug or "voice" in slug:
+        return False
+    return bool(re.search(r"grok-4[.-]3(?!\d)", slug))
+
+
+def _known_feature_sku(slug: str) -> bool:
+    """True when we know this family's extras (including a known-empty set)."""
+    return (
+        _video_feature_family(slug) is not None
+        or _is_chat_4_6_or_later(slug)
+        or _is_chat_4_5(slug)
+        or _is_chat_4_3(slug)
+    )
 
 
 def _is_chat_4_6_or_later(slug: str) -> bool:
@@ -1126,6 +1154,7 @@ def _catalog_for_need(
 
 _FEATURE_FALLBACK_SLUGS = (
     BOOTSTRAP_MODEL,
+    "grok-4.3",
     "grok-imagine-video",
     DEFAULT_VIDEO_MODEL,
     DEFAULT_IMAGE_MODEL,

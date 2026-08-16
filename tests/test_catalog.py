@@ -421,6 +421,19 @@ def test_need_filters_best_for_the_job() -> None:
         contract_model_for_need("future-extend-sku", "video_extend", role="video")
         == "future-extend-sku"
     )
+    assert (
+        contract_model_for_need("grok-4.6", "batch", role="chat", catalog=chat)
+        == "grok-4.3"
+    )
+    assert (
+        contract_model_for_need("grok-4.5", "batch", role="chat", catalog=chat)
+        == "grok-4.3"
+    )
+    assert (
+        contract_model_for_need("grok-4.3", "batch", role="chat", catalog=chat)
+        == "grok-4.3"
+    )
+    assert resolve_model(intent="best", need="batch", catalog=chat) == "grok-4.3"
 
 
 def test_language_proto_video_slug_is_not_chat() -> None:

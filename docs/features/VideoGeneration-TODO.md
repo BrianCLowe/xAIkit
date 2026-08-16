@@ -1,15 +1,15 @@
 # VideoGeneration — TODO
 
-**Last Updated**: 2026-08-15  
+**Last Updated**: 2026-08-16  
 **Related Spec**: [VideoGeneration.md](VideoGeneration.md)
 
 ---
 
 ## Current focus *(session handoff)*
 
-**Active task:** Stem High drained. Human verify **extras** still open (`extend_video` live look, `reference_audios`, 1080p contraction look).  
+**Active task:** — (Human verify extras closed via tester 2026-08-16)  
 **Blocked by:** —  
-**Last session:** 2026-08-15 — `poll_video` / `_normalize_video_payload` keep Imagine `error` so `wait=False` + poll matches the wait path.
+**Last session:** 2026-08-16 — Live via xAIkit tester: extras look-list (extend, `reference_audios`, 1080p contraction, `wait=False` + poll). Dual-write Human-TODO Done.
 
 *library-only · exercise path: `uv run pytest` + optional `XAITKIT_LIVE=1` + `XAITKIT_LIVE_VIDEO=1` start-only smoke. Do not add a UI. Files upload stays on ApiCoverage. Video edits (`POST /v1/videos/edits`) not in this stem.*
 
@@ -33,15 +33,9 @@
 
 - [x] **2026-08-15 — Live via Reelwright** — `generate_video` (`wait=True` poll) + `download_video`; duration + `aspect_ratio`; R2V `reference_images`. First short had no dialogue, so `reference_audios` was not sent. Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done.
 
-### Extras — still open
+### Extras — done (consumer proof)
 
-Library-only look-list — reply in chat when done (do not mark this row yourself).
-
-- **Surfaces still open:** `extend_video`; live `reference_audios` (`voice_id` on a speaking shot); 1080p contraction look (1.5 T2V/I2V keep 1080p; R2V and older `grok-imagine-video` → 720p); README **Video generation** `wait=False` + `poll_video` example
-- **Placement:** `src/xaikit/client.py`; constants exported from `xaikit` (`DEFAULT_VIDEO_MODEL`, `XAI_VIDEOS_URL`, …)
-- **Copy:** README example uses `VideoInbox` + `into=` + `wait=False` + `poll_video`; default live path is `wait=True`; 1080p is contracted per model/mode
-- **Happy path:** `uv run pytest tests/test_video_wiring.py` (offline). Optional live start-only: `XAITKIT_LIVE=1 XAITKIT_LIVE_VIDEO=1 uv run pytest tests/test_live_smoke.py -m live -k video -v` (needs `XAI_API_KEY`; slow/expensive)
-- **Rough edges:** live wait can take minutes; `file_id` is passthrough only (Files upload is ApiCoverage); video **edits** are not in this stem; `1080p` stays only on `grok-imagine-video-1.5` T2V/I2V — R2V and older `grok-imagine-video` clamp to `720p`; `extend_video` remaps 1.5 via `need=video_extend` (offline covered; live look still open)
+- [x] **2026-08-16 — Live via xAIkit tester** — `wait=False` + `poll_video`; 1080p contraction look; speaking start with `reference_audios`; `extend_video` (`video_file_id` on a 720p Imagine clip; remapped to `grok-imagine-video`; poll done). Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done.
 
 ## Cross-Feature Dependencies & Integration Notes
 

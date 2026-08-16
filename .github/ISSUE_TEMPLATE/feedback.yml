@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Docs, naming, and coverage notes are useful even without a bug. This is an early alpha.
+        Docs, naming, and coverage notes are useful even without a bug.
 
   - type: dropdown
     id: kind

@@ -229,6 +229,8 @@ def test_feature_options_chat_and_video_per_sku() -> None:
     assert feature_options("grok-4.6") == flagship
     assert feature_options("grok-4.7") == flagship
     assert feature_options("grok-4.5") == []
+    assert "batch" not in feature_options("grok-4.6")
+    assert feature_options("grok-4.3") == ["batch"]
     assert feature_options("grok-4.20-0309-non-reasoning") == []
     assert feature_options("grok-imagine-video") == [
         "video_extend",

@@ -4,7 +4,7 @@
 
 # xAIkit
 
-**Early testing release (`0.1.0a7`).** Not an official xAI package. The API may change; expect rough edges. A non-alpha release will follow after more testing. Problems or feedback: [open an issue](https://github.com/BrianCLowe/xAIkit/issues).
+**`0.1.0`.** Not an official xAI package. The API may still change. Problems or feedback: [open an issue](https://github.com/BrianCLowe/xAIkit/issues).
 
 **Unofficial** Python kit for the **xAI (Grok) API** — one typed client, living model catalog, usage metering, media, and realtime voice. Not a multi-provider SDK.
 
@@ -47,15 +47,14 @@ Install stays `xaikit-py`; `import xaikit`. You can use both packages in one app
 
 ## Install
 
-This is a **pre-release**. A plain `pip install xaikit-py` / `uv add xaikit-py` will not pick it up until a non-alpha version exists. The import stays `xaikit` (the PyPI name is `xaikit-py` because `xaikit` was too close to an existing explainable-AI project).
+The import stays `xaikit` (the PyPI name is `xaikit-py` because `xaikit` was too close to an existing explainable-AI project).
 
 ```bash
-# PyPI alpha (opt in)
-uv add xaikit-py --prerelease allow
-# or: pip install --pre xaikit-py
+uv add xaikit-py
+# or: pip install xaikit-py
 
 # From a git tag
-uv add "xaikit-py @ git+https://github.com/BrianCLowe/xAIkit@v0.1.0a7"
+uv add "xaikit-py @ git+https://github.com/BrianCLowe/xAIkit@v0.1.0"
 
 # Editable neighbor checkout
 uv add --editable ../xAIkit
@@ -63,7 +62,7 @@ uv add --editable ../xAIkit
 
 ## Problems and feedback
 
-This is an early alpha. If something breaks, the docs are wrong, or an API is missing, [open an issue](https://github.com/BrianCLowe/xAIkit/issues). Include the package version (`python -c "import xaikit; print(xaikit.__version__)"`), how you installed (PyPI / git / editable), and a short repro. Redact API keys.
+If something breaks, the docs are wrong, or an API is missing, [open an issue](https://github.com/BrianCLowe/xAIkit/issues). Include the package version (`python -c "import xaikit; print(xaikit.__version__)"`), how you installed (PyPI / git / editable), and a short repro. Redact API keys.
 
 ## Quick usage
 
@@ -229,7 +228,7 @@ Uploads larger than 50 MB are rejected before HTTP.
 
 ## Embeddings
 
-REST embeddings on `XaiClient` (mocked HTTP in tests). `embed` posts JSON to `/v1/embeddings` and returns `{object, model, data, usage}` where `data` is `[{index, embedding}, …]`. Pin `model=` (OpenAPI examples use `v1`; there is no documented grok-embedding default). Empty input is rejected before HTTP.
+REST embeddings on `XaiClient` (mocked HTTP in tests). `embed` posts JSON to `/v1/embeddings` and returns `{object, model, data, usage}` where `data` is `[{index, embedding}, …]`. `model=` is required — the kit does not invent a default. List live ids with `GET /v1/embedding-models` (OpenAPI’s `v1` is an example and may 404; some teams have an empty roster). Collections index models are not this endpoint. Empty input is rejected before HTTP.
 
 ```python
 from xaikit import MockChatProvider, XaiClient
@@ -237,7 +236,7 @@ from xaikit import MockChatProvider, XaiClient
 client = XaiClient(provider=MockChatProvider(), api_key="test-key")
 # Live: XaiClient(api_key=os.environ["XAI_API_KEY"])
 
-out = client.embed(["query: hello", "passage: world"], model="v1")
+out = client.embed(["query: hello", "passage: world"], model="your-embed-sku")
 vectors = [row["embedding"] for row in out["data"]]
 ```
 
@@ -262,7 +261,7 @@ When a usage meter is attached, `purpose=` is required. Events use `modality="to
 
 ## Batch
 
-SDK batch on `XaiClient` (mocked helper in tests — never hits gRPC). `create_batch` / `add_batch_requests` submit a job; `get_batch` polls status; `list_batch_results` reads completions as JSON dicts (no protobuf). Requests are chat-shaped dicts (`model`, `messages`, knobs). Empty name / batch id / requests are rejected before the RPC.
+SDK batch on `XaiClient` (mocked helper in tests — never hits gRPC). `create_batch` / `add_batch_requests` submit a job; `get_batch` polls status; `list_batch_results` reads completions as JSON dicts (no protobuf). Requests are chat-shaped dicts (`model`, `messages`, knobs). Live Batch rejects `grok-4.6` and `grok-4.5`; omitted model and those SKUs remap to `grok-4.3` (`need=batch`). Unknown pins stay. Empty name / batch id / requests are rejected before the RPC.
 
 ```python
 from xaikit import MockChatProvider, XaiClient
@@ -291,7 +290,7 @@ When a usage meter is attached, `purpose=` is required. Events use `modality="ba
 
 SDK collections on `XaiClient` (mocked helper in tests — never hits gRPC). `create_collection` / `upload_document` / `search_collections` cover the upload-and-query path; `get_collection` / `list_collections` / `delete_collection` are included. Returns JSON dicts (no protobuf). Empty name / collection id / query / file bytes are rejected before the RPC.
 
-Live create / get / list / delete / upload use xAI's management API. Set `XAI_MANAGEMENT_KEY` in the environment (the SDK reads it). Search uses the regular API key. This client does not take a second key argument.
+Live create / get / list / delete / upload use xAI's management API. Set `XAI_MANAGEMENT_KEY` in the environment (the SDK reads it). Search uses the regular API key. This client does not take a second key argument. A collection id can 404 on search until it is visible/indexed on the inference side — the kit does not wait or retry.
 
 ```python
 from xaikit import MockChatProvider, XaiClient

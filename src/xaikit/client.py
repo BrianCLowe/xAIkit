@@ -1524,8 +1524,8 @@ class XaiClient:
     ) -> dict[str, Any]:
         """Embed text via xAI REST ``POST /v1/embeddings``.
 
-        *model* is required (OpenAPI examples use ``v1``; there is no
-        documented grok-embedding default). Returns the REST envelope
+        *model* is required (no kit default). OpenAPI's ``v1`` is an example
+        id and may 404; list ``GET /v1/embedding-models``. Returns the REST envelope
         ``{object, model, data, usage}`` where ``data`` is
         ``[{index, embedding}, ...]``.
         """
@@ -1951,6 +1951,15 @@ class XaiClient:
         )
         return out
 
+    def _contract_batch_requests(
+        self, requests: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        fallback = contract_model_for_need(self.model, "batch", role="chat")
+        normalized = normalize_batch_requests(requests, default_model=fallback)
+        for row in normalized:
+            row["model"] = contract_model_for_need(row.get("model"), "batch", role="chat")
+        return normalized
+
     def add_batch_requests(
         self,
         batch_id: str,
@@ -1960,12 +1969,17 @@ class XaiClient:
         parent_id: str | None = None,
         labels: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        """Add chat-shaped request dicts to a batch (SDK ``client.batch.add``)."""
+        """Add chat-shaped request dicts to a batch (SDK ``client.batch.add``).
+
+        Live Batch rejects ``grok-4.6`` / ``grok-4.5``. Omitted model and those
+        known SKUs remap via ``need=batch`` (official examples use ``grok-4.3``).
+        Unknown pins stay.
+        """
         tag = self._require_purpose_if_metered(purpose)
         bid = (batch_id or "").strip()
         if not bid:
             raise RuntimeError("Batch id is empty")
-        normalized = normalize_batch_requests(requests, default_model=self.model)
+        normalized = self._contract_batch_requests(requests)
         raw = self._batch_rpc(
             "add",
             tag=tag,

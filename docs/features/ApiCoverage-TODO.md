@@ -1,27 +1,25 @@
 # ApiCoverage — TODO
 
-**Last Updated**: 2026-08-13 *(async client twin)*  
+**Last Updated**: 2026-08-16  
 **Related Spec**: [ApiCoverage.md](ApiCoverage.md)
 
 ---
 
 ## Current focus *(session handoff)*
 
-**Active task:** Target kit Low drained. Human verify look-list is open. Spec Acceptance still has two process-guard lines (each implemented slice matches home; no silent wrap-the-SDK).  
+**Active task:** Embed live playtest blocked on team roster. Collections search-lag helper still open.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — Async twin `AsyncXaiClient` (same method names; REST `httpx.AsyncClient`; WS `connect_*_websocket_async`; live chat `xai_sdk.AsyncClient`); covering [ClientChat-TODO.md](ClientChat-TODO.md)
+**Last session:** 2026-08-16 — Batch remaps 4.6/4.5 via `need=batch`. Embed README no longer treats `v1` as a live pin. Collections search-lag documented (no wait/retry yet).
 
 ---
 
 ## High Priority / Next Actions
 
-*(none on this stem — video then realtime voice are their own rows.)*
+*(none blocking)*
 
 ## Medium Priority
 
-*(no order — pick when a caller needs the surface; **homes** on [ApiCoverage.md](ApiCoverage.md))*
-
-*(none)*
+- [ ] **Collections search lag helper** — Create/upload on the management key can succeed while inference `search_collections` 404s until the id is visible/indexed. Kit documents the two keys and the lag; it does not wait/retry. Optional helper later — do not invent a long poll this turn. Cite: tester live 2026-08-16.
 
 ## Low Priority / Future Ideas
 
@@ -34,13 +32,19 @@
 
 ## Human verify (orchestration 2026-08-13)
 
-Library-only look-list — reply in chat when done (do not mark this row yourself).
+### Library look-list — done except embed
 
-- **Surfaces:** Files; `embed`; `tokenize`; batch; collections; `create_response` / `get_response`; `create_deferred_chat` / `get_deferred_chat`; `AsyncXaiClient`
-- **Placement:** `src/xaikit/client.py`, `async_client.py`; README sections for each
-- **Copy:** Responses tools are opt-in; `get_response` does not re-count tokens; deferred GET 202 is `{status: "pending"}`
-- **Happy path:** `uv run pytest tests/test_files_wiring.py tests/test_embed_wiring.py tests/test_tokenize_wiring.py tests/test_batch_wiring.py tests/test_collections_wiring.py tests/test_responses_wiring.py tests/test_deferred_chat_wiring.py tests/test_async_client_wiring.py`
-- **Rough edges:** collections management uses `XAI_MANAGEMENT_KEY`; no invented USD on these modalities
+- [x] **2026-08-16 — Live via xAIkit tester** — Files upload/get/delete; `tokenize`; batch create/add/get (`model=grok-4.3` — 4.6/4.5 rejected); collections create/upload/search (management key + inference search; new id can 404 until visible); `create_response` / `get_response`; `create_deferred_chat` / `get_deferred_chat`. `AsyncXaiClient` closed on [ClientChat-TODO.md](ClientChat-TODO.md). Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done (embed split).
+
+### Embed — still open
+
+Library look-list — reply in chat when done (do not mark this row yourself). Dual-write: [Human-TODO.md](../Human-TODO.md) Open.
+
+- **Surfaces:** live `embed` (`POST /v1/embeddings`)
+- **Placement:** `src/xaikit/client.py`; README Embeddings (`model=` required; OpenAPI example `v1`)
+- **Copy:** callers should list `GET /v1/embedding-models`; `v1` is an example id, not a guaranteed live SKU. Collections index (`grok-embedding-small`) is not this endpoint.
+- **Happy path:** `uv run pytest tests/test_embed_wiring.py`. Live: team roster non-empty then `client.embed(..., model=<id>)`.
+- **Rough edges:** 2026-08-16 tester team roster empty; 404 is team access, not a bad wrap. No invented USD.
 
 ## Completed
 
@@ -62,3 +66,5 @@ Library-only look-list — reply in chat when done (do not mark this row yoursel
 - [x] Built-in agent tools / Responses API — `XaiClient.create_response` / `get_response` REST `/v1/responses`; tools opt-in; meter `modality="responses"`; do not replace `chat` (2026-08-13)
 - [x] Service tier / deferred APIs — `service_tier` on chat + `create_response`; `create_deferred_chat` / `get_deferred_chat` REST; covering [ClientChat-TODO.md](ClientChat-TODO.md) (2026-08-13)
 - [x] Async client — `AsyncXaiClient` same-name twin of the full sync surface; covering [ClientChat-TODO.md](ClientChat-TODO.md) (2026-08-13)
+- [x] **Batch model contract** — omitted / 4.6 / 4.5 remap via `need=batch` to `grok-4.3`; unknown pins stay. README + offline tests. Cite: tester live 2026-08-16 (2026-08-16)
+- [x] **Embed docs: `v1` is not a live pin** — README/spec say list `GET /v1/embedding-models`; no kit default. Live playtest still open until the team roster has a SKU. (2026-08-16)

@@ -46,7 +46,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 - **README vs docs/** — README for consumers; this tree for agents and contributors; wheel stays code-only.
 - **Orchestrator git:** durable mode is **`milestone-pr`** (per-milestone PR — several related TODOs + concurrent implementers when they do not overlap → squash before ready → CI/Bugbot → merge → next branch). **Cloud Agent** orchestration uses the same mode.
 - **Kit leftovers:** stay as TODOs on the inventory stem ([ApiCoverage](features/ApiCoverage.md)) until that slice is next; covering TODOs on existing stems (Workflow §5.4); no map rows for vague planned-only items.
-- **Next product work** — MediaRest / VideoGeneration High/Medium knob gaps are cleared (2026-08-14). Human look-lists stay on [Human-TODO.md](Human-TODO.md).
+- **Next product work** — Tester live look-lists closed 2026-08-16 except REST embed (empty team embed roster). Batch default-model contract is an ApiCoverage High (4.6/4.5 rejected). Human inbox: [Human-TODO.md](Human-TODO.md).
 
 ## 3. Document Map
 
