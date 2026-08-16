@@ -531,7 +531,7 @@ def test_empty_input_guards() -> None:
         with pytest.raises(RuntimeError, match="empty"):
             await client.search_collections("", "col-1")
         with pytest.raises(RuntimeError, match="empty"):
-            await client.generate_video("")
+            await client.generate_video("", into=[])
         with pytest.raises(RuntimeError, match="empty"):
             await client.poll_video("")
         with pytest.raises(RuntimeError, match="empty"):
@@ -556,7 +556,7 @@ def test_empty_input_guards() -> None:
         ("create_realtime_client_secret", (), {}),
         ("open_tts_session", (), {}),
         ("open_realtime_session", (), {}),
-        ("extend_video", ("continue",), {}),
+        ("extend_video", ("continue",), {"into": []}),
         ("edit_image", ("sketch",), {"image_url": "https://example.com/a.png"}),
     ],
 )

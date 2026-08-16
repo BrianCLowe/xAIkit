@@ -1,6 +1,6 @@
 # Catalog — TODO
 
-**Last Updated**: 2026-08-13  
+**Last Updated**: 2026-08-15  
 **Related Spec**: [Catalog.md](Catalog.md)
 
 ---
@@ -9,7 +9,7 @@
 
 **Active task:** Stem shipped — Catalog High / Medium / Low drained. Human verify **extras** still open (`persist_path` / `role=video`). Model-watch Action is the inbox when public docs drift.  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — Split human verify: Rivenquill confirmed role + model (intent/pin) + effort; persist/`role=video` remain.
+**Last session:** 2026-08-15 — feature-map identity locked (chat tools + video extras; `effort_options`-shaped discovery). No code until Human-TODO decide says implement.
 
 ---
 
@@ -23,7 +23,7 @@
 
 ## Low Priority / Future Ideas
 
-*(none)*
+- [ ] **Capability map for resolve** — identity locked: per-SKU extras as settings knobs (chat tools + video/media), not role tags. First slice: discovery helper like `effort_options(model=)` using documented xAI tool types (`web_search`, `x_search`, `code_execution`, `collections_search`, `mcp`, …) plus media extras (`video_extend`, `video_edit`, `1080p`, …). Second slice: resolve `best` for the **job** (quality over 1.5 when the job is extend/edit). Wait for Human-TODO decide to say implement. Dual-write: [Human-TODO.md](../Human-TODO.md)
 
 ## Human verify (orchestration 2026-08-13)
 

@@ -1,6 +1,6 @@
 # Catalog
 
-**Last Updated**: 2026-08-14  
+**Last Updated**: 2026-08-15  
 **Related TODO**: [Catalog-TODO.md](Catalog-TODO.md)
 
 ## Overview
@@ -32,6 +32,7 @@ Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook �
 - General **chat** intents skip coding SKUs (`grok-build-*`, `grok-code-*`, `*code-fast*` **id**) unless the catalog is coding-only. Do not match aliases (`grok-4.5` currently aliases `grok-build-latest`). Coding-SKU skip does **not** apply to image/video/voice
 - `cheapest`: lowest ranking price. **One price band** → same as `best` (newer is usually more efficient at the same list price). **Multiple bands** → oldest / non-reasoning in the cheapest band
 - `best`: newest flagship in the role pool (`prefer_latest`)
+- **Feature map (identity locked 2026-08-15; not implemented):** extras beyond the coarse role tag (`chat` / `image` / `video` / `voice`). Same idea as `effort_options(model=)` — a settings-knob list of what this SKU can do, so apps can show it and resolve can pick for the **job**. Not video-only. Chat example (Grok 4.6): web search, X search, code execution, file attachments, collections search, image understanding, X video understanding, remote MCP. Video example: quality has **edit** and **extend**; 1.5 does not (and 1080p / R2V already contract per method+mode). Newer SKUs may add tools; older may have fewer. Do not overload `ModelInfo.capabilities` (those are role tags). Prefer documented xAI tool type names (`web_search`, `x_search`, `code_execution`, `collections_search`, `mcp`, …) plus media extras (`video_extend`, `video_edit`, `1080p`, …). First slice is discovery; using the map in `best` / resolve is a second cut. Human-TODO decide still owns “go implement.”
 - `economy`: newest model in the price band **strictly below** flagship; overlaps `cheapest` when a cheaper band exists, overlaps `best` when there is only one band
 - `resolve_model` / `resolve_model_selection(..., role="image"|"video"|"voice")` use the same rules on that pool (default `role="chat"`)
 - Image/video/voice use list price (or public rates from `pricing.py`) when the SDK omits `input_per_million`. Image proto `image_price` is mapped when present
@@ -50,6 +51,7 @@ Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook �
 | 2026-08-13 | Opt-in `persist_path` only; log-and-continue on write failure | Callers pass a path — kit never writes cwd/home by default. A full disk must not block metering/chat. Cache clear does not delete the snapshot file |
 | 2026-08-13 | Persist writes via temp file + `os.replace` | In-place `write_text` would truncate the last good snapshot on a mid-write failure |
 | 2026-08-14 | Thought levels are the 4.6 set; contract per model | 4.6 has `low`/`medium`/`high`/`xhigh`. 4.5 has no `xhigh` (API treats it as `high`). Older/unknown reasoners only `low`/`high`. Non-reasoning SKUs omit the knob. `medium` is a real value now (no longer collapsed to `low` on 4.6) |
+| 2026-08-15 | Feature map is per-SKU extras (tools + media), not latest-wins and not video-only | Live: 1.5 cannot extend/edit. User: settings knobs so apps see what each model provides. 4.6 extras include web/X search, code execution, files, collections search, image understanding, X video understanding, remote MCP. Future SKUs may add tools; past may have less. Discovery first (`effort_options`-shaped); resolve-for-job second. |
 
 ## Dependencies
 
@@ -69,5 +71,5 @@ Resolve chain: **pin → intent (`cheapest`\|`economy`\|`best`) → task hook �
 
 ## Current status
 
-- **In progress**: none — High / Medium / Low drained
-- **Last reconciled with code**: 2026-08-14 (`contract_thought_level` + 4.6 effort set)
+- **In progress**: none — High / Medium / Low drained. Feature-map identity locked; no code until Human-TODO decide says implement
+- **Last reconciled with code**: 2026-08-15 (feature-map identity recorded; not implemented)

@@ -73,6 +73,13 @@ from xaikit.retry import RetryPolicy, call_with_retry, default_retry_policy
 from xaikit.traces import CompletionTracer
 from xaikit.types import CompletionResponse, StreamChunk
 from xaikit.usage import UsageMeter
+from xaikit.video import (
+    VideoSink,
+    deliver_video_receipt,
+    require_video_into,
+    video_receipt,
+    video_sink_cancelled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -2694,6 +2701,7 @@ class XaiClient:
         image: dict[str, Any] | None = None,
         reference_images: list[Any] | None = None,
         reference_audios: list[Any] | None = None,
+        into: VideoSink,
         wait: bool = True,
         timeout: float = _VIDEO_WAIT_TIMEOUT,
         interval: float = _VIDEO_WAIT_INTERVAL,
@@ -2703,6 +2711,11 @@ class XaiClient:
     ) -> dict[str, Any]:
         """Generate a video via xAI Imagine (REST ``/v1/videos/generations``).
 
+        ``into=`` is required — a :class:`~xaikit.video.VideoInbox`, list, or
+        callback the app keeps. The kit delivers ``request_id`` as soon as xAI
+        accepts the job, then the terminal result. Do not rely on the return
+        value alone: a sibling failure can cancel the await.
+
         Default ``wait=True`` polls until ``done``. Pass ``wait=False`` to return
         the start payload (``request_id``) and call :meth:`poll_video` yourself.
 
@@ -2711,6 +2724,7 @@ class XaiClient:
         contract it to ``720p``.
         """
         tag = self._require_purpose_if_metered(purpose)
+        sink = require_video_into(into)
         video_model = self._effective_video_model(model)
         image_obj = _video_media_ref(image, url=image_url, file_id=image_file_id)
         ref_images = _video_reference_images(reference_images)
@@ -2754,6 +2768,7 @@ class XaiClient:
             parent_id=parent_id,
             labels=labels,
             video_model=video_model,
+            into=sink,
             wait=wait,
             timeout=timeout,
             interval=interval,
@@ -2771,6 +2786,7 @@ class XaiClient:
         video: dict[str, Any] | None = None,
         model: str | None = None,
         duration: int | None = None,
+        into: VideoSink,
         wait: bool = True,
         timeout: float = _VIDEO_WAIT_TIMEOUT,
         interval: float = _VIDEO_WAIT_INTERVAL,
@@ -2778,8 +2794,12 @@ class XaiClient:
         parent_id: str | None = None,
         labels: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        """Extend a video via xAI Imagine (REST ``/v1/videos/extensions``)."""
+        """Extend a video via xAI Imagine (REST ``/v1/videos/extensions``).
+
+        ``into=`` is required — same durable receive path as :meth:`generate_video`.
+        """
         tag = self._require_purpose_if_metered(purpose)
+        sink = require_video_into(into)
         video_model = self._effective_video_model(model)
         cleaned = (prompt or "").strip()
         if not cleaned:
@@ -2805,6 +2825,7 @@ class XaiClient:
             parent_id=parent_id,
             labels=labels,
             video_model=video_model,
+            into=sink,
             wait=wait,
             timeout=timeout,
             interval=interval,
@@ -3225,6 +3246,7 @@ class XaiClient:
         parent_id: str | None,
         labels: dict[str, str] | None,
         video_model: str,
+        into: VideoSink,
         wait: bool,
         timeout: float,
         interval: float,
@@ -3276,6 +3298,13 @@ class XaiClient:
         if not request_id:
             raise RuntimeError(f"{action} response missing request_id")
 
+        started = _normalize_video_payload(
+            {"request_id": request_id, "status": "pending", "model": video_model},
+            request_id=request_id,
+        )
+        deliver_video_receipt(
+            into, video_receipt(started, request_id=request_id, status="pending")
+        )
         start_usage = _video_meter_usage(
             None,
             requested_duration=requested_duration,
@@ -3292,10 +3321,7 @@ class XaiClient:
                 modality="video",
                 model=video_model,
             )
-            return _normalize_video_payload(
-                {"request_id": request_id, "status": "pending", "model": video_model},
-                request_id=request_id,
-            )
+            return started
 
         return self._wait_for_video(
             request_id,
@@ -3303,6 +3329,7 @@ class XaiClient:
             parent_id=parent_id,
             labels=labels,
             video_model=video_model,
+            into=into,
             timeout=timeout,
             interval=interval,
             resolution=resolution,
@@ -3318,6 +3345,7 @@ class XaiClient:
         parent_id: str | None,
         labels: dict[str, str] | None,
         video_model: str,
+        into: VideoSink,
         timeout: float,
         interval: float,
         resolution: str | None,
@@ -3327,6 +3355,8 @@ class XaiClient:
         deadline = time.monotonic() + max(0.0, float(timeout))
         poll_interval = max(0.0, float(interval))
         while True:
+            if video_sink_cancelled(into, request_id):
+                raise RuntimeError(f"{action} cancelled: request_id={request_id}")
             try:
                 payload = self._get_video_status(request_id)
             except Exception as exc:
@@ -3356,7 +3386,11 @@ class XaiClient:
                     modality="video",
                     model=str(payload.get("model") or video_model),
                 )
-                return _normalize_video_payload(payload, request_id=request_id)
+                done = _normalize_video_payload(payload, request_id=request_id)
+                deliver_video_receipt(
+                    into, video_receipt(done, request_id=request_id, status="done")
+                )
+                return done
             if status in {"failed", "expired"}:
                 message = _video_error_message(payload) or status
                 self._record_video_failed(
@@ -3369,6 +3403,13 @@ class XaiClient:
                         payload,
                         requested_duration=requested_duration,
                         resolution=resolution,
+                    ),
+                )
+                failed = _normalize_video_payload(payload, request_id=request_id)
+                deliver_video_receipt(
+                    into,
+                    video_receipt(
+                        failed, request_id=request_id, status=status, error=message
                     ),
                 )
                 raise RuntimeError(f"{action} {status}: {message}")

@@ -229,6 +229,7 @@ def test_live_generate_video_start_returns_request_id(client: XaiClient) -> None
         duration=1,
         aspect_ratio="1:1",
         resolution="480p",
+        into=[],
         wait=False,
     )
     assert out.get("request_id")

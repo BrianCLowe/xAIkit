@@ -1,6 +1,6 @@
 # xAIkit — Human TODO
 
-**Last Updated**: 2026-08-14  
+**Last Updated**: 2026-08-15  
 **Related**: [Master_Index.md](Master_Index.md) · [Tooling.md](Tooling.md)
 
 ---
@@ -11,20 +11,24 @@
 
 ## Open
 
-- [ ] **MediaRest knobs look-list** (`playtest`) — 2026-08-14 — Orchestration drain: Imagine generate knobs (`resolution`/`quality`/`response_format`), unary TTS knobs, `edit_image` `images=` (up to 3). Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md) · Blocks: none
-- [ ] **VideoGeneration library look-list** (`playtest`) — 2026-08-12 — Confirm generate/extend/poll/download + README example feel right; 1080p contraction (1.5 T2V/I2V only; R2V/older → 720p); optional live start-only smoke if you want. Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md) · Blocks: none
-- [ ] **MediaRest extras look-list** (`playtest`) — 2026-08-13 — Split from fat MediaRest row: `edit_image`, streaming STT/TTS (`open_stt_session` / `open_tts_session`), TTS voice roster. Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md) · Blocks: none
+- [ ] **Model feature map for resolve** (`decide`) — 2026-08-15 — Identity locked in chat: settings-knob list of **extra** capabilities per SKU (not just video). Chat/4.6: Web Search, X Search, Code Execution, File Attachments, Collections Search, Image Understanding, X Video Understanding, Remote MCP Tools. Video: quality has edit+extend; 1.5 does not. Newer models may add tools; older may have less. Still waiting: say implement (discovery helper first, then resolve-for-job) or adjust the id list. Owner: [Catalog-TODO.md](features/Catalog-TODO.md) · related: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md)
+- [ ] **VideoGeneration extras look-list** (`playtest`) — 2026-08-15 — Split from fat video row: `extend_video`; live `reference_audios` on a speaking shot; 1080p contraction look (1.5 T2V/I2V only; R2V/older → 720p); README `wait=False` + `poll_video` example. Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md) · Blocks: none
+- [ ] **MediaRest extras remainder** (`playtest`) — 2026-08-15 — Split from extras row: streaming STT/TTS (`open_stt_session` / `open_tts_session`); `get_tts_voice`. Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md) · Blocks: none
 - [ ] **Catalog extras look-list** (`playtest`) — 2026-08-13 — Split from fat Catalog row: `persist_path=` / `save_catalog_snapshot`; `role=video` (Rivenquill has no video job). Owner: [Catalog-TODO.md](features/Catalog-TODO.md) · Blocks: none
 - [ ] **ClientChat extras look-list** (`playtest`) — 2026-08-13 — Split from fat ClientChat row: tools/vision parts, `service_tier`, `AsyncXaiClient` (Rivenquill did not exercise these). Owner: [ClientChat-TODO.md](features/ClientChat-TODO.md) · Blocks: none
 - [ ] **ApiCoverage library look-list** (`playtest`) — 2026-08-13 — Files, embed, tokenize, batch, collections, Responses, deferred chat (orchestration). Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) · Blocks: none
-- [ ] **UsageObservability library look-list** (`playtest`) — 2026-08-13 — New modalities + optional OTel sink (orchestration). Owner: [UsageObservability-TODO.md](features/UsageObservability-TODO.md) · Blocks: none
+- [ ] **UsageObservability extras look-list** (`playtest`) — 2026-08-15 — Split from fat meter row: `OpenTelemetryUsageSink`; modalities for files / embed / tokenize / batch / collections / responses / realtime mint (orchestration). Owner: [UsageObservability-TODO.md](features/UsageObservability-TODO.md) · Blocks: none
 - [ ] **ConnectAuth library look-list** (`playtest`) — 2026-08-13 — Caller-supplied OAuth URLs (orchestration). Owner: [ConnectAuth-TODO.md](features/ConnectAuth-TODO.md) · Blocks: none
 
 ---
 
 ## Done
 
-- [x] **Tag `v0.1.0a5`** (`procure`) — 2026-08-14 — Pushed on `2981521`; Publish to PyPI succeeded ([run](https://github.com/BrianCLowe/xAIkit/actions/runs/31770753783)). Live: [xaikit-py 0.1.0a5](https://pypi.org/project/xaikit-py/0.1.0a5/). Owner: this file
+- [x] **UsageObservability core — purpose meter + parent_id via Reelwright** (`playtest`) — 2026-08-15 — Live: `UsageMeter` + `InMemoryUsageSink`; purpose tags (`roster.*`, `pipeline.plot` / `board` / `image` / `storyboard` / `video` / `extend`); `parent_id` = short id; `events(parent_id=)` rollup by purpose with estimated USD on the job. Modalities hit: chat, imagine, video, tts roster listing. Does **not** cover OTel or files/embed/tokenize/batch/collections/responses/realtime mint (see Open extras). Owner: [UsageObservability-TODO.md](features/UsageObservability-TODO.md)
+- [x] **VideoGeneration core — generate/poll/download via Reelwright** (`playtest`) — 2026-08-15 — Live: `generate_video` (`wait=True` poll) + `download_video`; duration + `aspect_ratio`; R2V `reference_images`. First short had no dialogue, so `reference_audios` was not sent. Does **not** cover `extend_video` or the 1080p contraction look (see Open extras). Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md)
+- [x] **MediaRest extras — TTS roster via Reelwright** (`playtest`) — 2026-08-15 — Live: `list_tts_voices` on the character voice picker (filter by sex). `get_tts_voice` not called. First short had no dialogue, so the picked `voice_id` was not sent as video `reference_audios`. Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md)
+- [x] **MediaRest extras — `edit_image` via Reelwright** (`playtest`) — 2026-08-15 — Live: prompt edit of reference art; single source `image_url=` and multi `images=` (data URIs). Does **not** cover streaming STT/TTS or `get_tts_voice` (see Open remainder). Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md)
+- [x] **MediaRest knobs — `response_format` + `images=` via Reelwright** (`playtest`) — 2026-08-15 — Live: `generate_image` / `edit_image` with `response_format=b64_json`; `edit_image` `images=` (up to 3). Does **not** cover `resolution`/`quality` or unary TTS knobs (see Open remainder). Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md)
 - [x] **Catalog core — role, model, effort via Rivenquill** (`playtest`) — 2026-08-13 — Live: `role=chat` + intent/pin + `thought_level` in the Quill picker; Imagine/voice use admin `best` (`role=image` / `role=voice`). `BOOTSTRAP_MODEL` (`grok-4.6`) is the resolve fallback. Does **not** cover persist snapshot or `role=video` (see Open extras). Owner: [Catalog-TODO.md](features/Catalog-TODO.md)
 - [x] **Alert when xAI ships a new model / resolution** (`procure`) — 2026-08-14 — Daily GitHub Action `Watch xAI models` diffs public docs vs `scripts/data/xai_models_watch.json` and opens an issue labeled `xai-models`. Watch the repo's issues (or that label). When it fires: check knobs/families/prices, then `uv run python scripts/watch_xai_models.py --write-baseline` and close the issue. Owner: [Catalog-TODO.md](features/Catalog-TODO.md)
 - [x] **RealtimeVoice library look-list** (`playtest`) — 2026-08-13 — Live via Rivenquill conversation mode: ephemeral mint + browser STS WS + server VAD confirmed working (consumer proof). Kit surfaces exercised: `create_realtime_client_secret` / protocol / realtime session path. Owner: [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md)
@@ -33,9 +37,6 @@
 - [x] **Confirm Document Map + ship-first prefs** (`decide`) — 2026-08-12 — User confirmed doc shape (map + ship-first). Owner: [Master_Index.md](Master_Index.md)
 - [x] **Priority after video** (`decide`) — 2026-08-12 — Next slice is **realtime voice**; remaining API surfaces have no order preference. Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) · split: [RealtimeVoice-TODO.md](features/RealtimeVoice-TODO.md)
 - [x] **Optional live xAI key for smoke** (`procure`) — 2026-08-12 — Environment set up; key in local env only (not git)
-- [x] **Tag `v0.1.0a4`** (`procure`) — 2026-08-14 — Pushed on `1fa0fd6`; Publish to PyPI succeeded ([run](https://github.com/BrianCLowe/xAIkit/actions/runs/31769957480)). Live: [xaikit-py 0.1.0a4](https://pypi.org/project/xaikit-py/0.1.0a4/). Owner: this file
-- [x] **Tag `v0.1.0a3`** (`procure`) — 2026-08-13 — Pushed on `a859769`; Publish to PyPI succeeded ([run](https://github.com/BrianCLowe/xAIkit/actions/runs/31733361715)). Live: [xaikit-py 0.1.0a3](https://pypi.org/project/xaikit-py/0.1.0a3/). Owner: this file
-- [x] **Tag `v0.1.0a2`** (`procure`) — 2026-08-13 — Pushed on `34835b9`; Publish to PyPI succeeded ([run](https://github.com/BrianCLowe/xAIkit/actions/runs/31730769690)). Live: [xaikit-py 0.1.0a2](https://pypi.org/project/xaikit-py/0.1.0a2/). Owner: this file
 - [x] **PyPI pending Trusted Publisher for `xaikit-py`** (`procure`) — 2026-08-13 — Account [BrianCLowe](https://pypi.org/user/BrianCLowe/). Name `xaikit` was too similar to existing `xai-kit`; pending publisher is **`xaikit-py`** (display xAIkit-py). Owner: this file. First upload still needs tag `v0.1.0a1` after the dist name lands on master.
 
 ---

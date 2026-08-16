@@ -101,6 +101,7 @@ from xaikit.traces import (
     build_completion_tracer,
 )
 from xaikit.types import CompletionResponse, ModelSelection, StreamChunk
+from xaikit.video import VideoInbox, VideoReceipt
 from xaikit.usage import (
     CompositeUsageSink,
     InMemoryUsageSink,
@@ -186,6 +187,8 @@ __all__ = [
     "UsageMeter",
     "UsageRollup",
     "UsageSink",
+    "VideoInbox",
+    "VideoReceipt",
     "XaiClient",
     "async_call_with_retry",
     "build_completion_tracer",

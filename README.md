@@ -311,26 +311,29 @@ When a usage meter is attached, `purpose=` is required. Events use `modality="co
 
 ## Video generation
 
-REST Imagine video on `XaiClient` (mocked HTTP in tests; live calls need `XAI_API_KEY`). Default `wait=True` polls until the clip is ready; `wait=False` returns `request_id` for `poll_video`.
+REST Imagine video on `XaiClient` (mocked HTTP in tests; live calls need `XAI_API_KEY`). `into=` is required — a `VideoInbox`, list, or callback the app keeps. The kit delivers `request_id` as soon as xAI accepts the job, then the terminal result. Do not rely on the return value alone: a sibling failure can cancel the await (`asyncio.gather` / `TaskGroup`) without voiding the receipt. `inbox.cancel(request_id)` is the only way to stop listening. Default `wait=True` polls until the clip is ready; `wait=False` returns `request_id` for `poll_video`.
 
 ```python
-from xaikit import MockChatProvider, XaiClient
+from xaikit import MockChatProvider, VideoInbox, XaiClient
 
 client = XaiClient(provider=MockChatProvider(), api_key="test-key")
 # Live: XaiClient(api_key=os.environ["XAI_API_KEY"])
 
+inbox = VideoInbox()
 started = client.generate_video(
     "A red cube rotating on a table",
     duration=8,
     aspect_ratio="16:9",
     resolution="480p",
+    into=inbox,
     wait=False,
 )
 status = client.poll_video(started["request_id"])
 # bytes = client.download_video(status["url"])  # when status == "done"
+# inbox.receipts still has the ticket if a parallel await is cancelled
 ```
 
-`extend_video(prompt, video_url=...)` continues a clip. Default model is `grok-imagine-video-1.5`. `1080p` is kept on that 1.5 SKU for text-to-video and image-to-video; reference-to-video and older `grok-imagine-video` send `720p` instead.
+`extend_video(prompt, video_url=..., into=inbox)` continues a clip. Default model is `grok-imagine-video-1.5`. `1080p` is kept on that 1.5 SKU for text-to-video and image-to-video; reference-to-video and older `grok-imagine-video` send `720p` instead.
 
 ## Realtime voice
 

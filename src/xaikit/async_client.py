@@ -133,6 +133,13 @@ from xaikit.tts_stream import (
 )
 from xaikit.types import CompletionResponse, StreamChunk
 from xaikit.usage import UsageMeter
+from xaikit.video import (
+    VideoSink,
+    deliver_video_receipt,
+    require_video_into,
+    video_receipt,
+    video_sink_cancelled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -222,6 +229,7 @@ class AsyncXaiClient(XaiClient):
         self.voice_model = (voice_model or DEFAULT_VOICE_MODEL).strip()
         self._http: httpx.AsyncClient | None = None
         self._owns_http = False
+        self._inflight_video_waits: set[asyncio.Task[Any]] = set()
 
     async def __aenter__(self) -> AsyncXaiClient:
         if self._http is None:
@@ -1950,6 +1958,7 @@ class AsyncXaiClient(XaiClient):
         image: dict[str, Any] | None = None,
         reference_images: list[Any] | None = None,
         reference_audios: list[Any] | None = None,
+        into: VideoSink,
         wait: bool = True,
         timeout: float = _VIDEO_WAIT_TIMEOUT,
         interval: float = _VIDEO_WAIT_INTERVAL,
@@ -1958,6 +1967,7 @@ class AsyncXaiClient(XaiClient):
         labels: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
+        sink = require_video_into(into)
         video_model = self._effective_video_model(model)
         image_obj = _video_media_ref(image, url=image_url, file_id=image_file_id)
         ref_images = _video_reference_images(reference_images)
@@ -1997,6 +2007,7 @@ class AsyncXaiClient(XaiClient):
             parent_id=parent_id,
             labels=labels,
             video_model=video_model,
+            into=sink,
             wait=wait,
             timeout=timeout,
             interval=interval,
@@ -2014,6 +2025,7 @@ class AsyncXaiClient(XaiClient):
         video: dict[str, Any] | None = None,
         model: str | None = None,
         duration: int | None = None,
+        into: VideoSink,
         wait: bool = True,
         timeout: float = _VIDEO_WAIT_TIMEOUT,
         interval: float = _VIDEO_WAIT_INTERVAL,
@@ -2022,6 +2034,7 @@ class AsyncXaiClient(XaiClient):
         labels: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
+        sink = require_video_into(into)
         video_model = self._effective_video_model(model)
         cleaned = (prompt or "").strip()
         if not cleaned:
@@ -2045,6 +2058,7 @@ class AsyncXaiClient(XaiClient):
             parent_id=parent_id,
             labels=labels,
             video_model=video_model,
+            into=sink,
             wait=wait,
             timeout=timeout,
             interval=interval,
@@ -2331,6 +2345,7 @@ class AsyncXaiClient(XaiClient):
         parent_id: str | None,
         labels: dict[str, str] | None,
         video_model: str,
+        into: VideoSink,
         wait: bool,
         timeout: float,
         interval: float,
@@ -2360,6 +2375,13 @@ class AsyncXaiClient(XaiClient):
         request_id = str(payload.get("request_id") or "").strip()
         if not request_id:
             raise RuntimeError(f"{action} response missing request_id")
+        started = _normalize_video_payload(
+            {"request_id": request_id, "status": "pending", "model": video_model},
+            request_id=request_id,
+        )
+        deliver_video_receipt(
+            into, video_receipt(started, request_id=request_id, status="pending")
+        )
         start_usage = _video_meter_usage(
             None, requested_duration=requested_duration, resolution=resolution
         )
@@ -2374,22 +2396,25 @@ class AsyncXaiClient(XaiClient):
                 modality="video",
                 model=video_model,
             )
-            return _normalize_video_payload(
-                {"request_id": request_id, "status": "pending", "model": video_model},
-                request_id=request_id,
+            return started
+        wait_task = asyncio.create_task(
+            self._wait_for_video(
+                request_id,
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                video_model=video_model,
+                into=into,
+                timeout=timeout,
+                interval=interval,
+                resolution=resolution,
+                requested_duration=requested_duration,
+                action=action,
             )
-        return await self._wait_for_video(
-            request_id,
-            tag=tag,
-            parent_id=parent_id,
-            labels=labels,
-            video_model=video_model,
-            timeout=timeout,
-            interval=interval,
-            resolution=resolution,
-            requested_duration=requested_duration,
-            action=action,
         )
+        self._inflight_video_waits.add(wait_task)
+        wait_task.add_done_callback(self._inflight_video_waits.discard)
+        return await asyncio.shield(wait_task)
 
     async def _wait_for_video(
         self,
@@ -2399,6 +2424,7 @@ class AsyncXaiClient(XaiClient):
         parent_id: str | None,
         labels: dict[str, str] | None,
         video_model: str,
+        into: VideoSink,
         timeout: float,
         interval: float,
         resolution: str | None,
@@ -2408,8 +2434,12 @@ class AsyncXaiClient(XaiClient):
         deadline = asyncio.get_running_loop().time() + max(0.0, float(timeout))
         poll_interval = max(0.0, float(interval))
         while True:
+            if video_sink_cancelled(into, request_id):
+                raise RuntimeError(f"{action} cancelled: request_id={request_id}")
             try:
                 payload = await self._get_video_status(request_id)
+            except asyncio.CancelledError:
+                raise
             except Exception as exc:
                 self._record_video_failed(
                     tag=tag,
@@ -2434,7 +2464,11 @@ class AsyncXaiClient(XaiClient):
                     modality="video",
                     model=str(payload.get("model") or video_model),
                 )
-                return _normalize_video_payload(payload, request_id=request_id)
+                done = _normalize_video_payload(payload, request_id=request_id)
+                deliver_video_receipt(
+                    into, video_receipt(done, request_id=request_id, status="done")
+                )
+                return done
             if status in {"failed", "expired"}:
                 message = _video_error_message(payload) or status
                 self._record_video_failed(
@@ -2445,6 +2479,13 @@ class AsyncXaiClient(XaiClient):
                     video_model=video_model,
                     usage=_video_meter_usage(
                         payload, requested_duration=requested_duration, resolution=resolution
+                    ),
+                )
+                failed = _normalize_video_payload(payload, request_id=request_id)
+                deliver_video_receipt(
+                    into,
+                    video_receipt(
+                        failed, request_id=request_id, status=status, error=message
                     ),
                 )
                 raise RuntimeError(f"{action} {status}: {message}")

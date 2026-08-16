@@ -1,6 +1,6 @@
 # MediaRest — TODO
 
-**Last Updated**: 2026-08-14  
+**Last Updated**: 2026-08-15  
 **Related Spec**: [MediaRest.md](MediaRest.md)
 
 ---
@@ -9,7 +9,7 @@
 
 **Active task:** — (MediaRest High/Medium empty)  
 **Blocked by:** —  
-**Last session:** 2026-08-14 — Multi-image edit (`images=` 2–3 sources; one source still wires `image`). High/Medium empty; human extras look-list still open. Video 1080p contraction is done on [VideoGeneration-TODO.md](VideoGeneration-TODO.md).
+**Last session:** 2026-08-15 — Reelwright live: `edit_image`, `response_format=b64_json`, `list_tts_voices` (voice picker). Streaming STT/TTS, `get_tts_voice`, `resolution`/`quality`, and unary TTS knobs still open.
 
 ---
 
@@ -34,25 +34,32 @@
 - [x] **2026-08-13 — Live via Rivenquill** — Imagine (`generate_image`) + voice conversation (`transcribe` → chat → `synthesize_speech`). Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done.  
   Note: Rivenquill voice is **not** STS realtime and **not** streaming STT/TTS sessions.
 
-### Extras — still open
+### Extras — `edit_image` + `list_tts_voices` done; remainder open
+
+- [x] **2026-08-15 — Live via Reelwright** — `edit_image` with a prompt: single source `image_url=` and multi `images=` (data URIs, character refs). Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done.
+- [x] **2026-08-15 — Live via Reelwright** — `list_tts_voices` on the character voice picker (sex filter). Outcome: works. `get_tts_voice` not called. Dual-write: [Human-TODO.md](../Human-TODO.md) Done.
 
 Library look-list — reply in chat when done (do not mark this row yourself).
 
-- **Surfaces:** `edit_image`; `open_stt_session` / `SttSession`; `open_tts_session` / `TtsSession`; `list_tts_voices` / `get_tts_voice`; README streaming STT/TTS + voice roster
+- **Surfaces still open:** `open_stt_session` / `SttSession`; `open_tts_session` / `TtsSession`; `get_tts_voice`; README streaming STT/TTS
 - **Placement:** `src/xaikit/client.py`, `stt_stream.py`, `tts_stream.py`
 - **Copy:** streaming TTS is `wss://api.x.ai/v1/tts`, not STS; roster is built-in voices only
-- **Happy path:** `uv run pytest tests/test_media_wiring.py tests/test_stt_stream_wiring.py tests/test_tts_stream_wiring.py tests/test_tts_voices_wiring.py`
+- **Happy path:** `uv run pytest tests/test_stt_stream_wiring.py tests/test_tts_stream_wiring.py tests/test_tts_voices_wiring.py`
 - **Rough edges:** custom-voice clone is out of kit; live STT needs `XAITKIT_LIVE_STT=1`
 
 ## Human verify (orchestration 2026-08-14)
 
-Library-only look-list for this drain — reply in chat when done (do not mark this row yourself).
+### Knobs — `response_format` + `images=` done; remainder open
 
-- **Surfaces:** `generate_image` knobs (`resolution` / `quality` / `response_format`); `synthesize_speech` unary knobs (`output_format`, `speed`, latency, normalize, timestamps, `replace`); `edit_image` `images=` (up to 3)
+- [x] **2026-08-15 — Live via Reelwright** — `generate_image` / `edit_image` with `response_format=b64_json`; `edit_image` `images=` (up to 3). Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done.
+
+Library-only look-list for the remainder — reply in chat when done (do not mark this row yourself).
+
+- **Surfaces still open:** `generate_image` knobs `resolution` / `quality`; `synthesize_speech` unary knobs (`output_format`, `speed`, latency, normalize, timestamps, `replace`)
 - **Placement:** `src/xaikit/client.py`, `async_client.py`, `catalog.py` (`imagine_generate_knobs`), `tts_stream.py` (`tts_rest_body`)
-- **Copy:** README generate/TTS/edit knobs; `quality` is 2.0-only; unary TTS 15k cap; one source still wires `image`
+- **Copy:** README generate/TTS knobs; `quality` is 2.0-only; unary TTS 15k cap
 - **Happy path:** `uv run pytest tests/test_media_wiring.py tests/test_async_client_wiring.py`
-- **Rough edges:** unknown Imagine aspect/resolution omitted (no 400); `with_timestamps=True` returns JSON bytes; extras streaming/roster stay on the 2026-08-13 list
+- **Rough edges:** unknown Imagine aspect/resolution omitted (no 400); `with_timestamps=True` returns JSON bytes; extras streaming/roster stay on the 2026-08-13 remainder list
 
 ## Cross-Feature Dependencies
 

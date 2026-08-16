@@ -1,15 +1,15 @@
 # UsageObservability — TODO
 
-**Last Updated**: 2026-08-13 *(price-table provenance)*  
+**Last Updated**: 2026-08-15  
 **Related Spec**: [UsageObservability.md](UsageObservability.md)
 
 ---
 
 ## Current focus *(session handoff)*
 
-**Active task:** Stem shipped — High/Medium/Low empty. Human verify look-list is open.  
+**Active task:** Stem shipped — High/Medium/Low empty. Human verify **extras** still open (OTel + unused modalities).  
 **Blocked by:** —  
-**Last session:** 2026-08-13 — `PriceTable.source_url` / `fetched`; `save_price_table_template`; README pricing provenance (no auto-fetch; no invented USD)
+**Last session:** 2026-08-15 — Reelwright live: purpose meter + `parent_id` rollup. OTel and unused modalities still open.
 
 ---
 
@@ -27,9 +27,15 @@
 
 ## Human verify (orchestration 2026-08-13)
 
+### Core — done (consumer proof)
+
+- [x] **2026-08-15 — Live via Reelwright** — `UsageMeter` + `InMemoryUsageSink`; purpose tags (`roster.expand` / `image` / `voice`, `pipeline.plot` / `board` / `image` / `storyboard` / `video` / `extend`); `parent_id` = short id; `events(parent_id=)` rollup by purpose with estimated USD on the job desk. Modalities hit: chat, imagine, video, tts roster listing. Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done.
+
+### Extras — still open
+
 Library-only look-list — reply in chat when done (do not mark this row yourself).
 
-- **Surfaces:** `OpenTelemetryUsageSink`; modalities for files/embed/tokenize/batch/collections/responses/realtime mint/tts roster
+- **Surfaces still open:** `OpenTelemetryUsageSink`; modalities for files / embed / tokenize / batch / collections / responses / realtime mint
 - **Placement:** `src/xaikit/usage.py`; extra `xaikit[otel]`
 - **Copy:** README optional OTel one-liner; extra `xaikit-py[otel]`; counters `xaikit.usage.calls` / `xaikit.usage.tokens`
 - **Happy path:** `uv run pytest tests/test_otel_usage_sink.py tests/test_meter_mock.py`
@@ -59,3 +65,4 @@ Library-only look-list — reply in chat when done (do not mark this row yoursel
 - [x] Realtime client-secret mint — purpose/success, `modality="realtime"`, no duration/USD (`apply_price_table=False`) (2026-08-13)
 - [x] OpenTelemetry export sink (2026-08-13)
 - [x] Price table provenance (`source_url` / `fetched`) + overlay template (2026-08-13)
+- [x] **2026-08-15 — Live via Reelwright** — purpose + `parent_id` meter; `InMemoryUsageSink`; USD rollup by purpose. Dual-write: [Human-TODO.md](../Human-TODO.md) Done.
