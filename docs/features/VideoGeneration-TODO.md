@@ -9,7 +9,7 @@
 
 **Active task:** Stem High drained. Human verify **extras** still open (`extend_video` live look, `reference_audios`, 1080p contraction look).  
 **Blocked by:** —  
-**Last session:** 2026-08-15 — `extend_video` remaps 1.5 via Catalog `need=video_extend` / `contract_model_for_need`. Generate default stays 1.5.
+**Last session:** 2026-08-15 — `poll_video` / `_normalize_video_payload` keep Imagine `error` so `wait=False` + poll matches the wait path.
 
 *library-only · exercise path: `uv run pytest` + optional `XAITKIT_LIVE=1` + `XAITKIT_LIVE_VIDEO=1` start-only smoke. Do not add a UI. Files upload stays on ApiCoverage. Video edits (`POST /v1/videos/edits`) not in this stem.*
 
@@ -64,3 +64,4 @@ Library-only look-list — reply in chat when done (do not mark this row yoursel
 - [x] Download helper for result URL → bytes (2026-08-12)
 - [x] Catalog: prefer latest imagine-video model (`prefer_latest_video_model`; not full `role=video` resolve) (2026-08-12)
 - [x] **Contract extend model** — omitted / 1.5 remaps via `contract_model_for_need(..., need="video_extend")` to quality; generate stays 1.5; unknown pins stay. Offline tests in `tests/test_video_wiring.py` + `tests/test_catalog.py`. Cite: 2026-08-15 Reelwright 400 (2026-08-15)
+- [x] **`poll_video` keeps `error`** — `_normalize_video_payload` includes `_video_error_message` (nested `error.message`, string `error`, top-level `message`) so `wait=False` + poll matches wait/`VideoReceipt.error`. Offline tests in `tests/test_video_wiring.py`. Cite: 2026-08-15 consumer poll path (2026-08-15)

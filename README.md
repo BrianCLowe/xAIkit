@@ -4,7 +4,7 @@
 
 # xAIkit
 
-**Early testing release (`0.1.0a6`).** Not an official xAI package. The API may change; expect rough edges. A non-alpha release will follow after more testing. Problems or feedback: [open an issue](https://github.com/BrianCLowe/xAIkit/issues).
+**Early testing release (`0.1.0a7`).** Not an official xAI package. The API may change; expect rough edges. A non-alpha release will follow after more testing. Problems or feedback: [open an issue](https://github.com/BrianCLowe/xAIkit/issues).
 
 **Unofficial** Python kit for the **xAI (Grok) API** — one typed client, living model catalog, usage metering, media, and realtime voice. Not a multi-provider SDK.
 
@@ -55,7 +55,7 @@ uv add xaikit-py --prerelease allow
 # or: pip install --pre xaikit-py
 
 # From a git tag
-uv add "xaikit-py @ git+https://github.com/BrianCLowe/xAIkit@v0.1.0a6"
+uv add "xaikit-py @ git+https://github.com/BrianCLowe/xAIkit@v0.1.0a7"
 
 # Editable neighbor checkout
 uv add --editable ../xAIkit
@@ -333,6 +333,7 @@ started = client.generate_video(
 )
 status = client.poll_video(started["request_id"])
 # bytes = client.download_video(status["url"])  # when status == "done"
+# status["error"] is set when status is failed / expired (same text wait raises)
 # inbox.receipts still has the ticket if a parallel await is cancelled
 ```
 

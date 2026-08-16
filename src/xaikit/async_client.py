@@ -2485,7 +2485,10 @@ class AsyncXaiClient(XaiClient):
                 deliver_video_receipt(
                     into,
                     video_receipt(
-                        failed, request_id=request_id, status=status, error=message
+                        failed,
+                        request_id=request_id,
+                        status=status,
+                        error=failed.get("error") or message,
                     ),
                 )
                 raise RuntimeError(f"{action} {status}: {message}")

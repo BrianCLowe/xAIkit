@@ -28,7 +28,7 @@ Knobs forwarded on generate (omit unset optionals): `prompt`, `model`, `duration
 
 `extend_video` remaps a known SKU that lacks `video_extend` (omitted model / constructor 1.5 / explicit 1.5) via `contract_model_for_need` → resolve `best` with `need="video_extend"` (quality). Generate stays on 1.5. Unknown pins are left alone. Same extras map as Catalog `feature_options` / `need=`. Video **edits** stay out of this stem.
 
-Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `duration`, `model`, `respect_moderation`.
+Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `duration`, `model`, `respect_moderation`, `error`. `poll_video` and the wait path share `_normalize_video_payload` so a failed hop keeps the Imagine message (`error.message`, string `error`, or top-level `message`) — not status-only.
 
 ## Behavior (stable)
 
@@ -37,7 +37,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 - `file_id` is passthrough only — no Files upload in this stem
 - `into=` is required (`VideoInbox`, list, or callback the app keeps). Omitting it is a `TypeError` so a coding agent must write a receive path. The kit delivers `request_id` as soon as the POST is accepted, then the terminal result (`done` / `failed` / `expired`). A sibling `gather` / `TaskGroup` cancel stops the await, not delivery — async wait is shielded. `VideoInbox.cancel(request_id)` is the only abandon (stop listening; does not abort xAI-side generation). Process death without a persisted id is still unrecoverable.
 - Default `wait=True` polls until `done` (timeout ~10 minutes, interval 5s). `wait=False` returns the start payload including `request_id` (already delivered to `into`)
-- Poll statuses: `pending` → keep going; `done` → return result; `failed` / `expired` → `RuntimeError`. `poll_video` is a single GET and returns the payload (including pending)
+- Wait loop: `pending` → keep going; `done` → return result; `failed` / `expired` → deliver receipt with `error` then `RuntimeError`. `poll_video` is a single GET and returns the same normalized dict (including pending and failed). Failed polls set `error` from the Imagine payload; they do not raise.
 - Purpose required when a meter is attached
 - Failures record failed usage with `modality="video"`; transport errors are `RuntimeError`
 - Offline contract tests assert URL/auth/JSON body without a live key
@@ -58,6 +58,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 | 2026-08-15 | Contract extend model via feature map (`need=video_extend`) | 1.5 looked like best video (newest) but cannot extend. Same extras list as Catalog settings knobs; `best` is best for the job. |
 | 2026-08-15 | Required `into=` receive path; deliver `request_id` before wait; sibling cancel ≠ abandon | Coding agents will `gather` long waits and lose billed clips unless the signature forces a keep-alive sink. `VideoInbox.cancel` is the only stop-listening. |
 | 2026-08-15 | `into=` stays video-only | Video is the expensive wait-after-accept. Do not require a sink on chat / image / unary TTS/STT / embed / files. Deferred chat, batch, and Responses already return an id; only add `into=` if those grow a kit-owned wait loop. |
+| 2026-08-15 | `poll_video` keeps `error` | Wait already raised `_video_error_message` and set `VideoReceipt.error`. `wait=False` + poll dropped it in `_normalize_video_payload`, so a failed hop looked like status-only. Same helper now puts `error` on the dict. |
 
 ## Dependencies
 
@@ -78,9 +79,10 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 - [x] 1080p contracted: `grok-imagine-video-1.5` T2V/I2V only; R2V / older video → 720p
 - [x] `extend_video` contracts 1.5 / omitted model to `grok-imagine-video` (generate stays on 1.5)
 - [x] Durable start: required `into=`; `request_id` delivered before wait; wait-cancel ≠ abandon unless `inbox.cancel`
+- [x] `poll_video` / normalize keep Imagine `error` (wait and poll share the same text)
 
 ## Current status
 
 - **Shipped** (library-only): generate / extend / poll / download + meter + default prices + `prefer_latest_video_model` + 1080p per-model/mode contraction + required `into=` / `VideoInbox` + extend-model contraction via `need=video_extend`
 - **Queued**: none on this stem (edits / Files stay elsewhere)
-- **Last reconciled with code**: 2026-08-15 (extend remaps 1.5 via Catalog feature map)
+- **Last reconciled with code**: 2026-08-15 (`poll_video` keeps Imagine `error`)

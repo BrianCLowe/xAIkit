@@ -2844,7 +2844,11 @@ class XaiClient:
         )
 
     def poll_video(self, request_id: str) -> dict[str, Any]:
-        """Single GET of ``/v1/videos/{request_id}`` (no wait loop)."""
+        """Single GET of ``/v1/videos/{request_id}`` (no wait loop).
+
+        Failed / expired payloads include ``error`` (same text the wait path
+        raises and puts on :class:`~xaikit.video.VideoReceipt`).
+        """
         rid = (request_id or "").strip()
         if not rid:
             raise RuntimeError("Video request_id is empty")
@@ -3418,7 +3422,10 @@ class XaiClient:
                 deliver_video_receipt(
                     into,
                     video_receipt(
-                        failed, request_id=request_id, status=status, error=message
+                        failed,
+                        request_id=request_id,
+                        status=status,
+                        error=failed.get("error") or message,
                     ),
                 )
                 raise RuntimeError(f"{action} {status}: {message}")
@@ -3955,6 +3962,8 @@ def _video_error_message(payload: dict[str, Any]) -> str | None:
         msg = err.get("message")
         if msg:
             return str(msg)
+    elif isinstance(err, str) and err.strip():
+        return err.strip()
     message = payload.get("message")
     if message:
         return str(message)
@@ -4013,6 +4022,7 @@ def _normalize_video_payload(
         "duration": video.get("duration"),
         "model": payload.get("model"),
         "respect_moderation": video.get("respect_moderation"),
+        "error": _video_error_message(payload),
     }
 
 

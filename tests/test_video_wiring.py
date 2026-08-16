@@ -384,8 +384,46 @@ def test_poll_video_gets_status_path_and_auth(monkeypatch: pytest.MonkeyPatch) -
 
     assert out["status"] == "pending"
     assert out["request_id"] == "abc-123"
+    assert out["error"] is None
     assert cap.gets[0]["url"] == status_url
     assert cap.gets[0]["headers"]["Authorization"] == "Bearer test-key"
+
+
+def test_poll_video_keeps_nested_and_string_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _HttpCapture()
+    nested_url = XAI_VIDEO_STATUS_URL.format(request_id="req-nested")
+    string_url = XAI_VIDEO_STATUS_URL.format(request_id="req-string")
+    cap.install_gets(
+        monkeypatch,
+        [
+            _json_response(
+                "GET",
+                nested_url,
+                200,
+                {
+                    "status": "failed",
+                    "error": {"message": "extension is not supported for this model"},
+                },
+            ),
+            _json_response(
+                "GET",
+                string_url,
+                200,
+                {"status": "failed", "error": "moderation"},
+            ),
+        ],
+    )
+
+    nested = client.poll_video("req-nested")
+    assert nested["status"] == "failed"
+    assert nested["error"] == "extension is not supported for this model"
+
+    string = client.poll_video("req-string")
+    assert string["status"] == "failed"
+    assert string["error"] == "moderation"
 
 
 def test_video_http_error_records_failed_usage(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -794,6 +832,8 @@ def test_async_sibling_failure_still_delivers_other_video(
         assert inbox.latest("req-ok").status == "done"
         assert inbox.latest("req-fail") is not None
         assert inbox.latest("req-fail").status == "failed"
+        assert inbox.latest("req-fail").error == "moderation"
+        assert inbox.latest("req-fail").payload["error"] == "moderation"
 
     asyncio.run(_run())
 
