@@ -2035,7 +2035,7 @@ class AsyncXaiClient(XaiClient):
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
         sink = require_video_into(into)
-        video_model = self._effective_video_model(model)
+        video_model = self._effective_video_model(model, need="video_extend")
         cleaned = (prompt or "").strip()
         if not cleaned:
             raise RuntimeError("Video prompt is empty")

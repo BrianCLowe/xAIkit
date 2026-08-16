@@ -12,6 +12,7 @@ from xaikit import (
     contract_thought_level,
     default_retry_policy,
     effort_options,
+    feature_options,
     normalize_thought_level,
 )
 from xaikit.provider import _sdk_chat_kwargs
@@ -211,6 +212,32 @@ def test_effort_options_full_set_and_per_model() -> None:
     assert effort_options("grok-4.5") == ["low", "medium", "high"]
     assert effort_options("grok-4.20-0309-non-reasoning") == []
     assert effort_options("grok-3-mini") == ["low", "high"]
+
+
+def test_feature_options_chat_and_video_per_sku() -> None:
+    flagship = [
+        "web_search",
+        "x_search",
+        "code_execution",
+        "file_attachments",
+        "collections_search",
+        "image_understanding",
+        "x_video_understanding",
+        "mcp",
+    ]
+    assert feature_options() == flagship
+    assert feature_options("grok-4.6") == flagship
+    assert feature_options("grok-4.7") == flagship
+    assert feature_options("grok-4.5") == []
+    assert feature_options("grok-4.20-0309-non-reasoning") == []
+    assert feature_options("grok-imagine-video") == [
+        "video_extend",
+        "video_edit",
+        "r2v",
+    ]
+    assert feature_options("grok-imagine-video-1.5") == ["1080p", "r2v"]
+    assert "video_extend" not in feature_options("grok-imagine-video-1.5")
+    assert feature_options("unknown-sku") == []
 
 
 def test_sdk_chat_kwargs_maps_thought_level_to_reasoning_effort() -> None:

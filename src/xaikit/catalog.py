@@ -1,6 +1,6 @@
 """Model catalog + resolution for XaiKit.
 
-Resolve chain: pin → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap.
+Resolve chain: pin → need-filter → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap.
 ``role=`` selects the pool (``chat`` default, or ``image`` / ``video`` / ``voice``).
 No settings import; callers pass knobs / inject fixtures.
 """
@@ -134,6 +134,87 @@ def effort_options(model: str | None = None) -> list[str]:
     if family == _FAMILY_NO_XHIGH:
         return ["low", "medium", "high"]
     return list(EFFORT_OPTIONS)
+
+
+# Extra capabilities (tools + media), not role tags. resolve_model(need=)
+# filters the pool to SKUs that have every requested extra. Unknown / older
+# SKUs return [].
+_CHAT_EXTRAS_4_6 = (
+    "web_search",
+    "x_search",
+    "code_execution",
+    "file_attachments",
+    "collections_search",
+    "image_understanding",
+    "x_video_understanding",
+    "mcp",
+)
+_VIDEO_EXTRAS_QUALITY = ("video_extend", "video_edit", "r2v")
+_VIDEO_EXTRAS_1_5 = ("1080p", "r2v")
+
+
+def feature_options(model: str | None = None) -> list[str]:
+    """UI-queryable extra capabilities for a SKU (tools + media knobs).
+
+    No ``model`` → current chat flagship extras (Grok 4.6 set).
+    ``grok-4.6`` and later chat SKUs → that set. Imagine **quality**
+    (``grok-imagine-video`` without ``-1.5``) → extend / edit / R2V.
+    ``grok-imagine-video-1.5`` → 1080p / R2V (no extend or edit).
+    Unknown or older SKUs → empty (do not invent).
+    ``resolve_model(need=…)`` uses this list so ``best`` is best for the job.
+    """
+    slug = (model or "").strip().lower().replace("_", "-")
+    if not slug:
+        return list(_CHAT_EXTRAS_4_6)
+    video = _video_feature_family(slug)
+    if video is not None:
+        return list(video)
+    if _is_chat_4_6_or_later(slug):
+        return list(_CHAT_EXTRAS_4_6)
+    return []
+
+
+def _video_feature_family(slug: str) -> tuple[str, ...] | None:
+    if re.search(r"imagine-video-1[.-]5", slug):
+        return _VIDEO_EXTRAS_1_5
+    if "imagine-video" in slug:
+        return _VIDEO_EXTRAS_QUALITY
+    return None
+
+
+def contract_model_for_need(
+    model: str | None,
+    need: str | Sequence[str],
+    *,
+    role: str | None = None,
+    catalog: Sequence[ModelInfo] | None = None,
+) -> str:
+    """Keep ``model`` if it can do the job; otherwise resolve ``best`` for ``need``.
+
+    Unknown SKUs (empty :func:`feature_options`) stay pinned — do not invent.
+    Known SKUs missing an extra (1.5 + extend) remap to the job's best.
+    """
+    needed = _normalize_need(need)
+    slug = (model or "").strip()
+    if not needed:
+        return slug
+    extras = feature_options(slug) if slug else []
+    if slug and (not extras or needed <= set(extras)):
+        return slug
+    return resolve_model(intent=INTENT_BEST, role=role, need=need, catalog=catalog)
+
+
+def _is_chat_4_6_or_later(slug: str) -> bool:
+    if "imagine" in slug or "voice" in slug or "non-reasoning" in slug:
+        return False
+    if re.search(r"grok-4[.-]20(?!\d)", slug):
+        return False
+    matched = re.search(r"grok-(\d+)(?:[.-](\d+))?", slug)
+    if not matched:
+        return False
+    major = int(matched.group(1))
+    minor = int(matched.group(2) or 0)
+    return major > 4 or (major == 4 and minor >= 6)
 
 
 def intent_options() -> list[str]:
@@ -1025,6 +1106,42 @@ def economy_model(
     return flagship_id
 
 
+def _normalize_need(need: str | Sequence[str] | None) -> frozenset[str]:
+    if need is None:
+        return frozenset()
+    if isinstance(need, str):
+        items: Sequence[str] = (need,)
+    else:
+        items = need
+    return frozenset(str(item).strip() for item in items if str(item).strip())
+
+
+def _catalog_for_need(
+    catalog: Sequence[ModelInfo], needed: frozenset[str]
+) -> list[ModelInfo]:
+    if not needed:
+        return list(catalog)
+    return [m for m in catalog if needed <= set(feature_options(m.id))]
+
+
+_FEATURE_FALLBACK_SLUGS = (
+    BOOTSTRAP_MODEL,
+    "grok-imagine-video",
+    DEFAULT_VIDEO_MODEL,
+    DEFAULT_IMAGE_MODEL,
+    DEFAULT_VOICE_MODEL,
+)
+
+
+def _bootstrap_for_need(needed: frozenset[str], role: str, bootstrap: str) -> str:
+    if not needed:
+        return _bootstrap_model_id(role, bootstrap)
+    for slug in _FEATURE_FALLBACK_SLUGS:
+        if needed <= set(feature_options(slug)):
+            return slug
+    return _bootstrap_model_id(role, bootstrap)
+
+
 def resolve_model(
     *,
     pin: str | None = None,
@@ -1035,6 +1152,7 @@ def resolve_model(
     bootstrap: str = BOOTSTRAP_MODEL,
     task_assignment: _TaskAssignFn | None = None,
     role: str | None = None,
+    need: str | Sequence[str] | None = None,
 ) -> str:
     """Resolve a model id via the kit policy chain."""
     return resolve_model_selection(
@@ -1046,6 +1164,7 @@ def resolve_model(
         bootstrap=bootstrap,
         task_assignment=task_assignment,
         role=role,
+        need=need,
     ).model_id
 
 
@@ -1065,13 +1184,18 @@ def resolve_model_selection(
     bootstrap: str = BOOTSTRAP_MODEL,
     task_assignment: _TaskAssignFn | None = None,
     role: str | None = None,
+    need: str | Sequence[str] | None = None,
 ) -> ModelSelection:
-    """pin → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap.
+    """pin → need-filter → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap.
 
     ``role=`` selects the pool (``chat`` default). Coding-SKU skip is chat-only.
+    ``need=`` (one feature or a sequence) keeps only SKUs whose
+    :func:`feature_options` include every requested extra, so ``best`` is
+    best for that job (Imagine quality over 1.5 when the job is extend).
     """
     level = normalize_thought_level(thought_level)
     role_n = normalize_role(role)
+    needed = _normalize_need(need)
 
     explicit = (pin or "").strip()
     if explicit:
@@ -1084,6 +1208,8 @@ def resolve_model_selection(
         except Exception as exc:
             logger.warning("Catalog unavailable (%s)", type(exc).__name__)
             cat = None
+    if cat is not None and needed:
+        cat = _catalog_for_need(cat, needed)
 
     canonical = normalize_intent(intent)
     if (intent or "").strip() and canonical is None:
@@ -1123,7 +1249,7 @@ def resolve_model_selection(
             )
 
     return ModelSelection(
-        model_id=_bootstrap_model_id(role_n, bootstrap),
+        model_id=_bootstrap_for_need(needed, role_n, bootstrap),
         thought_level=level,
         source="bootstrap",
     )

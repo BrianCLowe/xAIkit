@@ -16,6 +16,7 @@ from xaikit.catalog import (
     catalog_source,
     cheapest_model,
     clear_catalog_cache,
+    contract_model_for_need,
     economy_model,
     fetch_models_from_sdk,
     inject_catalog,
@@ -280,6 +281,9 @@ def test_role_filters_pool() -> None:
     assert resolve_model_selection(intent="best", role="video", catalog=cat).model_id == (
         "grok-imagine-video-1.5"
     )
+    assert resolve_model_selection(
+        intent="best", role="video", need="video_extend", catalog=cat
+    ).model_id == "grok-imagine-video"
     assert resolve_model_selection(intent="best", role="voice", catalog=cat).model_id == (
         "grok-voice-latest"
     )
@@ -329,6 +333,12 @@ def test_unpriced_media_uses_public_rates() -> None:
     assert resolve_model_selection(intent="best", role="video", catalog=video).model_id == (
         "grok-imagine-video-1.5"
     )
+    assert resolve_model_selection(
+        intent="best", role="video", need="video_extend", catalog=video
+    ).model_id == "grok-imagine-video"
+    assert resolve_model_selection(
+        intent="best", role="video", need=["video_edit"], catalog=video
+    ).model_id == "grok-imagine-video"
     assert resolve_model_selection(intent="economy", role="video", catalog=video).model_id == (
         "grok-imagine-video"
     )
@@ -367,6 +377,50 @@ def test_empty_role_pool_bootstraps_role_default() -> None:
     assert video.model_id == DEFAULT_VIDEO_MODEL
     voice = resolve_model(role="voice", catalog=chat_only)
     assert voice == DEFAULT_VOICE_MODEL
+
+
+def test_need_filters_best_for_the_job() -> None:
+    video = [
+        ModelInfo(id="grok-imagine-video", capabilities=["video"], created=1),
+        ModelInfo(id="grok-imagine-video-1.5", capabilities=["video"], created=2),
+    ]
+    only_15 = [ModelInfo(id="grok-imagine-video-1.5", capabilities=["video"], created=2)]
+    chat = [
+        ModelInfo(id="grok-4.5", capabilities=["chat"], created=1),
+        ModelInfo(id="grok-4.6", capabilities=["chat"], created=2),
+    ]
+
+    assert resolve_model(
+        intent="best", role="video", need="video_extend", catalog=video
+    ) == "grok-imagine-video"
+    empty = resolve_model_selection(
+        intent="best", role="video", need="video_extend", catalog=only_15
+    )
+    assert empty.model_id == "grok-imagine-video"
+    assert empty.source == "bootstrap"
+    pin = resolve_model_selection(
+        pin="grok-imagine-video-1.5",
+        intent="best",
+        role="video",
+        need="video_extend",
+        catalog=video,
+    )
+    assert pin.model_id == "grok-imagine-video-1.5"
+    assert pin.source == "pin"
+    assert resolve_model(intent="best", need="web_search", catalog=chat) == "grok-4.6"
+
+    assert (
+        contract_model_for_need("grok-imagine-video-1.5", "video_extend", role="video")
+        == "grok-imagine-video"
+    )
+    assert (
+        contract_model_for_need("grok-imagine-video", "video_extend", role="video")
+        == "grok-imagine-video"
+    )
+    assert (
+        contract_model_for_need("future-extend-sku", "video_extend", role="video")
+        == "future-extend-sku"
+    )
 
 
 def test_language_proto_video_slug_is_not_chat() -> None:

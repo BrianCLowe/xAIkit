@@ -28,6 +28,7 @@ from xaikit.catalog import (
     DEFAULT_IMAGE_MODEL,
     DEFAULT_VIDEO_MODEL,
     contract_imagine_aspect_ratio,
+    contract_model_for_need,
     contract_thought_level,
     imagine_generate_knobs,
     normalize_thought_level,
@@ -2663,8 +2664,13 @@ class XaiClient:
             "Content-Type": "application/json",
         }
 
-    def _effective_video_model(self, model: str | None) -> str:
-        return (model or self.video_model or DEFAULT_VIDEO_MODEL).strip()
+    def _effective_video_model(
+        self, model: str | None, *, need: str | None = None
+    ) -> str:
+        slug = (model or self.video_model or DEFAULT_VIDEO_MODEL).strip()
+        if not need:
+            return slug
+        return contract_model_for_need(slug, need, role="video")
 
     def _record_video_failed(
         self,
@@ -2797,10 +2803,13 @@ class XaiClient:
         """Extend a video via xAI Imagine (REST ``/v1/videos/extensions``).
 
         ``into=`` is required — same durable receive path as :meth:`generate_video`.
+
+        ``1.5`` cannot extend. Omitted model or a known SKU missing
+        ``video_extend`` remaps to the job's ``best`` (quality).
         """
         tag = self._require_purpose_if_metered(purpose)
         sink = require_video_into(into)
-        video_model = self._effective_video_model(model)
+        video_model = self._effective_video_model(model, need="video_extend")
         cleaned = (prompt or "").strip()
         if not cleaned:
             raise RuntimeError("Video prompt is empty")

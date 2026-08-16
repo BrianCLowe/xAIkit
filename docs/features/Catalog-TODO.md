@@ -9,7 +9,7 @@
 
 **Active task:** Stem shipped — Catalog High / Medium / Low drained. Human verify **extras** still open (`persist_path` / `role=video`). Model-watch Action is the inbox when public docs drift.  
 **Blocked by:** —  
-**Last session:** 2026-08-15 — feature-map identity locked (chat tools + video extras; `effort_options`-shaped discovery). No code until Human-TODO decide says implement.
+**Last session:** 2026-08-15 — `feature_options` + resolve `need=` so `best` is best for the job. `extend_video` uses the same map (`contract_model_for_need`).
 
 ---
 
@@ -23,7 +23,7 @@
 
 ## Low Priority / Future Ideas
 
-- [ ] **Capability map for resolve** — identity locked: per-SKU extras as settings knobs (chat tools + video/media), not role tags. First slice: discovery helper like `effort_options(model=)` using documented xAI tool types (`web_search`, `x_search`, `code_execution`, `collections_search`, `mcp`, …) plus media extras (`video_extend`, `video_edit`, `1080p`, …). Second slice: resolve `best` for the **job** (quality over 1.5 when the job is extend/edit). Wait for Human-TODO decide to say implement. Dual-write: [Human-TODO.md](../Human-TODO.md)
+*(none)*
 
 ## Human verify (orchestration 2026-08-13)
 
@@ -52,3 +52,4 @@ Library look-list — reply in chat when done (do not mark this row yourself).
 - [x] Refresh bootstrap / fixture models when xAI retires slugs (2026-08-13 — `BOOTSTRAP_MODEL=grok-4.6`; offline cheap row `grok-4.3`; grok-3-mini out of fallback)
 - [x] 4.6 thought levels + per-model contraction (`contract_thought_level`, `effort_options(model=)`) (2026-08-14)
 - [x] Public-docs model watch — new slugs (Imagine 3.0) and resolution tokens (4k) open a `xai-models` GitHub issue (2026-08-14)
+- [x] Feature map + `need=` — `feature_options(model=)` for settings knobs; resolve `best` filters to SKUs that have the job extras (quality over 1.5 for extend). `contract_model_for_need` remaps known SKUs that lack an extra. Dual-write: [Human-TODO.md](../Human-TODO.md) (2026-08-15)

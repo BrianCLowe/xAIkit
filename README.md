@@ -158,7 +158,7 @@ This is **not** grok.com / SuperGrok login. A Grok subscription’s **weekly usa
 Callers pass `cheapest` / `economy` / `best` (and optional `role=`). Chat is the default pool. Pin still wins when `pin=` is set.
 
 ```python
-from xaikit import ModelInfo, inject_catalog, resolve_model, resolve_model_selection
+from xaikit import ModelInfo, feature_options, inject_catalog, resolve_model, resolve_model_selection
 
 inject_catalog(
     [
@@ -172,9 +172,12 @@ chat_id = resolve_model(intent="economy")  # role="chat" default
 image = resolve_model_selection(intent="best", role="image")
 video_id = resolve_model(intent="cheapest", role="video")
 voice_id = resolve_model(intent="economy", role="voice")
+extend_id = resolve_model(intent="best", role="video", need="video_extend")
 ```
 
 `role` is `chat` | `image` | `video` | `voice`. Offline tests inject fixtures with `inject_catalog` — do not hit the network.
+
+`feature_options(model=)` lists extra capabilities for settings UIs (not role tags). No model → Grok 4.6 chat extras (`web_search`, `x_search`, `code_execution`, `file_attachments`, `collections_search`, `image_understanding`, `x_video_understanding`, `mcp`). Imagine quality (`grok-imagine-video`) reports `video_extend` / `video_edit` / `r2v`; `grok-imagine-video-1.5` reports `1080p` / `r2v` and not extend. Unknown or older SKUs return `[]`. Pass the same ids as `need=` on resolve so `best` is best for that job (quality over 1.5 when the job is extend).
 
 When `model` is omitted, chat resolve falls back to `BOOTSTRAP_MODEL` (`grok-4.6`). Offline with no API key or fixture, `list_models` injects `grok-4.6` plus cheaper-band `grok-4.3`. Pass `persist_path=` to write a JSON snapshot after a live SDK fetch and reload it later; there is no default disk path.
 
@@ -333,7 +336,7 @@ status = client.poll_video(started["request_id"])
 # inbox.receipts still has the ticket if a parallel await is cancelled
 ```
 
-`extend_video(prompt, video_url=..., into=inbox)` continues a clip. Default model is `grok-imagine-video-1.5`. `1080p` is kept on that 1.5 SKU for text-to-video and image-to-video; reference-to-video and older `grok-imagine-video` send `720p` instead.
+`extend_video(prompt, video_url=..., into=inbox)` continues a clip. Generate defaults to `grok-imagine-video-1.5`; extend remaps that SKU to `grok-imagine-video` (1.5 cannot extend). `1080p` is kept on 1.5 for text-to-video and image-to-video; reference-to-video and older `grok-imagine-video` send `720p` instead.
 
 ## Realtime voice
 

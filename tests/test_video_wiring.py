@@ -251,13 +251,58 @@ def test_extend_video_posts_extensions_url_with_video_url(
     assert call["url"] == XAI_VIDEO_EXTENSIONS_URL
     assert call["headers"]["Authorization"] == "Bearer test-key"
     assert call["json"] == {
-        "model": DEFAULT_VIDEO_MODEL,
+        "model": "grok-imagine-video",
         "prompt": "zoom out to the skyline",
         "video": {"url": "https://example.com/clip.mp4"},
         "duration": 6,
     }
     assert "resolution" not in call["json"]
     assert "aspect_ratio" not in call["json"]
+
+
+def test_extend_video_contracts_1_5_to_quality(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+    cap = _HttpCapture()
+    cap.install_post(
+        monkeypatch,
+        _json_response(
+            "POST",
+            XAI_VIDEO_EXTENSIONS_URL,
+            200,
+            {"request_id": "req-ext-contract"},
+        ),
+    )
+
+    client.extend_video(
+        "keep going",
+        video_url="https://example.com/clip.mp4",
+        model=DEFAULT_VIDEO_MODEL,
+        into=[],
+        wait=False,
+    )
+    assert cap.posts[0]["json"]["model"] == "grok-imagine-video"
+
+    cap.posts.clear()
+    client.extend_video(
+        "keep going",
+        video_url="https://example.com/clip.mp4",
+        model="grok-imagine-video",
+        into=[],
+        wait=False,
+    )
+    assert cap.posts[0]["json"]["model"] == "grok-imagine-video"
+
+    cap.posts.clear()
+    client.extend_video(
+        "keep going",
+        video_url="https://example.com/clip.mp4",
+        model="future-extend-sku",
+        into=[],
+        wait=False,
+    )
+    assert cap.posts[0]["json"]["model"] == "future-extend-sku"
 
 
 def test_generate_video_wait_polls_pending_then_done(

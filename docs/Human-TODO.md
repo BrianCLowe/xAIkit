@@ -11,7 +11,6 @@
 
 ## Open
 
-- [ ] **Model feature map for resolve** (`decide`) — 2026-08-15 — Identity locked in chat: settings-knob list of **extra** capabilities per SKU (not just video). Chat/4.6: Web Search, X Search, Code Execution, File Attachments, Collections Search, Image Understanding, X Video Understanding, Remote MCP Tools. Video: quality has edit+extend; 1.5 does not. Newer models may add tools; older may have less. Still waiting: say implement (discovery helper first, then resolve-for-job) or adjust the id list. Owner: [Catalog-TODO.md](features/Catalog-TODO.md) · related: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md)
 - [ ] **VideoGeneration extras look-list** (`playtest`) — 2026-08-15 — Split from fat video row: `extend_video`; live `reference_audios` on a speaking shot; 1080p contraction look (1.5 T2V/I2V only; R2V/older → 720p); README `wait=False` + `poll_video` example. Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md) · Blocks: none
 - [ ] **MediaRest extras remainder** (`playtest`) — 2026-08-15 — Split from extras row: streaming STT/TTS (`open_stt_session` / `open_tts_session`); `get_tts_voice`. Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md) · Blocks: none
 - [ ] **Catalog extras look-list** (`playtest`) — 2026-08-13 — Split from fat Catalog row: `persist_path=` / `save_catalog_snapshot`; `role=video` (Rivenquill has no video job). Owner: [Catalog-TODO.md](features/Catalog-TODO.md) · Blocks: none
@@ -24,6 +23,7 @@
 
 ## Done
 
+- [x] **Model feature map for resolve** (`decide`) — 2026-08-15 — Implement extras list + `need=` on resolve so `best` is best for the job (1.5 is newest video but cannot extend/edit). Settings knobs via `feature_options`. Chat/4.6 tool ids + video extras. Owner: [Catalog-TODO.md](features/Catalog-TODO.md)
 - [x] **UsageObservability core — purpose meter + parent_id via Reelwright** (`playtest`) — 2026-08-15 — Live: `UsageMeter` + `InMemoryUsageSink`; purpose tags (`roster.*`, `pipeline.plot` / `board` / `image` / `storyboard` / `video` / `extend`); `parent_id` = short id; `events(parent_id=)` rollup by purpose with estimated USD on the job. Modalities hit: chat, imagine, video, tts roster listing. Does **not** cover OTel or files/embed/tokenize/batch/collections/responses/realtime mint (see Open extras). Owner: [UsageObservability-TODO.md](features/UsageObservability-TODO.md)
 - [x] **VideoGeneration core — generate/poll/download via Reelwright** (`playtest`) — 2026-08-15 — Live: `generate_video` (`wait=True` poll) + `download_video`; duration + `aspect_ratio`; R2V `reference_images`. First short had no dialogue, so `reference_audios` was not sent. Does **not** cover `extend_video` or the 1080p contraction look (see Open extras). Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md)
 - [x] **MediaRest extras — TTS roster via Reelwright** (`playtest`) — 2026-08-15 — Live: `list_tts_voices` on the character voice picker (filter by sex). `get_tts_voice` not called. First short had no dialogue, so the picked `voice_id` was not sent as video `reference_audios`. Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md)

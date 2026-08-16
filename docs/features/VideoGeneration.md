@@ -26,9 +26,7 @@ Constants: `XAI_VIDEOS_URL`, `XAI_VIDEO_EXTENSIONS_URL`, `XAI_VIDEO_STATUS_URL` 
 
 Knobs forwarded on generate (omit unset optionals): `prompt`, `model`, `duration` (1–15s), `aspect_ratio`, `resolution` (`480p` / `720p` / `1080p`; `1080p` contracted to `720p` unless `grok-imagine-video-1.5` T2V/I2V), `image` (`url` / `file_id` via `image_url=` / `image_file_id=` or a dict), `reference_images`, `reference_audios` (`voice_id`, max 3). `purpose` / `parent_id` / `labels` like other media. Extend never sends `aspect_ratio` / `resolution`.
 
-**Gap (2026-08-15, live via Reelwright):** `extend_video` uses `_effective_video_model` and therefore defaults to `DEFAULT_VIDEO_MODEL` (`grok-imagine-video-1.5`). Official extend is `grok-imagine-video`; 1.5 returns 400 “extension is not supported for this model.” Same class of miss as 1080p: capability is per **method + model + mode**, not one `video_model`. Contract omitted / 1.5 extend calls to `grok-imagine-video` (keep generate on 1.5). Until that lands, consumers must pin the extend SKU themselves.
-
-**Queued conversation (Catalog, not this slice):** feature map is kit-wide extras (chat tools + video), not an extend-only hack. Imagine **video quality** has **edit** and **extend**; **1.5** does not. See [Catalog.md](Catalog.md) + [Human-TODO.md](../Human-TODO.md). Video **edits** stay out of this stem until that lands. This stem’s next code is still the extend-model contraction.
+`extend_video` remaps a known SKU that lacks `video_extend` (omitted model / constructor 1.5 / explicit 1.5) via `contract_model_for_need` → resolve `best` with `need="video_extend"` (quality). Generate stays on 1.5. Unknown pins are left alone. Same extras map as Catalog `feature_options` / `need=`. Video **edits** stay out of this stem.
 
 Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `duration`, `model`, `respect_moderation`.
 
@@ -44,7 +42,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 - Failures record failed usage with `modality="video"`; transport errors are `RuntimeError`
 - Offline contract tests assert URL/auth/JSON body without a live key
 - `1080p` is sent only for `grok-imagine-video-1.5` T2V/I2V; R2V and older `grok-imagine-video` contract `1080p` → `720p` (do not 400). Unknown resolution still rejected. Extend never sends `aspect_ratio` / `resolution`
-- **Not yet:** `extend_video` does not contract the model. Omitted `model` (and an explicit 1.5 pin) still go out as 1.5 and 400. Target: send `grok-imagine-video` on the extensions URL, same idea as `_contract_video_resolution`
+- `extend_video` contracts known SKUs missing `video_extend` (1.5 / omitted) to the job’s `best` (`grok-imagine-video`). Generate default stays 1.5. Unknown pins stay.
 - Optional live start-only smoke: `XAITKIT_LIVE=1` **and** `XAITKIT_LIVE_VIDEO=1` (slow/expensive; skipped by default live suite)
 
 ## Decisions
@@ -57,7 +55,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 | 2026-08-12 | Frozen names: `generate_video`, `extend_video`, `poll_video`, `download_video`; `wait=True` by default | Aligns with xAI SDK poll-by-default plus an explicit request-id path |
 | 2026-08-12 | `ModelPrice.per_second_usd` (+ optional resolution map); 480p default | Video is billed per second by resolution, not tokens. Public rates are estimates, not a billing authority |
 | 2026-08-14 | Contract 1080p → 720p on unsupported model/mode | Docs: 1080p is 1.5 T2V/I2V only; R2V max 720p; older `grok-imagine-video` has no 1080p. Clamp to 720p (not omit) so the caller still gets HD. Helper: `_contract_video_resolution` next to `_optional_resolution`. |
-| 2026-08-15 | **Queued:** contract extend model off 1.5 → `grok-imagine-video` | Live Reelwright: 1.5 generate default is correct; same default on `extend_video` 400s. Kit should pass what each endpoint can do, like resolution knobs. |
+| 2026-08-15 | Contract extend model via feature map (`need=video_extend`) | 1.5 looked like best video (newest) but cannot extend. Same extras list as Catalog settings knobs; `best` is best for the job. |
 | 2026-08-15 | Required `into=` receive path; deliver `request_id` before wait; sibling cancel ≠ abandon | Coding agents will `gather` long waits and lose billed clips unless the signature forces a keep-alive sink. `VideoInbox.cancel` is the only stop-listening. |
 | 2026-08-15 | `into=` stays video-only | Video is the expensive wait-after-accept. Do not require a sink on chat / image / unary TTS/STT / embed / files. Deferred chat, batch, and Responses already return an id; only add `into=` if those grow a kit-owned wait loop. |
 
@@ -68,7 +66,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 | [MediaRest.md](MediaRest.md) | Pattern for REST + meter |
 | [UsageObservability.md](UsageObservability.md) | `modality="video"` + default price rows |
 | [ApiCoverage.md](ApiCoverage.md) | Files helpers for `file_id`; URL I2V does not wait |
-| [Catalog.md](Catalog.md) | `prefer_latest_video_model` only; full `role=video` resolve stays on Catalog-TODO |
+| [Catalog.md](Catalog.md) | `feature_options` / `need=` / `contract_model_for_need`; `prefer_latest_video_model` is newest-in-role only |
 
 ## Acceptance *(library stem)*
 
@@ -78,11 +76,11 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 - [x] Meter purpose + video modality
 - [x] Offline contract tests; optional live smoke stays env-gated
 - [x] 1080p contracted: `grok-imagine-video-1.5` T2V/I2V only; R2V / older video → 720p
-- [ ] `extend_video` contracts 1.5 / omitted model to `grok-imagine-video` (generate stays on 1.5)
+- [x] `extend_video` contracts 1.5 / omitted model to `grok-imagine-video` (generate stays on 1.5)
 - [x] Durable start: required `into=`; `request_id` delivered before wait; wait-cancel ≠ abandon unless `inbox.cancel`
 
 ## Current status
 
-- **Shipped** (library-only): generate / extend / poll / download + meter + default prices + `prefer_latest_video_model` + 1080p per-model/mode contraction + required `into=` / `VideoInbox`
-- **Queued**: contract extend model (1.5 cannot extend)
-- **Last reconciled with code**: 2026-08-15 (durable receive path landed; extend-model contraction still open)
+- **Shipped** (library-only): generate / extend / poll / download + meter + default prices + `prefer_latest_video_model` + 1080p per-model/mode contraction + required `into=` / `VideoInbox` + extend-model contraction via `need=video_extend`
+- **Queued**: none on this stem (edits / Files stay elsewhere)
+- **Last reconciled with code**: 2026-08-15 (extend remaps 1.5 via Catalog feature map)

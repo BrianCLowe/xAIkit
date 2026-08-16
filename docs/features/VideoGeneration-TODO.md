@@ -7,9 +7,9 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** High — contract `extend_video` model off 1.5.  
+**Active task:** Stem High drained. Human verify **extras** still open (`extend_video` live look, `reference_audios`, 1080p contraction look).  
 **Blocked by:** —  
-**Last session:** 2026-08-15 — required `into=` / `VideoInbox` so agents must write a receive path; kit delivers `request_id` before wait and keeps delivering after sibling `gather` cancel unless `inbox.cancel`. Next: extend-model contraction.
+**Last session:** 2026-08-15 — `extend_video` remaps 1.5 via Catalog `need=video_extend` / `contract_model_for_need`. Generate default stays 1.5.
 
 *library-only · exercise path: `uv run pytest` + optional `XAITKIT_LIVE=1` + `XAITKIT_LIVE_VIDEO=1` start-only smoke. Do not add a UI. Files upload stays on ApiCoverage. Video edits (`POST /v1/videos/edits`) not in this stem.*
 
@@ -17,7 +17,7 @@
 
 ## High Priority / Next Actions
 
-- [ ] **Contract extend model** — `extend_video` must not send `grok-imagine-video-1.5`. Official extensions SKU is `grok-imagine-video`. When `model` is omitted or is 1.5, send `grok-imagine-video` (keep `generate_video` default 1.5). Same class as `_contract_video_resolution`: capability is per method + model, not one `video_model`. Offline test in `tests/test_video_wiring.py`. Live: Reelwright 400 “extension is not supported for this model.” Cite: xAI video generation docs + 2026-08-15 Reelwright.
+*(none blocking)*
 
 ## Medium Priority
 
@@ -41,13 +41,13 @@ Library-only look-list — reply in chat when done (do not mark this row yoursel
 - **Placement:** `src/xaikit/client.py`; constants exported from `xaikit` (`DEFAULT_VIDEO_MODEL`, `XAI_VIDEOS_URL`, …)
 - **Copy:** README example uses `VideoInbox` + `into=` + `wait=False` + `poll_video`; default live path is `wait=True`; 1080p is contracted per model/mode
 - **Happy path:** `uv run pytest tests/test_video_wiring.py` (offline). Optional live start-only: `XAITKIT_LIVE=1 XAITKIT_LIVE_VIDEO=1 uv run pytest tests/test_live_smoke.py -m live -k video -v` (needs `XAI_API_KEY`; slow/expensive)
-- **Rough edges:** live wait can take minutes; `file_id` is passthrough only (Files upload is ApiCoverage); video **edits** and catalog `role=video` are not in this stem; `1080p` stays only on `grok-imagine-video-1.5` T2V/I2V — R2V and older `grok-imagine-video` clamp to `720p`; **`extend_video` still defaults to 1.5 and 400s** (implement High item — not a look-list)
+- **Rough edges:** live wait can take minutes; `file_id` is passthrough only (Files upload is ApiCoverage); video **edits** are not in this stem; `1080p` stays only on `grok-imagine-video-1.5` T2V/I2V — R2V and older `grok-imagine-video` clamp to `720p`; `extend_video` remaps 1.5 via `need=video_extend` (offline covered; live look still open)
 
 ## Cross-Feature Dependencies & Integration Notes
 
 - **library foundation first · exercise path:** `uv run pytest` (mocked). Optional env-gated live video start: `XAITKIT_LIVE=1 XAITKIT_LIVE_VIDEO=1` (not part of default live smokes).
 - Files `file_id` upload stays on [ApiCoverage-TODO.md](ApiCoverage-TODO.md); this stem forwards `file_id` on the wire only.
-- Capability-aware resolve (quality has edit/extend; 1.5 does not) is a Catalog decide — [Catalog-TODO.md](Catalog-TODO.md) · [Human-TODO.md](../Human-TODO.md). This stem’s next code is still the extend-model contraction.
+- Capability-aware resolve lives on Catalog (`feature_options` / `need=`). This stem uses it on `extend_video`.
 - Next: [RealtimeVoice-TODO.md](RealtimeVoice-TODO.md) (human rank 2026-08-12).
 
 ## Completed
@@ -63,3 +63,4 @@ Library-only look-list — reply in chat when done (do not mark this row yoursel
 - [x] **`extend_video`** — `POST /v1/videos/extensions` (2026-08-12)
 - [x] Download helper for result URL → bytes (2026-08-12)
 - [x] Catalog: prefer latest imagine-video model (`prefer_latest_video_model`; not full `role=video` resolve) (2026-08-12)
+- [x] **Contract extend model** — omitted / 1.5 remaps via `contract_model_for_need(..., need="video_extend")` to quality; generate stays 1.5; unknown pins stay. Offline tests in `tests/test_video_wiring.py` + `tests/test_catalog.py`. Cite: 2026-08-15 Reelwright 400 (2026-08-15)
