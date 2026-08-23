@@ -63,6 +63,11 @@ def _looks_like_model_slug(raw: str) -> bool:
     slug = raw.strip().lower().rstrip(".,);:]")
     if not slug.startswith("grok-"):
         return False
+    # Marketing / UTM collapse of dotted versions: ``highlights-grok-46`` for
+    # Grok 4.6. Real SKUs use a dot (``grok-4.6``) or a hyphenated suffix
+    # (``grok-4.20-0309``). Keep single-digit ids like ``grok-4``.
+    if re.fullmatch(r"grok-\d{2,}", slug):
+        return False
     parts = re.split(r"[-._]", slug)
     if any(p in _SLUG_STOP for p in parts):
         return False

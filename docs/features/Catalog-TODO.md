@@ -1,6 +1,6 @@
 # Catalog — TODO
 
-**Last Updated**: 2026-08-16  
+**Last Updated**: 2026-08-23  
 **Related Spec**: [Catalog.md](Catalog.md)
 
 ---
@@ -9,7 +9,7 @@
 
 **Active task:** — (Human verify extras closed via tester 2026-08-16). Model-watch Action is the inbox when public docs drift.  
 **Blocked by:** —  
-**Last session:** 2026-08-16 — Tester live: `persist_path` / `save_catalog_snapshot` + `role=video` / `need=video_extend`. Dual-write Human-TODO Done.
+**Last session:** 2026-08-23 — Reviewed [#49](https://github.com/BrianCLowe/xAIkit/issues/49): `grok-46` is a models-page UTM (`highlights-grok-46`), not a SKU. No knob/family/price/`BOOTSTRAP_MODEL` change. Watcher ignores collapsed `grok-<2+ digits>`. Close #49 after merge.
 
 ---
 
