@@ -46,4 +46,5 @@
 - [x] Refresh bootstrap / fixture models when xAI retires slugs (2026-08-13 — `BOOTSTRAP_MODEL=grok-4.6`; offline cheap row `grok-4.3`; grok-3-mini out of fallback)
 - [x] 4.6 thought levels + per-model contraction (`contract_thought_level`, `effort_options(model=)`) (2026-08-14)
 - [x] Public-docs model watch — new slugs (Imagine 3.0) and resolution tokens (4k) open a `xai-models` GitHub issue (2026-08-14)
+- [x] Review [#49](https://github.com/BrianCLowe/xAIkit/issues/49) (`grok-46`) — UTM false positive; no kit catalog/price change; watcher drops collapsed dotted tokens (2026-08-23)
 - [x] Feature map + `need=` — `feature_options(model=)` for settings knobs; resolve `best` filters to SKUs that have the job extras (quality over 1.5 for extend). `contract_model_for_need` remaps known SKUs that lack an extra. Dual-write: [Human-TODO.md](../Human-TODO.md) (2026-08-15)
