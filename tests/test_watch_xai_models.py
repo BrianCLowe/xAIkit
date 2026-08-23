@@ -24,16 +24,27 @@ def test_extract_slugs_and_resolutions_from_docs_like_html() -> None:
     <td>grok-imagine-image-2.0</td>
     See grok-api in prose. Resolution 2k and 1080p. Four-k not listed.
     <a href="/developers/models/grok-4.5">Grok 4.5</a>
+    <a href="?utm_content=highlights-grok-46">Try in playground</a>
     """
     slugs = watch.extract_slugs(html)
     assert "grok-4.6" in slugs
     assert "grok-imagine-image-2.0" in slugs
     assert "grok-4.5" in slugs
     assert "grok-api" not in slugs
+    assert "grok-46" not in slugs
     assert watch.extract_resolutions(html) == ["1080p", "2k"]
     assert "grok-4-is-released" not in watch.extract_slugs(
         "heading grok-4-is-released and grok-voice-agent-api-is-released"
     )
+
+
+def test_looks_like_model_slug_rejects_collapsed_dotted_utm() -> None:
+    watch = _load()
+    assert watch._looks_like_model_slug("grok-4.6") is True
+    assert watch._looks_like_model_slug("grok-4") is True
+    assert watch._looks_like_model_slug("grok-4.20-0309") is True
+    assert watch._looks_like_model_slug("grok-46") is False
+    assert watch._looks_like_model_slug("grok-420") is False
 
 
 def test_diff_watch_reports_new_slug_and_4k() -> None:
