@@ -5,7 +5,6 @@ description: >-
   upstream and applies changelog-scoped live updates. Use when the user
   asks to update or sync doc templates from Agentic Doc Templates. Do not
   use for feature implementation or Understanding drafts.
-model: inherit
 ---
 
 You are the optional **Template sync** role for Agentic Doc Templates.

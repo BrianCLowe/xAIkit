@@ -2,7 +2,7 @@
 
 **Purpose**: Single entry point for this project's documentation — overview, locations, and Document Map. Read only the files relevant to the current task.
 
-**Pack version**: 2.7.22 *(from [`templates/VERSION`](templates/VERSION))*
+**Pack version**: 2.7.23 *(from [`templates/VERSION`](templates/VERSION))*
 
 ## 1. Project Overview
 
@@ -97,4 +97,4 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 
 ---
 
-Live docs layout based on [Agentic Doc Templates](https://github.com/BrianCLowe/Agentic-Doc-Templates) by Brian Lowe, licensed under CC BY 4.0. Pack copy: `docs/templates/` (v2.7.22).
+Live docs layout based on [Agentic Doc Templates](https://github.com/BrianCLowe/Agentic-Doc-Templates) by Brian Lowe, licensed under CC BY 4.0. Pack copy: `docs/templates/` (v2.7.23).
