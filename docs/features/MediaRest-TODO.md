@@ -1,6 +1,6 @@
 # MediaRest — TODO
 
-**Last Updated**: 2026-08-16  
+**Last Updated**: 2026-08-31  
 **Related Spec**: [MediaRest.md](MediaRest.md)
 
 ---
@@ -51,7 +51,7 @@
 
 ## Cross-Feature Dependencies
 
-- **library-only** — mocked HTTP/WS tests, not a recorder UI.
+- **library-only** — mocked HTTP/WS tests, not a recorder UI. Optional live: unary TTS knobs + `get_tts_voice` on `XAITKIT_LIVE=1`; streaming STT `XAITKIT_LIVE_STT=1`; streaming TTS `XAITKIT_LIVE_TTS=1`; Imagine 2.0 `2k`/`quality=medium` `XAITKIT_LIVE_IMAGE_KNOBS=1`.
 - Files upload / `file_id` minting stays on [ApiCoverage-TODO.md](ApiCoverage-TODO.md); this stem forwards `file_id` on the wire and surfaces Imagine `file_output.file_id`.
 - STS (`wss://api.x.ai/v1/realtime`) stays on [RealtimeVoice-TODO.md](RealtimeVoice-TODO.md). Streaming TTS-only WS (`wss://api.x.ai/v1/tts`) lives here — same home as streaming STT (`/v1/stt` ≠ `/v1/realtime`).
 - Custom-voice clone (`POST /v1/custom-voices`) stays out of kit; opaque custom ids already pass through on TTS/realtime `voice=` / `voice_id=`.

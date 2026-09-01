@@ -1,6 +1,6 @@
 # ClientChat — TODO
 
-**Last Updated**: 2026-08-16  
+**Last Updated**: 2026-08-31  
 **Related Spec**: [ClientChat.md](ClientChat.md)
 
 ---
@@ -37,7 +37,7 @@
 
 ## Cross-Feature Dependencies & Integration Notes
 
-- **library-only** — exercise path is `uv run pytest` / mock provider, not a UI. Optional live: `XAITKIT_LIVE=1 uv run pytest tests/test_live_smoke.py -m live`.
+- **library-only** — exercise path is `uv run pytest` / mock provider, not a UI. Optional live: `XAITKIT_LIVE=1 uv run pytest tests/test_live_smoke.py -m live` (includes tools, vision ≥8×8, `service_tier`, `AsyncXaiClient`).
 - Vision `detail` (`auto`/`low`/`high`) is already on chat parts — no new knob TODO. Imagine generate/edit knobs live on [MediaRest-TODO.md](MediaRest-TODO.md).
 
 ## Completed

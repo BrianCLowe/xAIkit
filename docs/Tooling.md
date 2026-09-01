@@ -1,6 +1,6 @@
 # xAIkit — Tooling
 
-**Last Updated**: 2026-08-14  
+**Last Updated**: 2026-08-31  
 **Related**: [Master_Index.md](Master_Index.md)
 
 ---
@@ -47,12 +47,12 @@ Do not commit `.env` / API keys. Live xAI calls are optional and not default CI.
 | **Full handoff** | Claiming the kit works | `uv run pytest` and `uv run python scripts/smoke_meter_mock.py` | Still offline |
 | **Package** | Wheel / PyPI / hatchling changes | `uv build`; `uv run --isolated --no-project --with dist/*.whl python -c "import xaikit; print(xaikit.__version__)"`; `uv run --isolated --no-project --with dist/*.whl --with pytest pytest tests -o pythonpath= -m "not live"` | Tests the artifact, not `src/` on `PYTHONPATH`. Wheel must not contain `docs/`. |
 | **Tests** | Always for Python changes | `uv run pytest` | Canonical wiring prove-out |
-| **Live (optional)** | Key present + explicit opt-in | `XAITKIT_LIVE=1 uv run pytest tests/test_live_smoke.py -m live -v` | Needs `XAI_API_KEY`; not CI. Video also needs `XAITKIT_LIVE_VIDEO=1`; realtime voice also needs `XAITKIT_LIVE_VOICE=1`; streaming STT also needs `XAITKIT_LIVE_STT=1`; embeddings also need `XAITKIT_LIVE_EMBED=1`. |
+| **Live (optional)** | Key present + explicit opt-in | `XAITKIT_LIVE=1 uv run pytest tests/test_live_smoke.py -m live -v` | Needs `XAI_API_KEY`; not CI. Default live: chat (incl. tools / vision ≥8×8 / `service_tier` / `AsyncXaiClient`), catalog persist + `role=video`, files, tokenize, Responses, deferred chat, realtime client-secret mint, unary TTS knobs, `get_tts_voice`, Imagine generate/edit. Extra flags (not default): `XAITKIT_LIVE_VIDEO=1` (start + poll + speaking `reference_audios`; extend also needs `XAITKIT_LIVE_VIDEO_FILE_ID`); `XAITKIT_LIVE_VOICE=1` (STS session); `XAITKIT_LIVE_STT=1` (streaming STT); `XAITKIT_LIVE_TTS=1` (streaming TTS); `XAITKIT_LIVE_EMBED=1` (optional `XAITKIT_LIVE_EMBED_MODEL`); `XAITKIT_LIVE_BATCH=1`; `XAITKIT_LIVE_COLLECTIONS=1` plus `XAI_MANAGEMENT_KEY`; `XAITKIT_LIVE_IMAGE_KNOBS=1` (Imagine 2.0 `2k` + `quality=medium`). |
 | **Model watch** | New xAI SKU / resolution on public docs | `uv run python scripts/watch_xai_models.py` | No API key. Diffs models/pricing/release-notes/Imagine pages vs `scripts/data/xai_models_watch.json`. Daily Actions workflow `.github/workflows/watch-xai-models.yml` opens a `xai-models` issue. After you update the kit, `--write-baseline` and close the issue. |
 
 ## Instructions for AI Agents
 
 - Before claiming code is good, run **Cheap / default**. After packaging/PyPI edits, also run **Package**.
-- Do not invent extra required tools. Live-key smokes stay optional and env-gated (`XAITKIT_LIVE=1` plus `XAI_API_KEY` — see Human-TODO Done).
+- Do not invent extra required tools. Live-key smokes stay optional and env-gated (`XAITKIT_LIVE=1` plus `XAI_API_KEY` — see Human-TODO Done). Extra spend flags are listed in the Live row above.
 - PyPI publish: bump `pyproject.toml` version (and the `PackageNotFoundError` fallback in `src/xaikit/__init__.py`), merge to master, then tag `v<that-version>` (currently `v0.1.0`). Never reuse a version. Trusted Publishing — no tokens in the repo. Do **not** dual-write a Human-TODO tag/`procure` row for that (standing).
 - Security reports: private advisory via `SECURITY.md` (not a public issue). Do not commit secrets.

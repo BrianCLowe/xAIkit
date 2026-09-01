@@ -1,6 +1,6 @@
 # ApiCoverage
 
-**Last Updated**: 2026-08-13 *(async client twin)*  
+**Last Updated**: 2026-08-31  
 **Related TODO**: [ApiCoverage-TODO.md](ApiCoverage-TODO.md)
 
 ## Overview
@@ -49,7 +49,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 - Empty-input guards before the network.
 - Purpose required when a meter is attached; success and failure usage; modality tag per surface.
 - Failures → `RuntimeError` (or documented typed error); meter/trace must not swallow the user-facing error.
-- Offline contract tests (mocked HTTP/SDK/WS). Optional live: `XAITKIT_LIVE=1` + `XAI_API_KEY`.
+- Offline contract tests (mocked HTTP/SDK/WS). Optional live: `XAITKIT_LIVE=1` + `XAI_API_KEY` (files, tokenize, Responses, deferred chat). Extra: `XAITKIT_LIVE_BATCH=1`; `XAITKIT_LIVE_COLLECTIONS=1` + `XAI_MANAGEMENT_KEY`; `XAITKIT_LIVE_EMBED=1`.
 - No UI. No private app names in examples.
 
 ### Catalog roles

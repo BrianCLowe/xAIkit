@@ -1,6 +1,6 @@
 # VideoGeneration
 
-**Last Updated**: 2026-08-15  
+**Last Updated**: 2026-08-31  
 **Related TODO**: [VideoGeneration-TODO.md](VideoGeneration-TODO.md)
 
 ## Overview
@@ -43,7 +43,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 - Offline contract tests assert URL/auth/JSON body without a live key
 - `1080p` is sent only for `grok-imagine-video-1.5` T2V/I2V; R2V and older `grok-imagine-video` contract `1080p` → `720p` (do not 400). Unknown resolution still rejected. Extend never sends `aspect_ratio` / `resolution`
 - `extend_video` contracts known SKUs missing `video_extend` (1.5 / omitted) to the job’s `best` (`grok-imagine-video`). Generate default stays 1.5. Unknown pins stay.
-- Optional live start-only smoke: `XAITKIT_LIVE=1` **and** `XAITKIT_LIVE_VIDEO=1` (slow/expensive; skipped by default live suite)
+- Optional live smoke: `XAITKIT_LIVE=1` **and** `XAITKIT_LIVE_VIDEO=1` (start + poll + speaking `reference_audios`; slow/expensive; skipped by default live suite). Extend also needs `XAITKIT_LIVE_VIDEO_FILE_ID`.
 
 ## Decisions
 

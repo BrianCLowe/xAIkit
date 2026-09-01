@@ -1,6 +1,6 @@
 # Catalog — TODO
 
-**Last Updated**: 2026-08-23  
+**Last Updated**: 2026-08-31 
 **Related Spec**: [Catalog.md](Catalog.md)
 
 ---
@@ -33,7 +33,7 @@
 
 ### Extras — done (consumer proof)
 
-- [x] **2026-08-16 — Live via xAIkit tester** — `list_models(..., persist_path=)` / `save_catalog_snapshot`; `role=video` resolve + `need=video_extend`. Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done.
+- [x] **2026-08-16 — Live via xAIkit tester** — `list_models(..., persist_path=)` / `save_catalog_snapshot`; `role=video` resolve + `need=video_extend`. Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done. Kit live smoke: `XAITKIT_LIVE=1` `test_live_list_models_persist_and_role_video`.
 
 ## Completed
 

@@ -1,6 +1,6 @@
 # ApiCoverage — TODO
 
-**Last Updated**: 2026-08-16  
+**Last Updated**: 2026-08-31  
 **Related Spec**: [ApiCoverage.md](ApiCoverage.md)
 
 ---
@@ -27,7 +27,7 @@
 
 ## Cross-Feature Dependencies & Integration Notes
 
-- **library-only.** Inventory slices shipped on this stem or homes; do not invent a second client.
+- **library-only.** Inventory slices shipped on this stem or homes; do not invent a second client. Optional live smokes: files / tokenize / Responses / deferred on `XAITKIT_LIVE=1`; batch `XAITKIT_LIVE_BATCH=1`; collections `XAITKIT_LIVE_COLLECTIONS=1` + `XAI_MANAGEMENT_KEY` (search is one-shot — no kit retry).
 - Human rank after video was realtime voice (2026-08-12); that stem is shipped.
 
 ## Human verify (orchestration 2026-08-13)

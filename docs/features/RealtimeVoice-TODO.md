@@ -1,6 +1,6 @@
 # RealtimeVoice — TODO
 
-**Last Updated**: 2026-08-13  
+**Last Updated**: 2026-08-31  
 **Related Spec**: [RealtimeVoice.md](RealtimeVoice.md)
 
 ---
@@ -31,7 +31,7 @@
 
 ## Cross-Feature Dependencies & Integration Notes
 
-- **library-only** — mocked tests, not a recorder UI. Optional live: `XAITKIT_LIVE=1 XAITKIT_LIVE_VOICE=1 uv run pytest tests/test_live_smoke.py -m live`
+- **library-only** — mocked tests, not a recorder UI. Optional live: client-secret mint on `XAITKIT_LIVE=1`; STS session `XAITKIT_LIVE=1 XAITKIT_LIVE_VOICE=1 uv run pytest tests/test_live_smoke.py -m live`.
 - REST STT/TTS, streaming STT (`open_stt_session`), and streaming TTS (`open_tts_session`) stay on [MediaRest-TODO.md](MediaRest-TODO.md).
 - Video generation shipped 2026-08-12 ([VideoGeneration-TODO.md](VideoGeneration-TODO.md)).
 

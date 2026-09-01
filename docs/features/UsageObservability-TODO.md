@@ -1,6 +1,6 @@
 # UsageObservability — TODO
 
-**Last Updated**: 2026-08-16  
+**Last Updated**: 2026-08-31  
 **Related Spec**: [UsageObservability.md](UsageObservability.md)
 
 ---
@@ -33,7 +33,7 @@
 
 ### Extras — done except embed modality
 
-- [x] **2026-08-16 — Live via xAIkit tester** — `OpenTelemetryUsageSink` paired with `InMemoryUsageSink`; modalities files / tokenize / batch / collections / responses / realtime mint. Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done (embed split).
+- [x] **2026-08-16 — Live via xAIkit tester** — `OpenTelemetryUsageSink` paired with `InMemoryUsageSink`; modalities files / tokenize / batch / collections / responses / realtime mint. Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done (embed split). Kit live smoke meters files / tokenize / responses / deferred / realtime mint on `XAITKIT_LIVE=1`; batch / collections extra-gated.
 
 ### Embed modality — still open
 

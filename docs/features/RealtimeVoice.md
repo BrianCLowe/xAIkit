@@ -1,6 +1,6 @@
 # RealtimeVoice
 
-**Last Updated**: 2026-08-13  
+**Last Updated**: 2026-08-31  
 **Related TODO**: [RealtimeVoice-TODO.md](RealtimeVoice-TODO.md)
 
 ## Overview
@@ -39,7 +39,7 @@ Mint body is documented only: `{"expires_after": {"seconds": N}}`. Default `N=30
 - Session usage is recorded once per session (close or first failure), with wall-clock `duration` seconds for price estimates
 - Minting a client secret records purpose/success only (`modality="realtime"`, no duration, no tokens, no USD — not an STS audio-minute)
 - Contract tests mock the WebSocket and mint HTTP — no live mic in CI
-- Optional live smoke: `XAITKIT_LIVE=1` **and** `XAITKIT_LIVE_VOICE=1` (metered; skipped by default live suite)
+- Optional live smoke: client-secret mint on `XAITKIT_LIVE=1`; STS session also needs `XAITKIT_LIVE_VOICE=1` (metered; skipped by default live suite)
 
 ## Decisions
 
