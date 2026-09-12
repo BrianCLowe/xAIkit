@@ -13,7 +13,7 @@
 
 ## Inputs *(open only these)*
 
-1. `docs/ADT-settings.yaml` → `docs_profile.mode` if present (unset = prevent); **`standing.instructions`** if non-empty (Workflow §0.2); parent brief may already name these
+1. `docs/ADT-settings.yaml` → `docs_profile.mode` if present (unset = prevent); **`standing.instructions`** if non-empty (Workflow §0.2); parent brief may already name these. If the brief names a **host cwd / worktree path** → work **only** there. Do **not** create or remove worktrees; do **not** checkout default.
 2. `docs/Master_Index.md` Sections 1–3
 3. Active TODO — read **Current focus** first (§5.1)
 4. That item’s linked spec; `-Understanding.md` **if it exists** (**read-only** for context)
@@ -37,7 +37,7 @@
 5. **Operable gap (Workflow §5.3):** If this stem is user/operator-facing (not **library-only** / not phased with a later exercise path) and finishing the item leaves **no** exercise path (UI / CLI / product API / documented smoke) while High Priority is only domain/library or empty — **add** surface/wire/smoke TODO item(s) (or a loud phase note + later items) and set Current focus when appropriate. Do not treat domain-only clearance as “feature done.” **No UI specs** is not a stop: scaffold a **minimal boring** surface and **wire** domain into it (or CLI/smoke); do not dual-write Human-TODO “design the UI” for a blank canvas unless the user explicitly gated design-first.
 6. **Acceptance bridge:** If this unit clearly meets a coarse **Acceptance** outcome on the spec → check/update that line the same turn. If High Priority is now empty/domain-cleared but operable Acceptance lines for a claimed milestone remain open with no open TODO → **add** work items that close them (or phase); do not report feature/stem complete.
 7. Update the same `-TODO.md`: `[x]` + date, **move** finished items into **Completed** (do not leave `[x]` under High/Medium/Low); refresh **Current focus**.
-8. Update Understanding / spec **only if this session** changed shape or contract (Acceptance updates from step 6 count). **Preference corrections that could be “improved away” are contract** — same turn, append 1-line **Decisions** row(s) and fix contradicting Behavior / Acceptance / Visual refs (Workflow §10). **Pack/process prefs that oppose pack defaults** (always/never git, ceremony, verify style) → same-turn first-class ADT-settings key or `standing.instructions` (Workflow §0.2). Do **not** wait for the user to ask for a session wrap; do **not** put these in Current focus. If you update Understanding, run relocate + TODO uncheck (Workflow §4). Otherwise leave Understanding alone.
+8. Update Understanding / spec **only if this session** changed shape or contract (Acceptance updates from step 6 count). **Preference corrections that could be “improved away” are contract** — same turn, append 1-line **Decisions** row(s) and fix contradicting Behavior / Acceptance / Visual refs (Workflow §10). **ADT playbook overrides** (user wants this pack to run git/ceremony/verify differently than the playbook) → same-turn first-class ADT-settings key or `standing.instructions` (Workflow §0.2). Do **not** park prompt-style or random notes in standing. Do **not** wait for the user to ask for a session wrap; do **not** put these in Current focus. If you update Understanding, run relocate + TODO uncheck (Workflow §4). Otherwise leave Understanding alone.
 9. **Build & verify** (code changes): run project handoff verify per [`../Agent_Build_Verify_Rule.mdc`](../Agent_Build_Verify_Rule.mdc) / `docs/Tooling.md` **Project verify** — fix failures before claiming the unit done or telling the user they can test. Skip only for pure docs/no-build edits.
 10. If blocked on a human (procure / playtest / decide / waiting): **dual-write** owner TODO + `docs/Human-TODO.md` Open row (Workflow §13) — never store secrets.
 11. Stop when the focus item is done, blocked, or the user redirects.
@@ -61,3 +61,4 @@
 - Create `docs/decisions/` ADRs for feature-local polish; put product UI prefs only in standing; overload Current focus with every choice
 - Audit code vs docs for unrelated features; invent `_shared/` components; duplicate foundation tasks into a feature TODO
 - Scan the whole repo “just in case”; switch into bootstrap or template sync
+- `git worktree add` / `git worktree remove` / host-delete a worktree; work outside a cwd the parent briefed

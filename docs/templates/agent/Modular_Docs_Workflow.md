@@ -1,14 +1,14 @@
-<!-- pack-version: 2.7.17 -->
-
 > **Agent workflow index.** Paved path + router into thin modules under [`workflow/`](workflow/README.md). Sync from upstream; do **not** copy wholesale into `docs/Master_Index.md`. The live index links here; agent rules summarize and point here — then open **one** module when needed.
 
 # Modular Documentation — Agent Workflow
 
-**Pack version**: 2.7.17 *(same as `docs/templates/VERSION` / live Master Index **Pack version**)*
+**Pack version:** read [`VERSION`](../VERSION) (`pack-version`). Do not copy the number into this file. Live Master Index is stamped on bootstrap / TEMPLATE_SYNC.
 
-**Design intent:** Short user asks → **one** playbook (`BOOTSTRAP`, `TEMPLATE_SYNC`, `TEMPLATE_UPDATE_CHECK`, `RULE_INSTALL` → `tools/<key>.md`, roles, or this index → **one** workflow module). Do not scan the pack catalog. **Tight scope** = paved path only (not “audit every alternate”). Edge cases live in modules — load them only when the router says so.
+**Design intent:** Short user asks → **one** playbook (`BOOTSTRAP`, `TEMPLATE_SYNC`, `TEMPLATE_UPDATE_CHECK`, `RULE_INSTALL` → `tools/<key>.md`, roles, or this index → **one** workflow module). Do not scan the pack catalog. **Tight scope** = paved path only (not “audit every alternate”). Edge cases live in modules — load them only when the router says so. Live scaffolds are fill-in blanks — teaching lives in [`../help/SCAFFOLDS.md`](../help/SCAFFOLDS.md) and the module you open.
 
-**Docs profile:** `docs/ADT-settings.yaml` → `docs_profile.mode` — **`prevent`** (default if unset) · **`balanced`** · **`ship-first`**. Full rules → [`workflow/profile-standing.md`](workflow/profile-standing.md). Never silent-downgrade a project full of Understandings.
+**Compaction / new session / memory loss:** If you cannot recall the paved path, **re-open this index**, then only the matching router module. Do not reconstruct procedure from a live Understanding/spec/TODO or from chat memory.
+
+**Docs profile:** `docs/ADT-settings.yaml` → `docs_profile.mode` — first-class choice. **`ship-first`** = typed APIs / CRUD. **`prevent`** = editors / games / multi-surface (default if unset). **`balanced`** = mixed. Full rules → [`workflow/profile-standing.md`](workflow/profile-standing.md). Never silent-downgrade a project full of Understandings.
 
 **Optional roles:** [`roles/`](roles/README.md) — never always-on; parent spawns when adapters exist, else playbook in-session. **Orchestrator** = parent only ([`roles/orchestrator.md`](roles/orchestrator.md) + git [`roles/orchestrator-git.md`](roles/orchestrator-git.md)). Single-slice implement → [`roles/feature-implementer.md`](roles/feature-implementer.md).
 
@@ -33,7 +33,7 @@ Use when the stem is already **ready** under the docs profile and scope is uncha
 
 **Additive vs shape (one line):** On a `confirmed` Understanding, a new research angle / extra behavior / edge case that still fits **is / is not** → **spec + TODO**, keep `confirmed`. De-confirm / re-draft **only** on a significant shape change — full rule in [`workflow/understanding.md`](workflow/understanding.md#4-understanding-features--shared).
 
-**Same-turn prefs:** Product/UI correction that could be “improved away” → spec **Decisions** ([`workflow/decisions.md`](workflow/decisions.md)). Pack/process always-never → standing or first-class key ([`workflow/profile-standing.md`](workflow/profile-standing.md)).
+**Same-turn prefs:** Product/UI correction that could be “improved away” → spec **Decisions** ([`workflow/decisions.md`](workflow/decisions.md)). **Override an ADT playbook** (no first-class key) → standing ([`workflow/profile-standing.md`](workflow/profile-standing.md)). Do not jot random notes into standing.
 
 ---
 
@@ -42,10 +42,10 @@ Use when the stem is already **ready** under the docs profile and scope is uncha
 | Situation | Open only |
 |-----------|-----------|
 | Docs profile unset / suggest / upgrade | [`workflow/profile-standing.md`](workflow/profile-standing.md) (§0.1) |
-| Standing / process prefs / LOOKOUT capture | [`workflow/profile-standing.md`](workflow/profile-standing.md) (§0.2) |
+| Standing / playbook-override LOOKOUT | [`workflow/profile-standing.md`](workflow/profile-standing.md) (§0.2) |
 | Creating files / new Document Map row / split stem / inventory vs new row | [`workflow/naming-layout.md`](workflow/naming-layout.md) (§0) |
 | `_shared/` vs feature / foundation task placement | [`workflow/shared-components.md`](workflow/shared-components.md) (§1) |
-| Draft / revise Understanding · de-confirm gate · relocate | [`workflow/understanding.md`](workflow/understanding.md) (§4) |
+| Draft / revise Understanding · de-confirm gate · lock gate · assumption clean-out · relocate | [`workflow/understanding.md`](workflow/understanding.md) (§4) |
 | Graduate confirmed shape → durable spec | [`workflow/understanding.md`](workflow/understanding.md) (§2) |
 | Path A vs Path B unclear · readiness table detail | [`workflow/implement.md`](workflow/implement.md) (§3) |
 | TODO layout · Current focus · operable done · exploration · kit covering TODOs | [`workflow/todos.md`](workflow/todos.md) (§5) |
@@ -91,7 +91,7 @@ Paved path is above. Path A/B detail: [`workflow/implement.md`](workflow/impleme
 
 ### 4. Understanding (Features & Shared)
 
-Full procedure (incl. **de-confirm gate**): [`workflow/understanding.md`](workflow/understanding.md#4-understanding-features--shared).
+Full procedure (incl. **de-confirm gate** + **lock gate**): [`workflow/understanding.md`](workflow/understanding.md#4-understanding-features--shared).
 
 ### 5. TODO Management
 
