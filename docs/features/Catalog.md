@@ -3,6 +3,14 @@
 **Last Updated**: 2026-08-15  
 **Related TODO**: [Catalog-TODO.md](Catalog-TODO.md)
 
+---
+
+**Humans:** This is the contract. How to read it: [`help/SCAFFOLDS.md`](../templates/help/SCAFFOLDS.md) · [`help/USAGE.md`](../templates/help/USAGE.md).
+
+**Agents:** Fill-in blanks — not a tutorial. If context is thin, re-open [`agent/workflow/understanding.md`](../templates/agent/workflow/understanding.md) §2. Catalog: [`agent/workflow/extensions.md`](../templates/agent/workflow/extensions.md) §7.1. Decisions: [`agent/workflow/decisions.md`](../templates/agent/workflow/decisions.md). Operable Acceptance: [`agent/workflow/todos.md`](../templates/agent/workflow/todos.md) §5.3. Ship-first (no Understanding): [`agent/workflow/profile-standing.md`](../templates/agent/workflow/profile-standing.md) §0.1.
+
+---
+
 ## Overview
 
 Living model catalog and resolve helpers. Callers pass knobs or inject fixtures — no app settings import.
