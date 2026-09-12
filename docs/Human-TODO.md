@@ -1,7 +1,7 @@
 # xAIkit — Human TODO
 
 **Last Updated**: 2026-08-16  
-**Related**: [Master_Index.md](Master_Index.md) · [Tooling.md](Tooling.md)
+**Related**: [Master_Index.md](Master_Index.md) · [Tooling.md](Tooling.md) · [workflow/human-todo.md](templates/agent/workflow/human-todo.md) §13
 
 ---
 
@@ -49,6 +49,32 @@
 - Keep secrets out of git.
 - Orchestration look-lists are **library-only** (paths + pytest), not a UI tour. Reply in chat when a row is done.
 - Consumer proof (e.g. Rivenquill) can close a **core** slice; leave **extras** open when the fat look-list bundled unused surfaces.
+
+**Kinds:**
+
+| Kind | Means | Examples |
+|------|--------|----------|
+| `procure` | Account, key, portal, purchase, org approval | API key, PyPI publisher |
+| `playtest` | Human must run / feel / smoke-test | Library look-list; post-orchestration extras |
+| `decide` | Human judgment or sign-off | “Ship this default” |
+| `waiting` | Blocked on someone/something outside the repo | Vendor roster empty |
+
+## How this inbox works *(agents)*
+
+| | **Human-TODO** | **Tooling.md** | Feature / shared `*-TODO.md` |
+|--|----------------|----------------|------------------------------|
+| Who acts | **You** | Agent on a machine | Agent in the codebase *(except human-gated items)* |
+| Role | **Dashboard / index** — short rows + checkboxes | Install CLIs/SDKs | **Owner** of detail & outcome notes for playtest/decide; code tasks |
+| Secrets | **Never** paste keys here — only “create → put in `.env` / vault” | No secrets | No secrets |
+
+**Ownership (index + owner):**
+
+| Kind | Human-TODO row | Canonical detail / outcome |
+|------|----------------|----------------------------|
+| `playtest` · `decide` | Thin pointer + checkbox | Owner feature/shared `*-TODO.md` item |
+| `procure` · `waiting` | Row holds how-to / status | This file; features **link here** |
+
+**Agent role:** Dual-write when creating a human-gated task (owner TODO item **and** a checkbox item here). Do **not** mark done unless the user said so.
 
 ## Instructions for AI Agents
 

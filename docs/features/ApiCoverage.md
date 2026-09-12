@@ -147,6 +147,10 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 - [ ] Each **implemented** slice matches its home spec (or a new map row created the same turn)
 - [ ] No silent “wrap the entire SDK” in one change
 
+## Visual references
+
+*(none — library stem)*
+
 ## Current status
 
 - **In progress**: remainder unordered after video + realtime voice + ClientChat extras + Files + embeddings + tokenizer + batch + collections + Responses + service tier / deferred + async twin

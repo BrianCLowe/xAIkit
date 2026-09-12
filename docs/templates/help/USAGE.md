@@ -1,16 +1,16 @@
 # How to Use These Templates
 
-Day-to-day workflows after setup. First-time install: [`SETUP.md`](SETUP.md). Describing ideas in plain language: [`IDEA_CAPTURE_TIPS.md`](IDEA_CAPTURE_TIPS.md).
+Day-to-day workflows after setup. First-time install: [`SETUP.md`](SETUP.md). What each live file is for: [`SCAFFOLDS.md`](SCAFFOLDS.md). Describing ideas in plain language: [`IDEA_CAPTURE_TIPS.md`](IDEA_CAPTURE_TIPS.md).
 
 ---
 
 ## The loop
 
-Depends on **docs profile** in `docs/ADT-settings.yaml` (`prevent` default if unset — [Workflow §0.1](../agent/workflow/profile-standing.md#01-docs-profile-ceremony-modes)):
+Depends on **docs profile** in `docs/ADT-settings.yaml` — a first-class choice ([Workflow §0.1](../agent/workflow/profile-standing.md#01-docs-profile-ceremony-modes)). **`ship-first`** is the right default for typed APIs / CRUD. **`prevent`** is the right default for editors / games / multi-surface (and the fallback if unset):
 
 1. You capture ideas (recommended: chat exports in `docs/reference/`, or a mid-build correction in chat).
 2. **`prevent` (default):** agent drafts `-Understanding.md` (shape / guardrails). **`ship-first`:** agent drafts thin **spec + TODO** only. **`balanced`:** Understanding when identity is ambiguous.
-3. When Understanding is used: **you confirm shape** — is / is *not* + **Assumptions** (not a full-spec review).
+3. When Understanding is used: **you confirm shape** — is / is *not* + any remaining **real-fork** Assumptions (empty is fine; not a full-spec review). Agents should lock obvious defaults and not treat examples in `docs/reference/` as the target unless you clearly set them as the target.
 4. Durable contract lives on the **spec**; work continues from TODOs (**Current focus** for session handoff). Under ship-first, grow the spec as you build; use *lock shape for X* if identity fights start.
 
 ### Recommended practice — chat exports in `reference/`
@@ -89,7 +89,7 @@ Full copy-vs-whole-repo notes and layout: [`SETUP.md`](SETUP.md). Optional rules
 
 > Update the doc templates from Agentic Doc Templates and sync our live docs.
 
-Agent overwrites `docs/templates/` ([`TEMPLATE_SYNC_A.md`](../agent/TEMPLATE_SYNC_A.md)), then follows the top [`CHANGELOG.md`](../CHANGELOG.md) entry via [`TEMPLATE_SYNC_B.md`](../agent/TEMPLATE_SYNC_B.md) (usually versions + Master Index — not every feature file). When tagged **`optional-todo-kit-coverage`**, Step B may add covering TODOs from the **live spec** (Completed counts; or one research TODO if Overview says wrap-the-API but the spec lists no leftovers) — it does **not** fetch vendor APIs. Todo-warden adds covering items for **named** leftovers; it does not replace the thin-spec research pass. Entry: [`TEMPLATE_SYNC.md`](../agent/TEMPLATE_SYNC.md) (in the pack since **1.2**; A/B split in **2.6.8**).
+Agent overwrites `docs/templates/` ([`TEMPLATE_SYNC_A.md`](../agent/TEMPLATE_SYNC_A.md)), then follows the top [`CHANGELOG.md`](../CHANGELOG.md) entry via [`TEMPLATE_SYNC_B.md`](../agent/TEMPLATE_SYNC_B.md) (usually versions + Master Index — not every feature file). When tagged **`optional-assumption-cleanout`** (2.7.28+), Step B **offers** a lock-gate clean-out of live Understandings (obvious defaults locked; invented quizzes removed; reference examples are not the target unless clearly set). When tagged **`optional-live-reshape`** (2.7.27+), Step B may strip copied instruction sermons from live Understanding / spec / TODO and leave a short pointer to [`SCAFFOLDS.md`](SCAFFOLDS.md) — it does **not** rewrite your fill-in. `master-index` may replace a dumped At a Glance with the short pointer table. When tagged **`optional-todo-kit-coverage`**, Step B may add covering TODOs from the **live spec** (Completed counts; or one research TODO if Overview says wrap-the-API but the spec lists no leftovers) — it does **not** fetch vendor APIs. Todo-warden adds covering items for **named** leftovers; it does not replace the thin-spec research pass. Entry: [`TEMPLATE_SYNC.md`](../agent/TEMPLATE_SYNC.md) (in the pack since **1.2**; A/B split in **2.6.8**).
 
 **Before 1.2:** If `docs/templates/agent/TEMPLATE_SYNC.md` is missing, copy/replace `docs/templates/` from this repo once (or ask the agent to), then use the sync ask for later updates.
 
@@ -139,10 +139,10 @@ Anything only you can close → `docs/Human-TODO.md`: procure, playtest/feel, de
 | Update-check cadence | *Check for template updates every session.* / *Only check every week.* |
 | Optional role — intent | *Draft Understanding for [Feature] from what I said — I’ll review.* (main agent delegates if subagents installed) |
 | Optional role — build | *Continue from Current focus.* *(single slice)* |
-| Optional role — orchestrate | *Orchestrate — clear ready TODOs until blocked.* *(parent loop; git from `orchestrator.git.mode` — recommend milestone-pr; Cloud Agent this-runs milestone-pr if durable is local-oriented or `branch-pr` / `branch-pr-squash`; per-milestone: several related TODOs + concurrent implementers when they do not overlap → build-verify → warden → squash → ready → wait CI/Bugbot → merge → next branch; Human-TODO verify map)* |
+| Optional role — orchestrate | *Orchestrate — clear ready TODOs until blocked.* *(parent loop; git from `orchestrator.git.mode` — recommend milestone-pr; Cloud Agent this-runs milestone-pr if durable is local-oriented or `branch-pr` / `branch-pr-squash`; per-milestone: several related TODOs + concurrent implementers when they do not overlap **and** the host can isolate → build-verify → warden → squash → ready → wait CI/Bugbot → merge → next branch; already-in-a-host-worktree → stay; Human-TODO verify map)* |
 | Optional role — todo warden | *Todo warden — reconcile TODOs vs what shipped.* / *Todo cleanup — move completed items to Completed.* *(docs-only; honesty caps; hygiene moves finished `[x]`; named leftovers get covering TODOs — no vendor-doc fetch)* |
 | Set orchestrator git | *Set orchestrator git to milestone-pr* / *branch-pr-squash* / *branch-pr* / *current-push* / *local* |
-| Standing workflow note | *Add standing note: always squash before mark ready.* / *From now on, merge each slice after CI.* *(agent should save without being asked twice)* |
+| Standing playbook override | *Add standing note: always squash before mark ready.* / *From now on, merge each slice after CI.* *(agent should save without being asked twice — only playbook overrides, not random notes)* |
 | Optional role — verify | *Verify that unit against Understanding and the spec.* |
 | Optional role — graduate | *Understanding confirmed — graduate to the spec.* |
 | Force a subagent | `/understanding-author` … *(optional; usually unnecessary)* |
@@ -158,7 +158,7 @@ Optional roles (opt-in, never always-on): [`../agent/roles/README.md`](../agent/
 | Path | Role |
 |------|------|
 | `docs/Master_Index.md` | Entry point + Document Map |
-| `docs/features/FeatureName-Understanding.md` | Shape only — is / is not, Relationship, Assumptions (not full-spec review) |
+| `docs/features/FeatureName-Understanding.md` | Shape only — is / is not, Relationship, real-fork Assumptions (not full-spec review) |
 | `docs/features/FeatureName.md` | Durable contract after shape confirm |
 | `docs/features/FeatureName-TODO.md` | Tasks + **Current focus** |
 | `docs/_shared/…` | Only for truly shared project pieces (may be empty) |

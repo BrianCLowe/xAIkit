@@ -73,6 +73,10 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 - [x] Opt-in `persist_path`: SDK write + offline reload of the same JSON; memory cache still wins when fresh; write failure does not fail `list_models`
 - [x] `feature_options(model=)` + `resolve_model(need=)` so `best` is best for the job (quality over 1.5 for extend)
 
+## Visual references
+
+*(none — library stem)*
+
 ## Current status
 
 - **In progress**: none — High / Medium / Low drained. Feature map + `need=` shipped

@@ -77,6 +77,10 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 - [x] REST `synthesize_speech` forwards unary TTS knobs (`output_format`, `speed`, latency opt, normalize, timestamps, `replace`); >15k chars rejected before HTTP
 - [x] `edit_image` accepts up to 3 source images
 
+## Visual references
+
+*(none — library stem)*
+
 ## Current status
 
 - **Shipped** (library-only): REST STT/TTS (unary knobs + 15k cap) / Imagine (generate knobs + per-SKU `quality` contraction + multi-image edit) + streaming STT/TTS + built-in TTS voice roster

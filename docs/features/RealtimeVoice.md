@@ -74,6 +74,10 @@ Mint body is documented only: `{"expires_after": {"seconds": N}}`. Default `N=30
 - [x] Server-side ephemeral client-secret mint (`create_realtime_client_secret`); mocked HTTP; no product login
 - [x] Custom `voice_id` on `voice=` forwarded unchanged on `session.update` (no allowlist; clone/roster not this stem)
 
+## Visual references
+
+*(none — library stem)*
+
 ## Current status
 
 - **Shipped** (library-only): `open_realtime_session` + `RealtimeSession` + meter + default per-minute prices + mocked WS tests; `create_realtime_client_secret` + `realtime_client_secret_protocol` + mocked mint tests; `voice=` accepts built-in ids or custom `voice_id` (no clone wrap)

@@ -2,7 +2,7 @@
 
 **Purpose**: Single entry point for this project's documentation — overview, locations, and Document Map. Read only the files relevant to the current task.
 
-**Pack version**: 2.7.23 *(from [`templates/VERSION`](templates/VERSION))*
+**Pack version**: 2.7.28 *(from [`templates/VERSION`](templates/VERSION))*
 
 ## 1. Project Overview
 
@@ -37,16 +37,23 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 | `docs/Tooling.md` | Dev machine tools + verify commands |
 | `docs/Human-TODO.md` | Human inbox |
 | `docs/templates/` | Agentic Doc Templates pack (overwrite on sync) |
-| `docs/ADT-settings.yaml` | Pack prefs (ship-first, git, standing notes) |
+| `docs/ADT-settings.yaml` | Pack prefs — docs profile, orchestrator git, **standing.instructions** (playbook overrides, not a notes pad), sync mode, tools, optionals, upstream stamps |
 
-### 2.2 At a Glance
+### 2.2 At a Glance *(pointers — full rules in the workflow)*
 
-- **Library, not an app** — operable “done” for shipped stems is contract tests + typed API, not a UI.
-- **Ship-first** — implement from spec + TODO; *lock shape* only if a stem gets identity pressure.
-- **README vs docs/** — README for consumers; this tree for agents and contributors; wheel stays code-only.
-- **Orchestrator git:** durable mode is **`milestone-pr`** (per-milestone PR — several related TODOs + concurrent implementers when they do not overlap → squash before ready → CI/Bugbot → merge → next branch). **Cloud Agent** orchestration uses the same mode.
-- **Kit leftovers:** stay as TODOs on the inventory stem ([ApiCoverage](features/ApiCoverage.md)) until that slice is next; covering TODOs on existing stems (Workflow §5.4); no map rows for vague planned-only items.
-- **Next product work** — Tester live look-lists closed 2026-08-16 except REST embed (empty team embed roster). Kit live smokes now cover those extras (`XAITKIT_LIVE=1`; spendier surfaces extra-gated — see [Tooling.md](Tooling.md)). Human inbox: [Human-TODO.md](Human-TODO.md).
+| Topic | Where the rule lives |
+|-------|----------------------|
+| **Docs profile** | `docs/ADT-settings.yaml` → `docs_profile.mode`. This repo: **`ship-first`** (typed APIs / CRUD). **`prevent`** = editors / games / multi-surface (default if unset). [§0.1](templates/agent/workflow/profile-standing.md#01-docs-profile-ceremony-modes) |
+| **Orchestrator git** | Durable **`milestone-pr`**. Host worktrees: already-in-a-worktree → stay; pack does not `git worktree add`. [orchestrator-git](templates/agent/roles/orchestrator-git.md) |
+| **File layout / kit leftovers** | Leftovers stay as TODOs on the inventory stem ([ApiCoverage](features/ApiCoverage.md)) until that slice is next. [§0](templates/agent/workflow/naming-layout.md#0-naming--file-layout-read-before-creating-files) · [§5.4](templates/agent/workflow/todos.md#54-finished-kit-contract--covering-todos-not-wait-for-pickup) |
+| **Understanding / Spec** | Ship-first: spec + TODO; *lock shape* only if a stem gets identity pressure. [§4](templates/agent/workflow/understanding.md#4-understanding-features--shared) · [§2](templates/agent/workflow/understanding.md#2-understanding--spec-graduation) |
+| **Shared** | Only when actually shared. None yet. [§1](templates/agent/workflow/shared-components.md#1-shared-components--foundation-vs-consumption) |
+| **Human inbox / Tooling** | [`Human-TODO.md`](Human-TODO.md) · [`Tooling.md`](Tooling.md) |
+| **Size / split** | Split when a file is bloated. [§8](templates/agent/workflow/extensions.md#8-how-to-split-a-large-document) |
+
+**Project notes:** Library, not an app — operable “done” for shipped stems is contract tests + typed API, not a UI. README for consumers; this tree for agents and contributors; wheel stays code-only.
+
+**Next product work** — Tester live look-lists closed 2026-08-16 except REST embed (empty team embed roster). Kit live smokes now cover those extras (`XAITKIT_LIVE=1`; spendier surfaces extra-gated — see [Tooling.md](Tooling.md)). Human inbox: [Human-TODO.md](Human-TODO.md).
 
 ## 3. Document Map
 
@@ -97,4 +104,4 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 
 ---
 
-Live docs layout based on [Agentic Doc Templates](https://github.com/BrianCLowe/Agentic-Doc-Templates) by Brian Lowe, licensed under CC BY 4.0. Pack copy: `docs/templates/` (v2.7.23).
+Live docs layout based on [Agentic Doc Templates](https://github.com/BrianCLowe/Agentic-Doc-Templates) by Brian Lowe, licensed under CC BY 4.0. Pack copy: `docs/templates/` (v2.7.28).

@@ -12,6 +12,7 @@
 | `master-index` | Adopt structural deltas in live `Master_Index.md` (headings, Key Locations, Document Map columns) |
 | `content-templates` | Add *missing* sections/structure from content templates into live Understanding / Spec / TODO / Tooling / Human-TODO — **not** trim/remove (see `optional-live-reshape`) |
 | `optional-live-reshape` | Live Understanding → shape trim + relocate into specs (Workflow §4). **`auto` / `auto-all`:** run all Document Map stems. **`choose`:** present + ask once (default yes). Do **not** silent-skip under choose |
+| `optional-assumption-cleanout` | Live Understanding lock-gate clean-out (Workflow §4). **`auto` / `auto-all`:** all Document Map Understanding stems. **`choose`:** present + ask once (default yes). Lock obvious defaults; delete invented quizzes; do not treat `docs/reference/` examples as the target unless clearly set as the target; leave only real forks. Do not invent new Assumptions or Understanding on `ship-first` |
 | `optional-todo-ambition` | Live TODO ambition pass (agent timescale). **`auto` / `auto-all`:** all Document Map `*-TODO.md`. **`choose`:** present + ask once. Do not invent work |
 | `optional-todo-operable` | Live TODO operable dual-track (Workflow §5.3). **`auto` / `auto-all`:** all Document Map `*-TODO.md`. **`choose`:** present + ask once. Add exercise-path rows or **library-only** labels; do not invent unrelated backlog |
 | `optional-todo-kit-coverage` | Live TODO kit-coverage pass (Workflow §5.4). **`auto` / `auto-all`:** all Document Map `*-TODO.md`. **`choose`:** present + ask once. Add covering TODOs for spec-named in-scope leftovers on **existing** stems (**open or Completed** counts — do not resurrect); one research item if the spec is thin. No new map rows; no vendor-doc fetch in sync |
@@ -20,6 +21,74 @@
 | `process-docs-only` | Pack process/help/agent docs only — no live feature/shared content scan |
 
 ---
+
+## 2.7.28
+
+- **Live impact:** `versions-only`, `process-docs-only`, `rules`, `optional-assumption-cleanout`
+- **Files:**
+  - `VERSION` — 2.7.27 → 2.7.28
+  - `CHANGELOG.md` — new Live impact tag `optional-assumption-cleanout`
+  - `agent/workflow/understanding.md` §4 — **lock gate** (source of truth): lock obvious defaults in is / is not; **Assumptions = real forks only** (empty is success); **no-ask proviso** (design already clear → zero Assumption asks is correct); do **not** treat examples in `docs/reference/` / chat as the target unless clearly set as the target; lesser-path ask only with a **real non-timescale reason** (not an MVP / half-measure to finish faster). **Clean-out pass** procedure lives here
+  - `Feature_Understanding_Template.md` — heading `Assumptions (real forks only)`; one optional bullet
+  - `roles/understanding-author.md` + adapter-src / cursor|grok|copilot adapters — pointer: lock obvious; offer clean-out; reference examples are not the target unless clearly set
+  - `roles/template-sync.md` + adapter-src / cursor|grok|copilot adapters + `TEMPLATE_SYNC_B.md` — honor **`optional-assumption-cleanout`**
+  - `help/SCAFFOLDS.md`, `IDEA_CAPTURE_TIPS.md`, `USAGE.md` — empty Assumptions is correct; reference examples ≠ target unless clearly set
+  - Modular rules + timescale rule + workflow index — one-line pointers (do not restate the gate)
+  - Root `DECISIONS.md` **D17** — do not silently undo
+  - Root `eval/` — `lock-obvious-assumptions` pack contract + fail-snapshot of an invented-decision Understanding
+- **Step B:** Bump Master Index **Pack version** to 2.7.28 from local `VERSION`. Refresh installed modular rules (**no ask** unless `customized: true`). If `optional_rules.doc-roles` is **enabled** → refresh **understanding-author** + **docs-template-sync** adapters. **`optional-assumption-cleanout`:** present/execute per `sync.mode`. **`auto` / `auto-all`:** all Document Map Understanding stems. **`choose`:** present + ask once (default yes). Execute = Workflow §4 clean-out (lock obvious; delete invented quizzes; un-target reference examples that were not clearly set as the target; leave real forks). **Keep status** — do **not** de-confirm or inject a mid-sync shape quiz. Do **not** invent new Assumptions. Do **not** invent Understanding on `ship-first`. Do **not** rewrite user fill-in that is already category-correct.
+
+## 2.7.27
+
+- **Live impact:** `versions-only`, `master-index`, `content-templates`, `optional-live-reshape`, `process-docs-only`, `rules`
+- **Files:**
+  - `VERSION` — 2.7.26 → 2.7.27
+  - Root `DECISIONS.md` — **(new)** pack decision log (CHANGELOG is archaeology; this file is “do not silently undo”). Bootstrap Step 1d **deletes** it on whole-repo copies. Not in the release zip
+  - `VERSION` is the **only** pack-version number — dropped `<!-- pack-version -->` comments, hardcoded **Pack version** on templates / workflow index, README badge number, and example `local_pack_version`
+  - `Feature_Understanding_Template.md` — fill-in blanks; teaching examples stay in `workflow/understanding.md`. New `help/SCAFFOLDS.md`. Compaction: re-open the workflow index then one module
+  - `Feature_Spec_Template.md`, `TODO_Template.md`, `Master_Index_Template.md` §2.2, `Decision_Template.md`, `Feature_Catalog_Template.md` — same: fill-in + pointers. Human-TODO keeps inbox kinds / chat phrases; Tooling keeps tables; only the **agent** dual-write / install essays moved to playbooks
+  - `agent/TEMPLATE_SYNC_B.md` — **2.7.27 instruction-footer strip** (this version’s reshape): delete copied sermons / long Instructions / inline section essays from live Understanding / spec / TODO **including stems with no Understanding**; keep user fill-in and loud phased-bridge notes; leave a short help/playbook pointer. `master-index` adopts slimmer At a Glance even if reshape is declined
+  - Root `README.md` — **ship-first is first-class** (typed APIs / CRUD); `prevent` for editors / games / multi-surface. Public example: [xAIkit](https://github.com/BrianCLowe/xAIkit)
+  - `workflow/profile-standing.md`, `BOOTSTRAP.md`, `ADT-settings.example.yaml`, `help/USAGE.md`, Master Index At a Glance, modular rules — same profile framing
+  - Root `eval/` — fail-snapshots a wrong tree must fail (wrong-engine build, operable-gap marked done, prevent skipping Understanding, ship-first inventing Understanding, live instruction-footer left in place); `fixtures/multi-stem-studio/`; integrity grows (VERSION uniqueness, scaffold skeletons, `read_status` accepts unfilled Status enum, `DECISIONS.md`). Still what pack-checks runs
+- **Step B:** Bump Master Index **Pack version** to 2.7.27 from local `VERSION` (do not copy a number into the template). If At a Glance **docs profile** still frames ship-first as a concession / “if you prefer,” adopt first-class wording (`ship-first` = typed APIs / CRUD; `prevent` = editors / games / multi-surface; unset → prevent). Refresh installed modular rules (**no ask** unless `customized: true`). **Do not** add root `DECISIONS.md` to consumer repos. If a whole-repo copy left pack `DECISIONS.md` at the project root → delete it (bootstrap Step 1d). **`master-index`:** If live At a Glance is still a policy dump (Simplicity / Idea sources / full git-mode list / Understanding essay), replace with the template’s short pointer table (keep first-class `ship-first` / `prevent` + host-worktrees one-liner). Required when tagged — **even if reshape is declined**. **`optional-live-reshape` (2.7.27 instruction-footer strip):** present/execute per `sync.mode`. **`auto` / `auto-all`:** all Document Map stems that have spec / core TODO (**including stems with no Understanding**). **`choose`:** present + ask once (default yes). On execute → [`TEMPLATE_SYNC_B.md`](agent/TEMPLATE_SYNC_B.md) **2.7.27 Instruction-footer strip**: delete pack sermons, inline section essays, and long Instructions footers; keep What this is / contract / TODOs / loud phased-bridge notes; add the short SCAFFOLDS + playbook pointer if missing. Also run usual §4 relocate if How-it-should-work / Done when still sit on Understanding. Do **not** rewrite user fill-in. Do **not** invent stems or Understanding on `ship-first`.
+
+## 2.7.26
+
+- **Live impact:** `versions-only`, `process-docs-only`
+- **Files:**
+  - `VERSION` — 2.7.25 → 2.7.26
+  - `agent/ADT-settings.example.yaml` — **omit** the `standing:` key. Comments: missing / empty is the correct default; do not invent; do not copy an empty block “to have something.” Dropped the sample bullets (they restated first-class git modes / Tooling and read as “write your own”)
+  - `agent/BOOTSTRAP.md` — do not copy `standing:` from the example; **do not quiz** “any standing notes?” after 3p
+  - `agent/TEMPLATE_SYNC_B.md` B0.1 — same omit-when-creating
+  - `agent/workflow/profile-standing.md` — no standing quiz; do not create the key just to have a block
+  - `help/USING_WITH_AGENTS.md` — bootstrap does not quiz for standing
+- **Step B:** Bump Master Index **Pack version** to 2.7.26. **Do not** add `standing:` to live `ADT-settings.yaml` from the example. If live `standing.instructions` is **only** the old pack comment examples (“Examples only — delete and write your own” / squash-before-ready / milestone-pr restatement / docker-compose verify) → **delete** the `standing:` key (leave real user bullets). Do **not** invent standing. No live feature/shared scan. No second 2.7.25 relocate unless that one-shot is still in catch-up.
+
+## 2.7.25
+
+- **Live impact:** `versions-only`, `master-index`, `process-docs-only`, `rules`
+- **Files:**
+  - `VERSION` — 2.7.24 → 2.7.25
+  - `agent/workflow/profile-standing.md` — **§0.2 LOOKOUT** is **playbook overrides only**: user wants to **override an ADT playbook** (git/ceremony/orchestrate/verify/re-ask). **Not a scratch pad** — do not jot random notes, how to prompt another model/API, or other-product style. Dropped “corrects how you just worked” as a capture trigger. **Sync relocate** one-shot: strip misplaced standing bullets into the relevant live doc
+  - `agent/TEMPLATE_SYNC_B.md` — standing-relocate one-shot may open §0.2 + the **one** named destination (not a live scan)
+  - `agent/ADT-settings.example.yaml` — same scope on the `standing:` comment
+  - `agent/Modular_Documentation_Rule.mdc` / `.instructions.md` — always-on lookout + after-changes + philosophy: playbook overrides, not a notes pad
+  - `agent/Modular_Docs_Workflow.md`, `BOOTSTRAP.md`, `roles/orchestrator.md`, `roles/feature-implementer.md` + adapter-src + regenerated adapters — same
+  - `workflow/decisions.md`, `Master_Index_Template.md`, `help/*`, root `README.md` — standing = playbook override, not freeform process notes
+- **Step B:** Bump Master Index **Pack version** to 2.7.25. If Key Locations still calls `standing.instructions` “freeform process prefs” without playbook-override scope, adopt the template wording. Refresh installed modular rules (**no ask** unless `customized: true`). If `optional_rules.doc-roles` is **enabled** → refresh `feature-implementer` adapters from this pack. **Standing relocate (this version only):** open `docs/ADT-settings.yaml` → `standing.instructions` only (skip if empty/missing/comment-only). **Keep** bullets that **override an ADT playbook** (or promote to a first-class key and drop — **only** when that key is unset or already matches; do **not** overwrite a different set `docs_profile` / `orchestrator.git.mode` / `sync.mode` or stamp `source: user` on that overwrite). **Move then delete** the rest into the relevant live doc — do not leave a copy in standing. Procedure: Workflow [§0.2 Sync relocate](agent/workflow/profile-standing.md#02-standing-workflow-instructions-user-workflow-not-pack-enums). **Do not** invent standing content, a new map row, or a live feature/shared scan. Open only the one destination named by a misplaced bullet.
+
+## 2.7.24
+
+- **Live impact:** `versions-only`, `master-index`, `process-docs-only`, `rules`
+- **Files:**
+  - `VERSION` — 2.7.23 → 2.7.24
+  - `agent/roles/orchestrator-git.md` — **Host worktrees** (not a settings key): detect linked/host worktree and **stay**; do not checkout default in that tree; dirty-WIP hard-stop is **this tree** only; concurrent implementers require **host isolation** (else serial); pack does **not** `git worktree add`. **`milestone-pr` cycle 10–11:** main checkout still returns to default; host worktree skips that checkout and starts the next branch with `git checkout --no-track -b` from `origin/<default>` (plain `-b` from `origin/<default>` would track default; first push `-u` to the new name)
+  - `agent/roles/orchestrator.md` — parallel only when host can isolate; brief child cwd; do not return-to-default inside a host worktree
+  - `agent/tools/*.md` — **Host isolation** per harness (Cursor / Grok / Copilot / Claude can isolate; OpenClaw / Continue / Cline / `AGENTS.md` → serial)
+  - `agent/roles/feature-implementer.md` + `work-verifier.md` + `adapter-src` + regenerated cursor/grok/copilot adapters — honor briefed host cwd; do not create/remove worktrees
+  - `agent/BOOTSTRAP.md` Step 3p **E**, `agent/TEMPLATE_SYNC_B.md` B0.6, `agent/ADT-settings.example.yaml`, `agent/workflow/profile-standing.md`, `Master_Index_Template.md`, `help/*`, `roles/README.md`, `workflow/todos.md`, root `README.md` — host-worktree wording; no new quiz; do not invent a worktrees key
+- **Step B:** Bump Master Index **Pack version** to 2.7.24. If At a Glance **orchestrator git** lacks the **host worktrees** note (already-in-a-worktree → stay; pack does not create trees; concurrent needs host isolation), adopt it. **Do not** add `orchestrator.git.worktrees`. **Do not** migrate an already-set `orchestrator.git.mode`. If `optional_rules.doc-roles` is **enabled** → refresh `feature-implementer` + `work-verifier` adapters from this pack (**no ask** unless `customized: true`). No live feature/shared scan.
 
 ## 2.7.23
 

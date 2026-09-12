@@ -81,6 +81,10 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 - [x] Durable start: required `into=`; `request_id` delivered before wait; wait-cancel ≠ abandon unless `inbox.cancel`
 - [x] `poll_video` / normalize keep Imagine `error` (wait and poll share the same text)
 
+## Visual references
+
+*(none — library stem)*
+
 ## Current status
 
 - **Shipped** (library-only): generate / extend / poll / download + meter + default prices + `prefer_latest_video_model` + 1080p per-model/mode contraction + required `into=` / `VideoInbox` + extend-model contraction via `need=video_extend`

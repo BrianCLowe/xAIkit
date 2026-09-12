@@ -21,6 +21,14 @@
 
 *(none)*
 
+## Low Priority / Future Ideas
+
+*(none)*
+
+## Cross-Feature Dependencies & Integration Notes
+
+*(none)*
+
 ## Human verify (orchestration 2026-08-13)
 
 - [x] **2026-08-16 — Live via xAIkit tester** — `build_oauth_authorize_url` uses caller `authorize_url` (app may pass `accounts.x.ai`; kit does not inject it); `exchange_oauth_code` posts caller `token_url`. Outcome: works. Dual-write: [Human-TODO.md](../Human-TODO.md) Done. Not a registered OAuth app / product login.

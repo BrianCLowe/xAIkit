@@ -1,5 +1,3 @@
-<!-- pack-version: 2.7.17 -->
-
 > **Workflow module.** Open from the [workflow index](../Modular_Docs_Workflow.md) for TODO layout, Current focus, exploration vs shipping, or operable-done / Acceptance bridge.
 
 # TODO management
@@ -95,6 +93,6 @@ When product shape is still unknown, a short **spike** (branch, throwaway protot
 
 **Still do not:** new Document Map rows for leftovers or for vague planned-only ideas ([`naming-layout.md`](naming-layout.md) §0 inventory rule); TODOs for out-of-kit future APIs; one mega-commit for the whole kit (git: `milestone-pr` — many milestones; a milestone may be several related TODOs, then squash that PR).
 
-**Timescale:** Spec the **finished product**, not an intermediate architecture. Backlog that product as **many verify-order units**. Overnight drain = implement those units (group into milestones when they belong together; parallelize when they do not overlap), not wait, not one dump. See [`roles/orchestrator-git.md`](../roles/orchestrator-git.md) **PR unit + concurrency**.
+**Timescale:** Spec the **finished product**, not an intermediate architecture. Backlog that product as **many verify-order units**. Overnight drain = implement those units (group into milestones when they belong together; parallelize when they do not overlap **and** the host can isolate), not wait, not one dump. See [`roles/orchestrator-git.md`](../roles/orchestrator-git.md) **PR unit + concurrency** + **Host worktrees**.
 
 ---

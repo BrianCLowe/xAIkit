@@ -70,6 +70,10 @@ When a `UsageMeter` is attached, `purpose` is required. Without a meter, purpose
 - [x] Deferred chat helpers (`create_deferred_chat` / `get_deferred_chat`)
 - [x] Async twin `AsyncXaiClient` with the same chat method names (`chat` / `chat_json` / `chat_stream`)
 
+## Visual references
+
+*(none — library stem)*
+
 ## Current status
 
 - **In progress**: none on chat path (async twin shipped)

@@ -25,6 +25,10 @@
 
 *(none)*
 
+## Cross-Feature Dependencies & Integration Notes
+
+*(none)*
+
 ## Human verify (orchestration 2026-08-13)
 
 ### Core — done (consumer proof)

@@ -70,6 +70,10 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - [x] OpenTelemetry export sink (optional extra; mocked tests; export-only)
 - [x] Price table provenance (`source_url` / `fetched`) + overlay refresh path documented
 
+## Visual references
+
+*(none — library stem)*
+
 ## Current status
 
 - **Last reconciled with code**: 2026-08-13 (`PriceTable.source_url` / `fetched`; `save_price_table_template`)

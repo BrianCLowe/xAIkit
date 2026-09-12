@@ -1,11 +1,19 @@
 # xAIkit — Tooling
 
 **Last Updated**: 2026-08-31  
-**Related**: [Master_Index.md](Master_Index.md)
+**Related**: [Master_Index.md](Master_Index.md) · [workflow/tooling.md](templates/agent/workflow/tooling.md) §11
 
 ---
 
 Machine / workflow tools to **develop this library** — not the package dependencies in `pyproject.toml`.
+
+## What belongs here
+
+| Include | Do not include |
+|---------|----------------|
+| CLIs, SDKs, runtimes required to build or run | Libraries listed in `pyproject.toml` |
+| Optional helpers the team actually uses | One-off personal preferences unless the project depends on them |
+| Verify commands that prove the tool is present | Secrets, API keys, license files |
 
 ## Host platforms
 
@@ -56,3 +64,9 @@ Do not commit `.env` / API keys. Live xAI calls are optional and not default CI.
 - Do not invent extra required tools. Live-key smokes stay optional and env-gated (`XAITKIT_LIVE=1` plus `XAI_API_KEY` — see Human-TODO Done). Extra spend flags are listed in the Live row above.
 - PyPI publish: bump `pyproject.toml` version (and the `PackageNotFoundError` fallback in `src/xaikit/__init__.py`), merge to master, then tag `v<that-version>` (currently `v0.1.0`). Never reuse a version. Trusted Publishing — no tokens in the repo. Do **not** dual-write a Human-TODO tag/`procure` row for that (standing).
 - Security reports: private advisory via `SECURITY.md` (not a public issue). Do not commit secrets.
+
+## Instructions for Humans
+
+- Keep this lean — only what a new machine needs.
+- When you adopt a new tool the project depends on, add a row (or tell the agent to).
+- Simple ask on a fresh clone: *Install the project tooling for this machine.*

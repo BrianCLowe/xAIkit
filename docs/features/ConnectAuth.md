@@ -44,6 +44,10 @@ Credential injection and OAuth helpers with **no User/Session types**. Apps pass
 - [x] Consumer docs: OAuth endpoints are caller-supplied (no kit portal URLs)
 - [x] Consumer docs: weekly Grok remaining is not fetched (no unofficial scrape)
 
+## Visual references
+
+*(none — library stem)*
+
 ## Current status
 
 - **Last reconciled with code**: 2026-08-13
