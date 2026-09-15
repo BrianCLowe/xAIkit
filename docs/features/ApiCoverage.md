@@ -1,6 +1,6 @@
 # ApiCoverage
 
-**Last Updated**: 2026-08-31  
+**Last Updated**: 2026-09-15  
 **Related TODO**: [ApiCoverage-TODO.md](ApiCoverage-TODO.md)
 
 ---
@@ -33,7 +33,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 | STT / TTS (REST) | [MediaRest](MediaRest.md) | Yes |
 | Streaming STT (non-STS) | [MediaRest](MediaRest.md) | Yes |
 | Streaming TTS (non-STS) | [MediaRest](MediaRest.md) | Yes |
-| Video | [VideoGeneration](VideoGeneration.md) | No |
+| Video | [VideoGeneration](VideoGeneration.md) | Yes |
 | Realtime voice / STS | [RealtimeVoice](RealtimeVoice.md) | Yes |
 | Files upload / `file_id` | `XaiClient` files helpers (this spec until a map row) | Yes |
 | Embeddings | `XaiClient` (this spec) | Yes |
@@ -152,8 +152,8 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 - [x] Winner split: [RealtimeVoice](RealtimeVoice.md)
 - [x] Target homes + shared rules recorded (this spec)
 - [x] Async twin `AsyncXaiClient` (same method names; no split feature set)
-- [ ] Each **implemented** slice matches its home spec (or a new map row created the same turn)
-- [ ] No silent “wrap the entire SDK” in one change
+
+Standing process (not leftover product work): each implemented slice matches its home spec (or a new map row the same turn); do not silent-wrap the entire SDK in one change.
 
 ## Visual references
 
@@ -161,5 +161,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 
 ## Current status
 
-- **In progress**: remainder unordered after video + realtime voice + ClientChat extras + Files + embeddings + tokenizer + batch + collections + Responses + service tier / deferred + async twin
-- **Blocked by**: —
+- **Shipped**: video + realtime voice + ClientChat extras + Files + embeddings + tokenizer + batch + collections + Responses + service tier / deferred + async twin (see Target kit table)
+- **Open**: REST embed live playtest (empty team roster) — [Human-TODO](../Human-TODO.md)
+- **Parked** (not leftover Acceptance): collections search-lag helper; video edits (`POST /v1/videos/edits`)
+- **Last reconciled with code**: 2026-09-15
