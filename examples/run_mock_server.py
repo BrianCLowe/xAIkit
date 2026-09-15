@@ -3,8 +3,8 @@
 
 From repo root (FastAPI/uvicorn are *not* xaikit package deps)::
 
-    uv run --with fastapi --with "uvicorn[standard]" --package xaikit \\
-      python packages/xaikit/examples/run_mock_server.py
+    uv run --with fastapi --with "uvicorn[standard]" \\
+      python examples/run_mock_server.py
 
 Then::
 
@@ -26,6 +26,7 @@ if str(_EXAMPLES) not in sys.path:
 
 from fastapi_mount import create_app  # noqa: E402
 from xaikit import (  # noqa: E402
+    BOOTSTRAP_MODEL,
     InMemoryUsageSink,
     MockChatProvider,
     UsageMeter,
@@ -44,7 +45,7 @@ def build_demo_client() -> XaiClient:
             replies="hello from xaikit example mount",
             default_usage={"prompt_tokens": 10, "completion_tokens": 8},
         ),
-        model="grok-3-mini",
+        model=BOOTSTRAP_MODEL,
         usage_meter=meter,
         thought_level="low",
     )
@@ -57,7 +58,7 @@ def main() -> None:
         raise SystemExit(
             "uvicorn is required to run this example (not an xaikit package dep). "
             'Install ephemerally: uv run --with fastapi --with "uvicorn[standard]" '
-            "--package xaikit python packages/xaikit/examples/run_mock_server.py"
+            "python examples/run_mock_server.py"
         ) from exc
 
     app = create_app(build_demo_client())
