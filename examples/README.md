@@ -18,8 +18,8 @@ FastAPI and uvicorn are **optional example deps** — they are **not** listed on
 From the **repo root**:
 
 ```bash
-uv run --with fastapi --with "uvicorn[standard]" --package xaikit \
-  python packages/xaikit/examples/run_mock_server.py
+uv run --with fastapi --with "uvicorn[standard]" \
+  python examples/run_mock_server.py
 ```
 
 Smoke the endpoints:
@@ -42,7 +42,7 @@ from xaikit import MockChatProvider, XaiClient
 # Copy fastapi_mount.py into your app, or add examples/ to PYTHONPATH while experimenting.
 from fastapi_mount import create_xaikit_router
 
-client = XaiClient(provider=MockChatProvider(replies="hi"), model="grok-3-mini")
+client = XaiClient(provider=MockChatProvider(replies="hi"), model="grok-4.6")
 app = FastAPI()
 app.include_router(create_xaikit_router(client, prefix="/xaikit"))
 ```

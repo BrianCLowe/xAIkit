@@ -3,12 +3,13 @@
 
 Run from repo root::
 
-    uv run --package xaikit python packages/xaikit/scripts/smoke_meter_mock.py
+    uv run python scripts/smoke_meter_mock.py
 """
 
 from __future__ import annotations
 
 from xaikit import (
+    BOOTSTRAP_MODEL,
     InMemoryUsageSink,
     MockChatProvider,
     UsageMeter,
@@ -27,7 +28,7 @@ def main() -> None:
     )
     client = XaiClient(
         provider=provider,
-        model="grok-3-mini",
+        model=BOOTSTRAP_MODEL,
         usage_meter=meter,
         thought_level="low",
         retry_policy=default_retry_policy(max_attempts=1, backoff_seconds=0.0),

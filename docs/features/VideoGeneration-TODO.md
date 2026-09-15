@@ -1,6 +1,6 @@
 # VideoGeneration — TODO
 
-**Last Updated**: 2026-08-31  
+**Last Updated**: 2026-09-15  
 **Related Spec**: [VideoGeneration.md](VideoGeneration.md)
 
 ---
@@ -31,7 +31,7 @@
 
 ## Low Priority / Future Ideas
 
-*(none — video edits / Files upload / catalog `role=video` live on other stems)*
+*(none — Files upload and catalog `role=video` live on other stems; video edits `POST /v1/videos/edits` stay parked, not shipped)*
 
 ## Human verify (orchestration 2026-08-12)
 
