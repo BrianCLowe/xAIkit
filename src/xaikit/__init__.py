@@ -1,4 +1,4 @@
-"""XaiKit — extractable xAI transport + catalog + connect + usage metering."""
+"""Unofficial Python kit for the xAI (Grok) API: typed client, catalog, usage metering, media, and realtime voice."""
 
 from xaikit.catalog import (
     BOOTSTRAP_MODEL,
