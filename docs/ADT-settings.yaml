@@ -54,7 +54,7 @@ optional_rules:
 upstream:
   check_mode: always
   check_mode_recorded: 2026-08-12
-  last_checked: 2026-09-15
+  last_checked: 2026-09-16
   local_pack_version: "2.7.28"
   update_available: true
   upstream_pack_version: "2.8.0"

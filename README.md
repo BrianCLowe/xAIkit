@@ -77,7 +77,7 @@ from xaikit import (
 meter = UsageMeter(sink=InMemoryUsageSink())
 client = XaiClient(
     provider=MockChatProvider(replies="hi"),
-    model="grok-4.5",
+    model="grok-4.6",
     usage_meter=meter,
 )
 resp = client.chat([{"role": "user", "content": "hello"}], purpose="demo.chat")
@@ -90,7 +90,7 @@ import asyncio
 from xaikit import AsyncXaiClient, MockChatProvider
 
 async def main() -> None:
-    client = AsyncXaiClient(provider=MockChatProvider(replies="hi"), model="grok-4.5")
+    client = AsyncXaiClient(provider=MockChatProvider(replies="hi"), model="grok-4.6")
     resp = await client.chat([{"role": "user", "content": "hello"}])
     print(resp.content)
 
@@ -481,7 +481,7 @@ client = XaiClient(
             {"title": "blue"},
         ]
     ),
-    model="grok-4.5",
+    model="grok-4.6",
 )
 
 # Vision: content may be a string or a list of parts
@@ -568,7 +568,7 @@ from xaikit import CompletionTracer, InMemoryTraceSink, MockChatProvider, XaiCli
 tracer = CompletionTracer(sink=InMemoryTraceSink())
 client = XaiClient(
     provider=MockChatProvider(replies="hi"),
-    model="grok-4.5",
+    model="grok-4.6",
     completion_tracer=tracer,
 )
 client.chat([{"role": "user", "content": "hello"}])

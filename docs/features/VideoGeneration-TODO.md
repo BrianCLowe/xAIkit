@@ -1,6 +1,6 @@
 # VideoGeneration — TODO
 
-**Last Updated**: 2026-09-15  
+**Last Updated**: 2026-09-16  
 **Related Spec**: [VideoGeneration.md](VideoGeneration.md)
 
 ---
@@ -48,7 +48,7 @@
 - **library foundation first · exercise path:** `uv run pytest` (mocked). Optional env-gated live video: `XAITKIT_LIVE=1 XAITKIT_LIVE_VIDEO=1` (start + poll + speaking; not part of default live smokes). Extend: also `XAITKIT_LIVE_VIDEO_FILE_ID`.
 - Files `file_id` upload stays on [ApiCoverage-TODO.md](ApiCoverage-TODO.md); this stem forwards `file_id` on the wire only.
 - Capability-aware resolve lives on Catalog (`feature_options` / `need=`). This stem uses it on `extend_video`.
-- Next: [RealtimeVoice-TODO.md](RealtimeVoice-TODO.md) (human rank 2026-08-12).
+- RealtimeVoice shipped (Human-TODO Done 2026-08-13). This stem has no follow-on rank.
 
 ## Completed
 

@@ -1,6 +1,6 @@
 # ApiCoverage
 
-**Last Updated**: 2026-09-15  
+**Last Updated**: 2026-09-16  
 **Related TODO**: [ApiCoverage-TODO.md](ApiCoverage-TODO.md)
 
 ---
@@ -41,7 +41,7 @@ Implement order after video: **realtime voice**, then **no order**. Split a surf
 | Batch | `XaiClient` (this spec) | Yes |
 | Collections / documents | `XaiClient` (this spec) | Yes |
 | Responses / built-in agent tools | Additive wrap — **do not replace** `chat` | Yes |
-| Async twin | Optional parallel API (`aio`) — **not** a rewrite of sync | Yes |
+| Async twin | `AsyncXaiClient` — same method names as sync; **not** a rewrite of `XaiClient` | Yes |
 | Service tier / deferred | Pass-through knob when a method already exists | Yes |
 | Auth subclient / User types | Out of kit — [ConnectAuth](ConnectAuth.md) stays stores + OAuth helpers | N/A |
 

@@ -1,6 +1,6 @@
 # Catalog
 
-**Last Updated**: 2026-08-15  
+**Last Updated**: 2026-09-16  
 **Related TODO**: [Catalog-TODO.md](Catalog-TODO.md)
 
 ---
@@ -51,7 +51,7 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2026-08-12 | Bootstrap model `grok-4.5` | Current default pin when catalog empty |
+| 2026-08-12 | Bootstrap model `grok-4.5` | **Superseded 2026-08-13** by bootstrap `grok-4.6` (row below). Was the default pin when catalog empty. |
 | 2026-08-12 | Strip `non-reasoning` before tagging `reasoning` | Live catalog slugs like `grok-4.20-0309-non-reasoning` contain the substring `reasoning` |
 | 2026-08-12 | Three intents: cheapest / economy / best; overlap OK | Not 4+ named tiers. `economy` not `best_value` — that phrase reads as performance-per-dollar, which can be the flagship. Live 2026-08-12: 4.20-non-reasoning / 4.3 / 4.6 after skipping grok-build |
 | 2026-08-12 | Single price band → all intents pick flagship | Same list price: older SKU is not cheaper, and newer models are usually more token-efficient. Multi-band cheapest still uses the low band (4.20 vs 4.3 at $12.5 while 4.6 is $20) |
