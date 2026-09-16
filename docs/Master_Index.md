@@ -100,7 +100,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 1. Consumers: `README.md`.
 2. Agents: this map → the stem spec + TODO.
 3. Workflow: [`templates/agent/Modular_Docs_Workflow.md`](templates/agent/Modular_Docs_Workflow.md) (ship-first: no Understanding gate).
-4. Current focus: [Human-TODO.md](Human-TODO.md) (orchestration look-lists).
+4. Current focus: [Human-TODO.md](Human-TODO.md) — only Open item is REST embed live (empty team roster).
 
 ---
 

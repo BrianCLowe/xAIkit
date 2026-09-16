@@ -60,7 +60,7 @@ jobs:
           - [ ] \`BOOTSTRAP_MODEL\` if the flagship moved
           - [ ] Refresh baseline: \`uv run python scripts/watch_xai_models.py --write-baseline\`
 
-          Sources: models, pricing, release notes, Imagine image + video generation pages.
+          Sources: models, pricing, Imagine image + video generation pages. Release notes are not scanned.
           EOF
           )"
           existing="$(gh issue list --label xai-models --state open --json number --jq '.[0].number')"

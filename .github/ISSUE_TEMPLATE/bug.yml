@@ -38,7 +38,7 @@ body:
     attributes:
       label: How you installed
       options:
-        - PyPI (pip install --pre xaikit-py / uv add xaikit-py --prerelease allow)
+        - PyPI (pip install xaikit-py / uv add xaikit-py)
         - Git tag
         - Editable checkout
         - Other
