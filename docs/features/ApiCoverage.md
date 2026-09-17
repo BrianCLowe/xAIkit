@@ -1,6 +1,6 @@
 # ApiCoverage
 
-**Last Updated**: 2026-09-16  
+**Last Updated**: 2026-09-17  
 **Related TODO**: [ApiCoverage-TODO.md](ApiCoverage-TODO.md)
 
 ---
@@ -13,16 +13,16 @@
 
 ## Overview
 
-Target contract for **the rest of xAIkit** — every xAI surface this kit will wrap that is not already a Document Map row. Video and realtime voice have their own stems; this file is the **finished-kit spec** for everything else, not a parking lot of maybe-laters.
+Inventory contract for **the rest of xAIkit** — every xAI surface this kit wraps that is not already a Document Map row. Video and realtime voice have their own stems; this file is the **finished-kit spec** for everything else (parked extras stay parked), not a pickup queue.
 
-xAIkit’s product is one library: typed `XaiClient` (plus catalog / meter / credentials), mock-testable, purpose-tagged usage, no UI, no multi-provider SDK. Remaining surfaces attach to that client. They do **not** get a second architecture when someone picks them up.
+xAIkit’s product is one library: typed `XaiClient` (plus catalog / meter / credentials), mock-testable, purpose-tagged usage, no UI, no multi-provider SDK. Surfaces on this stem attach to that client. They do **not** get a second architecture.
 
-Implement order after video: **realtime voice**, then **no order**. Split a surface into its own map row only when implementation starts if the stem would otherwise bloat — the contract below still applies.
+Implement order after video was **realtime voice**, then **no order** — both shipped. Split a surface into its own map row only when implementation starts if the stem would otherwise bloat — the contract below still applies.
 
 ## Target kit
 
-| Surface | Home when built | In tree today |
-|---------|-----------------|---------------|
+| Surface | Home | In tree |
+|---------|------|---------|
 | Chat complete / stream | [ClientChat](ClientChat.md) | Yes |
 | Tools / function calling | [ClientChat](ClientChat.md) — same `chat` / `chat_stream` | Yes |
 | Vision / multimodal parts | [ClientChat](ClientChat.md) — message parts, not a second API | Yes |
@@ -107,7 +107,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 - Prefer SDK when it already models the surface; REST/httpx when that is what shipped media uses and the SDK is thin.
 - `file_id` is an opaque string from Files or Imagine `file_output`; do not parse it.
 - Built-in agent tools stay opt-in knobs, never default-on for `chat`.
-- Async, if added, mirrors sync method names on an async client — no split feature set. `AsyncXaiClient` is that twin: same public method names, all awaitable; REST via `httpx.AsyncClient`; WS via `connect_*_websocket_async`; live chat via `xai_sdk.AsyncClient`. Not `asyncio.to_thread` around sync I/O.
+- Async mirrors sync method names on `AsyncXaiClient` — no split feature set. Same public method names, all awaitable; REST via `httpx.AsyncClient`; WS via `connect_*_websocket_async`; live chat via `xai_sdk.AsyncClient`. Not `asyncio.to_thread` around sync I/O.
 
 ## Decisions
 
@@ -138,8 +138,8 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 
 | Piece | Relationship |
 |-------|--------------|
-| [VideoGeneration.md](VideoGeneration.md) | Implement first; may take `file_id` later |
-| [RealtimeVoice.md](RealtimeVoice.md) | Implement after video |
+| [VideoGeneration.md](VideoGeneration.md) | Shipped first; may take `file_id` later |
+| [RealtimeVoice.md](RealtimeVoice.md) | Shipped after video |
 | [ClientChat.md](ClientChat.md) | Tools, vision, structured outputs |
 | [MediaRest.md](MediaRest.md) | Image edit, streaming STT, streaming TTS |
 | [Catalog.md](Catalog.md) | Role-filtered resolve |
