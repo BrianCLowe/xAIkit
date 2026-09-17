@@ -1,6 +1,6 @@
 # ApiCoverage — TODO
 
-**Last Updated**: 2026-08-31  
+**Last Updated**: 2026-09-17  
 **Related Spec**: [ApiCoverage.md](ApiCoverage.md)
 
 ---
@@ -13,9 +13,9 @@
 
 ## Current focus *(session handoff)*
 
-**Active task:** Embed live playtest blocked on team roster. Collections search-lag helper still open.  
+**Active task:** Embed live playtest blocked on team roster.  
 **Blocked by:** —  
-**Last session:** 2026-08-16 — Batch remaps 4.6/4.5 via `need=batch`. Embed README no longer treats `v1` as a live pin. Collections search-lag documented (no wait/retry yet).
+**Last session:** 2026-08-16 — Batch remaps 4.6/4.5 via `need=batch`. Embed README no longer treats `v1` as a live pin. Collections search-lag stays parked Medium (documented; no wait/retry).
 
 ---
 
