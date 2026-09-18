@@ -78,7 +78,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 ### Chat extras *(live on ClientChat)*
 
 - **Tools**: pass tool defs into `chat` / `chat_stream`; return tool calls on `CompletionResponse`; accept tool-result messages on the next turn. App owns the tool loop.
-- **Vision**: message content is not only `str` — image (and later video) parts (`url` / `file_id` / data). `MockChatProvider` records parts.
+- **Vision**: message content is not only `str` — image and video parts (`url` / `file_id` / data). `MockChatProvider` records parts.
 - **Structured outputs**: `chat_json` uses xAI schema / `response_format`; fence-stripping stays fallback.
 - **Responses API / built-in tools** (web, X, code, collections, image-in-chat): additive. Do **not** migrate the paved path off `chat`.
 - **Service tier**: optional `service_tier=` (`"default"` | `"priority"`) on `chat` / `chat_stream` / `chat_json` and `create_response`. Omit when `None` (same as `"default"`). Invalid values are rejected before the network. Live chat forwards to SDK `chat.create(service_tier=)`. `CompletionResponse.service_tier` echoes the provider/API value when present; Responses JSON is returned as-is.
