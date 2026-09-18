@@ -1,6 +1,7 @@
 # RealtimeVoice
 
 **Last Updated**: 2026-08-31  
+**Related Understanding**: —  
 **Related TODO**: [RealtimeVoice-TODO.md](RealtimeVoice-TODO.md)
 
 ---

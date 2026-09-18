@@ -2,6 +2,7 @@
 
 **Last Updated**: 2026-08-16  
 **Related Spec**: [ConnectAuth.md](ConnectAuth.md)
+**Related Understanding**: —
 
 ---
 

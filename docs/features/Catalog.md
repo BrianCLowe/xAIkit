@@ -1,6 +1,7 @@
 # Catalog
 
 **Last Updated**: 2026-09-16  
+**Related Understanding**: —  
 **Related TODO**: [Catalog-TODO.md](Catalog-TODO.md)
 
 ---

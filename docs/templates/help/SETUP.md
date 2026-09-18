@@ -18,9 +18,9 @@ You need **`docs/templates/`** in your project (scaffolds, [`help/`](.), [`agent
 | **Clone → rename → change remote** | New local app from a full clone; point `origin` at your empty repo |
 | Git submodule | Awkward path; still prefer copying or sparse-checkout of `docs/templates/` |
 
-Whole-repo / template installs: bootstrap auto-moves clearly upstream root files into `docs/templates/agent/upstream/` and deletes Agentic-only `.github/ISSUE_TEMPLATE/`, `.github/FUNDING.yml`, `.github/workflows/release.yml` / `pack-checks.yml`, root `eval/`, root `scripts/gen_role_adapters.py`, leftover `docs/templates/agent/scripts/*.py`, and maintainer root **`DECISIONS.md`**. Short acquisition table also on the [upstream README — Get started](https://github.com/BrianCLowe/Agentic-Doc-Templates#get-started).
+Whole-repo / template installs: bootstrap auto-moves clearly upstream root files into `docs/templates/agent/upstream/` and deletes Agentic-only `.github/ISSUE_TEMPLATE/`, `.github/FUNDING.yml`, `.github/workflows/release.yml` / `pack-checks.yml`, pack `.cursor/environment.json`, root `eval/`, root `scripts/gen_role_adapters.py`, leftover `docs/templates/agent/scripts/*.py`, and maintainer root **`DECISIONS.md`** (Steps 1b–1d). Short acquisition table also on the [upstream README — Get started](https://github.com/BrianCLowe/Agentic-Doc-Templates#get-started).
 
-**Inside the pack:** `help/` (this guide), `agent/` (bootstrap, rules, sync), plus `VERSION`, `CHANGELOG.md`, and the scaffold templates at the pack root. Pack version number lives **only** in `VERSION`.
+**Inside the pack:** `README.md` (do not edit — overwritten on sync), `help/` (this guide), `agent/` (bootstrap, rules, sync), plus `VERSION`, `CHANGELOG.md`, and the scaffold templates at the pack root. Pack version number lives **only** in `VERSION`.
 
 Public example of a project that used this pack: [xAIkit](https://github.com/BrianCLowe/xAIkit) (typed API — a natural **ship-first** fit).
 
@@ -32,7 +32,7 @@ Ask your agent:
 
 > Bootstrap modular docs using `docs/templates/agent/BOOTSTRAP.md`.
 
-That creates `Master_Index.md`, `Tooling.md`, `Human-TODO.md`, `reference/` (for **chat exports** / design docs), feature/shared folders, records **project preferences in one batch** (docs profile, sync mode, orchestrator git, optional update-check / doc-roles — agent must present and explain each), and the **profile default file set** for every Document Map row named in the bootstrap conversation (always spec + TODO; Understanding when the profile requires it — skip file creation if you named no features yet).
+That creates `Master_Index.md`, `Tooling.md`, `Human-TODO.md`, **`Product-Vision.md`** (whole-product end-state — always created; **ship-first** is destination-only until you *lock product shape*), `reference/` (for **chat exports** / design docs), feature/shared folders, records **project preferences in one batch** (docs profile, sync mode, orchestrator git, optional update-check / doc-roles — agent must present and explain each), and the **profile default file set** for every Document Map row named in the bootstrap conversation (always spec + TODO; Understanding when the profile requires it — skip file creation if you named no features yet).
 
 **Recommended habit** *(after bootstrap creates `docs/reference/`):* export idea conversations (Grok.com, ChatGPT, …) to markdown and drop them there — often many threads. Then ask: *Build or update the live docs from `docs/reference/`.* That preserves whys/motives better than a polished design doc alone ([`IDEA_CAPTURE_TIPS.md`](IDEA_CAPTURE_TIPS.md)). Bootstrap alone does not require exports first; building from `reference/` is the follow-up that fills rich Understandings (or thin specs under **ship-first**).
 
@@ -54,7 +54,9 @@ Then you:
 docs/
 ├── Master_Index.md              ← project map (you maintain)
 ├── Tooling.md                   ← machine tools (not package deps)
+├── Product-Vision.md            ← whole-product end-state (all profiles; ship-first = destination, not a gate)
 ├── Human-TODO.md                ← human inbox (procure, playtest, decide, waiting)
+├── Team-Roster.md               ← optional — only when team inbox is on (named humans and bots self-ID; do not invent)
 ├── ADT-settings.yaml            ← pack prefs (profile, git, standing playbook overrides, tools, optionals, sync, upstream)
 ├── reference/                   ← design docs, chat exports, PRDs, legacy specs
 │   └── visuals/                 ← optional inspiration screenshots
@@ -62,6 +64,7 @@ docs/
 ├── features/ + assets/
 ├── decisions/                   ← optional
 └── templates/                   ← this pack (overwrite on sync; not live content)
+    ├── README.md                ← pack-owned; do not edit; edits vanish on sync
     ├── VERSION / CHANGELOG.md
     ├── help/ · agent/
     └── … scaffolds + agent/Modular_Docs_Workflow.md (index) + agent/workflow/
@@ -76,7 +79,7 @@ Naming: [`../agent/workflow/naming-layout.md`](../agent/workflow/naming-layout.m
 | Goal | Go here |
 |------|---------|
 | Day-to-day (chat → docs, mid-build ideas, design docs) | [`USAGE.md`](USAGE.md) |
-| What to put in Understanding / spec / TODO (fill-in blanks) | [`SCAFFOLDS.md`](SCAFFOLDS.md) |
+| What to put in Understanding / spec / TODO / Product-Vision / Team-Roster (fill-in blanks) | [`SCAFFOLDS.md`](SCAFFOLDS.md) |
 | Optional roles (intent-first Understanding, implement, sync) | [`../agent/roles/README.md`](../agent/roles/README.md) |
 | Describing UI / scope (esp. if new to software) | [`IDEA_CAPTURE_TIPS.md`](IDEA_CAPTURE_TIPS.md) |
 | Rule / harness install (Cursor, Grok Build, …) | [`../agent/tools/README.md`](../agent/tools/README.md) · human TOC: [`USING_WITH_AGENTS.md`](USING_WITH_AGENTS.md) |
@@ -84,7 +87,7 @@ Naming: [`../agent/workflow/naming-layout.md`](../agent/workflow/naming-layout.m
 | Later: refresh the pack | *Update the doc templates…* — [`TEMPLATE_SYNC.md`](../agent/TEMPLATE_SYNC.md) / [`CHANGELOG.md`](../CHANGELOG.md). If your pack is pre-**1.2** (no sync file), copy `docs/templates/` once first. |
 | Version-only ping | *Check for template updates* — [`TEMPLATE_UPDATE_CHECK.md`](../agent/TEMPLATE_UPDATE_CHECK.md) |
 
-After bootstrap, skim `docs/Human-TODO.md` — your inbox for keys, playtests, decisions, and external waiting.
+After bootstrap, skim `docs/Human-TODO.md` — your inbox for keys, playtests, decisions, and external waiting. Also skim `docs/Product-Vision.md` — one end-state picture the feature map must fit. Under **prevent**, confirm product shape. Under **ship-first**, it is destination-only until you *lock product shape*.
 
 ---
 

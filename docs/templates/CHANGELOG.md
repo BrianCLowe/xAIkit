@@ -1,10 +1,10 @@
 # Template pack changelog
 
-> **Agents:** After [`agent/TEMPLATE_SYNC_A.md`](agent/TEMPLATE_SYNC_A.md), open [`agent/TEMPLATE_SYNC_B.md`](agent/TEMPLATE_SYNC_B.md). Select catch-up entries from **from** → **to** (B0 Catch-up) — not top-only on version jumps. **Union** Live impact tags; skim Step B lines for one-shots; do not invent a broader audit.
+> **Agents:** After [`agent/TEMPLATE_SYNC_A.md`](agent/TEMPLATE_SYNC_A.md), open [`agent/TEMPLATE_SYNC_B.md`](agent/TEMPLATE_SYNC_B.md). Select catch-up entries from **from** → **to** (B0 Catch-up) — not top-only on version jumps. **Union** Live impact tags; skim Step B lines for one-shots; do not invent a broader audit. **Summarize the union only** — do not name catalog optional tags that were not selected as “skipped.” `auto-all` executes unioned tagged passes on all stems; it is not “run every row in this table.”
 >
 > **Maintainers:** Every `VERSION` bump must update this file in the same commit (newest entry on top). Keep bullets brief. When editing agent playbooks, write for thorough “off-road” models — explicit scope gates and Do-not lists, not open “as needed” language (see root [`CONTRIBUTING.md`](../../CONTRIBUTING.md)).
 
-**Live impact tags** (use only these):
+**Live impact tags** (use only these — lasting catalog; a tag fires only when a selected catch-up entry lists it):
 
 | Tag | Meaning for Step B |
 |-----|--------------------|
@@ -21,6 +21,110 @@
 | `process-docs-only` | Pack process/help/agent docs only — no live feature/shared content scan |
 
 ---
+
+## 2.9.4
+
+- **Live impact:** `versions-only`, `process-docs-only`, `master-index`, `rules`
+- **Files:**
+  - `VERSION` — 2.9.3 → 2.9.4
+  - `README.md` *(templates root, new)* — pack-owned; replaced in full on sync; edits vanish; change upstream; project-owned docs live elsewhere
+  - `workflow/session-freshness.md` *(new, §0.3)* — session-start `git status` + `git worktree list`; sibling `docs/` drift → hard stop; Stay ≠ current. A0 remains the overwrite gate. **Docs-overlapping PRs:** same-stem TODO/spec on an open PR → add there (docs overlap ≠ code overlap; Grok successive spawn)
+  - `Modular_Documentation_Rule.*` — session default step 0 is the cheap check (so it is on the routed path); Shared / Before implementation slimmed to module pointers; bootstrap is **parent only** (no `docs-bootstrap` spawn); successive-issue / Grok parent: do not spawn a second PR that rewrites the same live docs
+  - `roles/adapter-src/` — **removed** `docs-bootstrap` (bootstrap installs adapters; the adapter could not exist until after the job). Keep in-session [`roles/bootstrap.md`](agent/roles/bootstrap.md) as a thin parent wrapper
+  - Workflow index / implement / todos / Master Index / roles / tools (`grok-build` successive-issues) / help / `TEMPLATE_SYNC_A` / `TEMPLATE_SYNC_B` / `RULE_INSTALL` / `BOOTSTRAP` — route the same lesson; do not leave it only in sync/install playbooks
+  - Root `DECISIONS.md` **D24** — do not silently undo; **D6** — standing is the git-mode write-in (not an eighth mode); **D25** — Bugbot reads the PR until ready; squash-before-ready is not required
+  - `BOOTSTRAP.md` Step 3p **E**, `TEMPLATE_SYNC_B.md` B0.6, `orchestrator-git.md` / `orchestrator.md`, `profile-standing.md`, `ADT-settings.example.yaml`, `help/USING_WITH_AGENTS.md` — git-mode menu: **write-in (not a quiz, not an eighth mode)** — closest mode + `standing.instructions` for merge commit / rebase-merge / always squash before ready (HEAD-only reviewer) / custom close-out
+  - `orchestrator-git.md` / `orchestrator.md` / BOOTSTRAP / B0.6 / roles README / root README — **`milestone-pr` does not squash before ready** for Bugbot (PR review until ready; commits after ready are tip-only). `branch-pr-squash` stays the one-morning-PR option
+  - Root `eval/` — `session-docs-freshness` pack contract; `standing-playbook-override-only` covers the git-menu write-in; `milestone-pr-multi-todo` covers D25
+- **Step B:** Bump Master Index **Pack version** to 2.9.4 from local `VERSION`. **`master-index`:** Key Locations `docs/templates/` row: pack-owned / do not edit / see `templates/README.md`. At a Glance: add **Docs freshness** pointer (Stay ≠ current; same-stem open PR → add there). Quick Start step 1: freshness first. **`rules`:** refresh installed modular-rule copies so session default step 0 is live — the gate does nothing if only the pack copy updates. If doc-roles enabled: refresh **six** adapters; **delete leftover** `docs-bootstrap.md` / `docs-bootstrap.agent.md`. No live feature/shared scan.
+
+## 2.9.3
+
+- **Live impact:** `versions-only`, `process-docs-only`, `content-templates`, `master-index`
+- **Files:**
+  - `VERSION` — 2.9.2 → 2.9.3
+  - `workflow/product-vision.md` — **§4.5:** create destination file on **all** profiles; **`ship-first`** is **not a gate**. *Lock product shape* starts confirm. Draft source unchanged
+  - `BOOTSTRAP.md` / `TEMPLATE_SYNC_B.md` / Master Index / help / modular rule — always create lightweight Product-Vision; ship-first does not wait
+  - Root `DECISIONS.md` **D23** — supersedes D21 create-omit; end-state-picture job stays
+  - Root `eval/` — `product-vision-end-state` must create, must not gate
+- **Step B:** Bump Master Index **Pack version** to 2.9.3 from local `VERSION`. **`master-index`:** Key Locations Product-Vision row: all profiles create; `ship-first` is destination-only. **`content-templates`:** if `docs/Product-Vision.md` is missing → create from the template (**all** profiles, including `ship-first`). **Peek `docs/reference/` first** (newest 3–5 idea/identity exports, or user-pointed files) + this-turn conversation; lightweight draft is / is not + end-state picture from **that** (lock obvious; empty Assumptions OK; examples ≠ target unless clearly set). **Then** fill How the map fits from **existing** map rows only. **Do not** build the picture by summarizing the Document Map / feature Understandings / specs. **`ship-first`:** do **not** treat `draft` as a coding gate. *Lock product shape* only starts the confirm gate. Do not invent stems. Do not copy sermons into the live file. Do not skip `reference/` because the map looks complete. No live feature/shared scan beyond that peek + the map-fit table. No `rules` tag — do not refresh installed modular rules from 2.9.3 alone.
+
+## 2.9.2
+
+- **Live impact:** `versions-only`, `process-docs-only`, `content-templates`
+- **Files:**
+  - `VERSION` — 2.9.1 → 2.9.2
+  - `workflow/human-todo.md` — one-shot *apply defaults to Open* fills unassigned rows from `kind_defaults` **only if that `role_id` is Active**; else leave `unassigned` (same gate as stamp-on-dual-write). Do not lock rows onto a missing id
+  - `Human_TODO_Template.md` — Claim / backfill legend: Active-roster gate on *apply defaults to Open*
+  - `ADT-settings.example.yaml` / `DECISIONS.md` D19 — backfill Active gate
+  - Root `eval/` — `team-inbox-optional` covers backfill Active gate
+- **Step B:** Bump Master Index **Pack version** to 2.9.2 from local `VERSION`. **`content-templates`:** if live Human-TODO has the *apply defaults to Open* bullet without the Active-roster gate, add **only if that `role_id` is Active on Team-Roster; else leave `unassigned`**. Do **not** run *apply defaults to Open* during this sync unless the user asked and the default ids are Active. Do **not** re-stamp explicit assignees. Do **not** add `team_inbox` from the example. No live feature/shared scan. No `rules` tag — do not refresh installed modular rules from 2.9.2 alone.
+
+## 2.9.1
+
+- **Live impact:** `versions-only`, `process-docs-only`, `content-templates`, `master-index`
+- **Files:**
+  - `VERSION` — 2.9.0 → 2.9.1
+  - `Team_Roster_Template.md` — named humans self-ID with **their slug** (`alex`), not leftover `human`. Human-TODO stays the work inbox. Empty Active until someone self-IDs. Optional leftover `human` bucket only if that id is Active
+  - `workflow/human-todo.md` — **Human self-ID** write path; missing Active → `unassigned` (do **not** fallback-stamp `human` for human-gated kinds). Stamp only Active `role_id`s
+  - `Human_TODO_Template.md` — Assignee legend: stamp from `kind_defaults` **only if Active on Team-Roster**; else `unassigned`. *Put me on the roster as Alex*
+  - `BOOTSTRAP.md` — Step 3p continues to **Step 3v** (was skipping Product-Vision)
+  - `ADT-settings.example.yaml` / help / workflow index / Master Index / modular rule — named-human pointers
+  - Root `DECISIONS.md` **D22** — do not silently undo
+  - Root `eval/` — `team-inbox-optional` covers named-human self-ID + no fallback-stamp
+- **Step B:** Bump Master Index **Pack version** to 2.9.1 from local `VERSION`. **`master-index`:** Team-Roster Key Locations / §3.4 blurb may mention named humans (file exists only when `team_inbox` is on). **`content-templates`:** if live `team_inbox.enabled` and `docs/Team-Roster.md` is missing → create from the template (do **not** invent bot or human-name rows; do **not** copy Row shape into Active). If a live roster already has a leftover `human` row, leave it — do not rewrite people onto invented slugs. If live Human-TODO is missing the Active-gate Assignee legend or *Put me on the roster* phrase, add those. If `team_inbox` is unset / `enabled: false` → **do not** create `Team-Roster.md`. Do **not** add `team_inbox` to live settings from the example. No live feature/shared scan. No `rules` tag — do not refresh installed modular rules from 2.9.1 alone.
+
+## 2.9.0
+
+- **Live impact:** `versions-only`, `process-docs-only`, `content-templates`, `master-index`
+- **Files:**
+  - `VERSION` — 2.8.1 → 2.9.0
+  - `Product_Vision_Template.md` — **(new)** live `docs/Product-Vision.md`: whole-product is / is not + **end-state picture** + how the map fits. Not a feature checklist. Not a second spec
+  - `workflow/product-vision.md` — **§4.5:** create under **prevent** (bootstrap / first live-docs / sync); **balanced** when 2+ stems or fuzzy whole; **do not** silent-create on **ship-first**. **Draft source:** peek `docs/reference/` first — do **not** rebuild the picture from the feature map. Draft does not add a second coding gate; **confirmed** vision: do not implement a fighting feature. Lock gate stays Workflow §4
+  - `Master_Index_Template.md` / bootstrap / sync / help / paved path / understanding + implement pointers
+  - Root `DECISIONS.md` **D21** — do not silently undo
+  - Root `eval/` — `product-vision-end-state` pack contract + scaffold skeleton
+- **Step B:** Bump Master Index **Pack version** to 2.9.0 from local `VERSION`. **`master-index`:** add Key Locations / §3.4 / At a Glance row for Product-Vision. **`content-templates`:** if `docs_profile` is **`prevent`** (or unset) and `docs/Product-Vision.md` is missing → create from the template. **Peek `docs/reference/` first** (newest 3–5 idea/identity exports, or user-pointed files) + this-turn conversation; draft is / is not + end-state picture from **that** (lock obvious; empty Assumptions OK; examples ≠ target unless clearly set). **Then** fill How the map fits from **existing** map rows only. **Do not** build the picture by summarizing the Document Map / feature Understandings / specs. **`balanced`:** create only if 2+ feature stems or whole-product identity is already fuzzy (same peek). **`ship-first`:** **do not** create. Do not invent stems. Do not copy sermons into the live file. Do not skip `reference/` because the map looks complete. No live feature/shared scan beyond that peek + the map-fit table. No `rules` tag — do not refresh installed modular rules from 2.9.0 alone.
+
+## 2.8.1
+
+- **Live impact:** `versions-only`, `process-docs-only`, `content-templates`, `master-index`
+- **Files:**
+  - `VERSION` — 2.8.0 → 2.8.1
+  - `Team_Roster_Template.md` — **(new)** live `docs/Team-Roster.md` scaffold (create **only** when `team_inbox` is enabled). Columns: **Name**, **Jobs**, **Anti-jobs** *(if defined)*, Follow-ups, Handoff, Roster write. Empty Active + optional `human` fill-in is correct. Row-shape example is **not** a live bot. Update the row when jobs change
+  - `workflow/human-todo.md` — **two-stage roster:** coding agent on a handoff **reads** only (do not invent rows; stamp `kind_defaults` only if that `role_id` is Active); bots **self-ID** their own row (Name / Jobs / Anti-jobs if defined); report-only bots ask another agent or the human to add them. **One initial PR** when standing up a full team — do not open competing roster PRs. Stale-row: update same turn when duties change
+  - `Human_TODO_Template.md` / `ADT-settings.example.yaml` / workflow index / help / bootstrap / `TEMPLATE_SYNC_B.md` — pointers; do not silent-create the live roster on a human-only inbox
+  - `Master_Index_Template.md` — optional Key Locations / §3.4 row for Team-Roster
+  - Root `DECISIONS.md` **D20** — do not silently undo
+  - Root `eval/` — `team-inbox-optional` contract covers the roster split
+- **Step B:** Bump Master Index **Pack version** to 2.8.1 from local `VERSION`. **`master-index`:** add the optional Team-Roster Key Locations / §3.4 row (file exists only when `team_inbox` is on). **`content-templates`:** if live `team_inbox.enabled` and `docs/Team-Roster.md` is missing → create from the template (**human** fill-in only; do **not** invent bot rows; do **not** copy Row shape into Active). If `team_inbox` is unset / `enabled: false` → **do not** create `Team-Roster.md`. Do **not** add `team_inbox` to live settings from the example. No live feature/shared scan. No `rules` tag — do not refresh installed modular rules from 2.8.1 alone.
+
+## 2.8.0
+
+- **Live impact:** `versions-only`, `process-docs-only`, `content-templates`
+- **Files:**
+  - `VERSION` — 2.7.29 → 2.8.0
+  - `agent/ADT-settings.example.yaml` — optional **`team_inbox`** (omit / unset / `enabled: false` = human-only inbox; **no auto-stamp**). Enabling opts into **assign-all-at-once**: stamp Assignee from `kind_defaults` on dual-write; one-shot *apply defaults to Open* backfill. Suggested kind→role defaults are the stamp map, not a mandatory bot org chart. Do not force a project into another team’s workflow
+  - `workflow/human-todo.md` — team assignees / **claim / reassign** as **override only**; stamp-on-dual-write + one-shot backfill are the bulk path; bot discovery = “my open rows” / one digest ping (not one PR per claim). Dual-write + done-only-on-confirm still apply (assignee chat report may check playtest; no silent close)
+  - `Human_TODO_Template.md` — optional **Assignee** / **Claim** lines; first fill stamps from kind defaults when enabled; claim/reassign is override only; not forced into a bot team
+  - `Modular_Docs_Workflow.md` — one-line `team_inbox` pointer on §13
+  - `roles/todo-warden.md` — do not mark Human-TODO done without a confirm; allowed assignee bots count only when `team_inbox.enabled`
+  - `TEMPLATE_SYNC_B.md` B0.1 — do not copy `team_inbox` from the example unless the user already enabled team routing
+  - Root `DECISIONS.md` **D19** — do not silently undo
+  - Root `eval/` — `team-inbox-optional` pack contract
+- **Step B:** Bump Master Index **Pack version** to 2.8.0 from local `VERSION`. **Do not** add `team_inbox` to live `ADT-settings.yaml` from the example (omit / unset stays human-only — **no silent force** into team routing; **no auto-stamp**). If live `team_inbox.enabled` + `kind_defaults` already exist, agents may run *apply defaults to Open* **once** (fill unassigned only **if that `role_id` is Active on Team-Roster**; else leave `unassigned`; do not re-stamp explicit assignees). If `content-templates`: add missing optional Assignee / Claim *shape* and the human claim/reassign / *apply defaults to Open* bullets on live Human-TODO (leave `unassigned` unless live settings are enabled, this is that one-shot backfill, **and** the default `role_id` is Active; do **not** invent role ids or enable routing). No live feature/shared scan. No optional live pass unless its tag is in this jump’s union (this entry adds none beyond content-templates). No `rules` tag on this entry — do not refresh installed modular rules from 2.8.0 alone.
+
+## 2.7.29
+
+- **Live impact:** `versions-only`, `process-docs-only`, `rules`
+- **Files:**
+  - `VERSION` — 2.7.28 → 2.7.29
+  - `agent/TEMPLATE_SYNC_B.md` — **Summarize** reports **from→to** + **unioned** tags + executed / offered / declined **from that union only**. Do **not** name catalog optional tags that were not in the union as “skipped.” `auto-all` = execute unioned tagged passes on all stems, not every row in the tag table. “Skipped” is reserved for a unioned tagged pass the user declined (`choose`) or a path check that did not apply (B8 modern layout)
+  - `roles/template-sync.md` + adapter-src / cursor|grok|copilot adapters — same summarize rule
+  - `help/USAGE.md` — sync summary lists the union, not the full catalog
+  - Root `DECISIONS.md` **D18** — do not silently undo
+  - Root `eval/` — `sync-summary-union-only` pack contract
+- **Step B:** Bump Master Index **Pack version** to 2.7.29 from local `VERSION`. Refresh installed modular rules (**no ask** unless `customized: true`). If `optional_rules.doc-roles` is **enabled** → refresh **docs-template-sync** adapters. No live feature/shared scan. No optional live pass unless its tag is in this jump’s union (this entry adds none).
 
 ## 2.7.28
 

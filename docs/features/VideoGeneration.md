@@ -1,6 +1,7 @@
 # VideoGeneration
 
 **Last Updated**: 2026-08-31  
+**Related Understanding**: —  
 **Related TODO**: [VideoGeneration-TODO.md](VideoGeneration-TODO.md)
 
 ---

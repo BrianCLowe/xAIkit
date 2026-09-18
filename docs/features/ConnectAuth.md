@@ -1,6 +1,7 @@
 # ConnectAuth
 
 **Last Updated**: 2026-08-13  
+**Related Understanding**: —  
 **Related TODO**: [ConnectAuth-TODO.md](ConnectAuth-TODO.md)
 
 ---

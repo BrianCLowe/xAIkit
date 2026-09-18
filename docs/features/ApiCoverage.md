@@ -1,6 +1,7 @@
 # ApiCoverage
 
 **Last Updated**: 2026-09-17  
+**Related Understanding**: —  
 **Related TODO**: [ApiCoverage-TODO.md](ApiCoverage-TODO.md)
 
 ---
