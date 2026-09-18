@@ -2,6 +2,7 @@
 
 **Last Updated**: 2026-08-31  
 **Related Spec**: [MediaRest.md](MediaRest.md)
+**Related Understanding**: —
 
 ---
 

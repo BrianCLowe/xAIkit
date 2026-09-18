@@ -2,6 +2,7 @@
 
 **Last Updated**: 2026-08-31  
 **Related Spec**: [RealtimeVoice.md](RealtimeVoice.md)
+**Related Understanding**: —
 
 ---
 

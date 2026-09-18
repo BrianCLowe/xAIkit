@@ -31,7 +31,7 @@ Reorganize without losing content. Target: **everything meta** lives under `docs
 | `docs/templates/Modular_Documentation_Rule.mdc`, `Modular_Documentation_Rule.instructions.md` (flat in templates) | `docs/templates/agent/` |
 | `docs/USING_WITH_AGENTS.md` (at `docs/` root) | `docs/templates/help/USING_WITH_AGENTS.md` |
 
-Fix internal links after moving (including Master Index links to the workflow). **Keep at `docs/templates/` root:** `VERSION`, `CHANGELOG.md`, `Master_Index_Template.md`, `Feature_*_Template.md`, `TODO_Template.md`, `Decision_Template.md`, Tooling/Human_TODO templates. **Keep in `docs/templates/agent/`:** `Modular_Docs_Workflow.md` (index), `workflow/` modules, `roles/` (incl. `adapter-src/`), `GENERATE_ROLE_ADAPTERS.md`, rule templates (`.mdc`, `.instructions.md`), bootstrap, rule install, template sync. (`chat-ui/` may exist as a paused stub — not a live path.)
+Fix internal links after moving (including Master Index links to the workflow). **Keep at `docs/templates/` root:** `VERSION`, `CHANGELOG.md`, `Master_Index_Template.md`, `Feature_*_Template.md`, `TODO_Template.md`, `Decision_Template.md`, Tooling/Human_TODO/Team_Roster/Product_Vision templates. **Keep in `docs/templates/agent/`:** `Modular_Docs_Workflow.md` (index), `workflow/` modules, `roles/` (incl. `adapter-src/`), `GENERATE_ROLE_ADAPTERS.md`, rule templates (`.mdc`, `.instructions.md`), bootstrap, rule install, template sync. (`chat-ui/` may exist as a paused stub — not a live path.)
 
 ## Step 1 — Relocate upstream README, LICENSE, and CONTRIBUTING *(auto-move when clearly this pack)*
 
@@ -111,7 +111,9 @@ Create if missing:
 docs/
 ├── Master_Index.md          ← from Master_Index_Template.md (Step 3)
 ├── Tooling.md               ← from Tooling_Template.md (Step 3b — machine tools)
+├── Product-Vision.md        ← from Product_Vision_Template.md (Step 3v — all profiles; ship-first = destination, not a gate)
 ├── Human-TODO.md            ← from Human_TODO_Template.md (Step 3c — human inbox)
+├── Team-Roster.md           ← from Team_Roster_Template.md **only if** team_inbox is already enabled (do not invent teammates)
 ├── ADT-settings.yaml        ← pack prefs (tools, optionals, sync mode, upstream) when first recorded
 ├── _shared/
 │   └── assets/
@@ -145,14 +147,14 @@ Optional: `visuals/` for inspiration screenshots before a feature folder exists.
 
 **Pack spot-check** (enough to proceed — do not inventory every file):
 
-- `VERSION`, `CHANGELOG.md`, `agent/Modular_Docs_Workflow.md`, `agent/BOOTSTRAP.md`, `help/SETUP.md`
+- `README.md`, `VERSION`, `CHANGELOG.md`, `agent/Modular_Docs_Workflow.md`, `agent/BOOTSTRAP.md`, `help/SETUP.md`
 
 If any of those are missing, expand the inventory below and run Step 0b if layout looks old. Otherwise continue.
 
 **Full inventory** *(only if spot-check fails):*
 
-- **Root:** `VERSION`, `CHANGELOG.md`, `Master_Index_Template.md`, `Feature_Spec_Template.md`, `Feature_Understanding_Template.md`, `TODO_Template.md`, `Decision_Template.md`, `Tooling_Template.md`, `Human_TODO_Template.md`
-- **`help/`:** `SETUP.md`, `USAGE.md`, `IDEA_CAPTURE_TIPS.md`, `USING_WITH_AGENTS.md`
+- **Root:** `README.md` (pack-owned warning), `VERSION`, `CHANGELOG.md`, `Master_Index_Template.md`, `Feature_Spec_Template.md`, `Feature_Understanding_Template.md`, `TODO_Template.md`, `Decision_Template.md`, `Tooling_Template.md`, `Human_TODO_Template.md`, `Team_Roster_Template.md`, `Product_Vision_Template.md`
+- **`help/`:** `SETUP.md`, `USAGE.md`, `SCAFFOLDS.md`, `IDEA_CAPTURE_TIPS.md`, `USING_WITH_AGENTS.md`
 - **`agent/`:** `Modular_Docs_Workflow.md`, `workflow/` (modules), `roles/` (+ `adapter-src/`), `GENERATE_ROLE_ADAPTERS.md`, `BOOTSTRAP.md`, `RULE_INSTALL.md`, `TEMPLATE_SYNC.md`, `TEMPLATE_SYNC_A.md`, `TEMPLATE_SYNC_B.md`, `TEMPLATE_UPDATE_CHECK.md`, `Modular_Documentation_Rule.mdc`, `Modular_Documentation_Rule.instructions.md`, `Agent_Timescale_Planning_Rule.mdc`, `Agent_Timescale_Planning_Rule.instructions.md`, `Agent_Build_Verify_Rule.mdc`, `Agent_Build_Verify_Rule.instructions.md`, `Template_Update_Check_Rule.mdc`, `Template_Update_Check_Rule.instructions.md`, `ADT-settings.example.yaml`
 
 Run Step 0b if any setup files are still at `docs/` root or flat in `docs/templates/`.
@@ -182,14 +184,16 @@ If it already exists → do not overwrite; offer to update rows when the stack c
 If `docs/Human-TODO.md` does not exist:
 
 1. Copy from `docs/templates/Human_TODO_Template.md`.
-2. Add Open rows for any human-gated needs implied by the conversation / Document Map — `procure` (keys/portals), `playtest`, `decide`, or `waiting`. Leave empty Open table if none yet.
+2. Add Open rows for any human-gated needs implied by the conversation / Document Map — `procure` (keys/portals), `playtest`, `decide`, or `waiting`. If none yet, leave the Open **list** empty (not a table — Workflow §13).
 3. Ensure Master Index §3.3 / §3.4 link to `Human-TODO.md`.
 
 If it already exists → add newly discovered human-gated needs (procure / playtest / decide / waiting); do not wipe user-completed rows.
 
-## Step 3p — Project preferences *(one batch ask — before Step 3d)*
+**Do not** create `docs/Team-Roster.md` here. Unset `team_inbox` = human-only inbox, no roster file. If they **already** enabled team routing this turn, create the roster from [`Team_Roster_Template.md`](../Team_Roster_Template.md) (named-human fill-in **only** if they self-IDed this turn; do not invent bot or human-name rows). Named humans and bots self-ID later — [`workflow/human-todo.md`](workflow/human-todo.md).
 
-**Mandatory:** Present **and explain** every still-unset preference below in **one** user-facing message. Do **not** drip-feed separate quizzes across later steps for the same keys. Skip only keys already set in `docs/ADT-settings.yaml`. Create/update that file from [`ADT-settings.example.yaml`](ADT-settings.example.yaml) when recording. Do **not** copy a `standing:` key from the example — omit it unless they already stated a playbook override.
+## Step 3p — Project preferences *(one batch ask — before Step 3v / 3d)*
+
+**Mandatory:** Present **and explain** every still-unset preference below in **one** user-facing message. Do **not** drip-feed separate quizzes across later steps for the same keys. Skip only keys already set in `docs/ADT-settings.yaml`. Create/update that file from [`ADT-settings.example.yaml`](ADT-settings.example.yaml) when recording. Do **not** copy a `standing:` key from the example — omit it unless they already stated a playbook override. Do **not** copy a `team_inbox:` key from the example — omit it unless they already enabled team routing (unset = human-only inbox; do not silent-enable).
 
 **You must include** (when unset):
 
@@ -206,8 +210,8 @@ If it already exists → add newly discovered human-gated needs (procure / playt
 1. Skim conversation + `docs/reference/` if present (do not inventory the whole repo) for docs-profile + git recommendations only.
 2. Lead with: *“I need a few project preferences once — all in this message. Pick each or say ‘defaults’ / accept suggestions.”*
 3. For **each** unset row: short plain-language **what it does**, the **options**, and your **suggestion** (with 1–3 citations for docs profile when reference exists).
-4. Wait for answers (or “use your suggestions”) → record all chosen keys + `recorded` today + `source` where applicable → continue to Step 3d.
-5. If they only answer some rows, re-ask **only** the missing ones before 3d (docs profile is blocking for 3d).
+4. Wait for answers (or “use your suggestions”) → record all chosen keys + `recorded` today + `source` where applicable → continue to Step 3v.
+5. If they only answer some rows, re-ask **only** the missing ones before 3v (docs profile is blocking for 3d).
 
 ### A — Docs profile *(options to explain)*
 
@@ -215,7 +219,7 @@ If it already exists → add newly discovered human-gated needs (procure / playt
 |------|----------------|
 | **`prevent`** *(suggested if identity-risky / unclear)* | Agent drafts `-Understanding.md` first; **you confirm shape** (is / is not) before code. Right default for **editors, games, multi-surface** apps — wrong identity is expensive. Unset → this mode. |
 | **`balanced`** | Spec + TODO always; Understanding **only when** product identity is fuzzy (competing surfaces, “not X”, multi-feature mush, or you ask to lock shape). You are choosing “judgment call,” not “no docs.” |
-| **`ship-first`** | Spec + TODO only; no shape-confirm gate. **Right default for typed APIs / CRUD / clear contracts** — not a concession. Also prototypes / fix-forward. *Lock shape for X* anytime. |
+| **`ship-first`** | Spec + TODO only; no Understanding / shape-confirm gate. Lightweight `Product-Vision.md` is created as destination (**not a gate**). **Right default for typed APIs / CRUD / clear contracts** — not a concession. Also prototypes / fix-forward. *Lock shape for X* anytime. *Lock product shape* only when the whole product needs a confirm gate. |
 
 Suggest with citations when possible (prevent / balanced / ship-first signals — Workflow §0.1).
 
@@ -239,13 +243,15 @@ Explain: optional Understanding author, implementer, work verifier, etc. as harn
 
 | Mode | Tell the user |
 |------|----------------|
-| **`milestone-pr`** *(suggest if remote + forge CLI)* | **Overnight drain:** each **milestone** (one or more related TODOs; concurrent implementers when they do not overlap **and** the host can isolate) → own branch → draft PR → build-verify → **squash that milestone** → mark ready → **wait CI / accept Bugbot auto-fixes** → **merge** → new branch for the next milestone. Reviewable diffs; tip-only bots see the whole cut; work lands before morning. |
+| **`milestone-pr`** *(suggest if remote + forge CLI)* | **Overnight drain:** each **milestone** (one or more related TODOs; concurrent implementers when they do not overlap **and** the host can isolate) → own branch → draft PR → build-verify → mark ready → **wait CI / accept Bugbot auto-fixes** → **merge** → new branch for the next milestone. Reviewable diffs; Bugbot reads the **PR** until ready (squash-before-ready is not required); work lands before morning. |
 | **`branch-pr-squash`** | One run branch → milestone commits → draft PR mid-run → end: **build-verify → squash the whole run to one commit → mark ready** (no merge). Use when you want **one morning PR** to review yourself. |
 | **`branch-pr`** | Same without squash — keeps milestone history on the PR. Unattended CI after the run. No merge. |
 | **`branch-push`** *(suggest if remote, no forge CLI)* | Same without PR |
 | **`local`** *(suggest if no remote)* | Milestone commits only; nothing leaves the machine |
 | **`current-push`** | Commit + **push the branch you are on now** (often `main`). Solo / you own the remote. **Never** applied without you picking it. |
 | **`none`** | No commits during orchestration |
+
+**Write-in (not a quiz, not an eighth mode):** include this in the **same** user-facing menu: *If none of these match how you want git to run (merge commit, rebase-merge, always squash before ready for a HEAD-only reviewer, custom close-out), pick the closest and tell me the override — I’ll save it as a standing instruction.* That is `standing.instructions` (Workflow §0.2). Do **not** invent a mode. Do **not** follow with “any standing notes?”
 
 **Cloud Agents:** if they later orchestrate in Cursor Cloud (or similar) while this key stays `local` / `none` / `branch-pr-squash` / etc., the agent uses **`milestone-pr` for that run only** and does **not** rewrite this setting — see [`roles/orchestrator-git.md`](roles/orchestrator-git.md) **Cloud Agent path**.
 
@@ -260,6 +266,20 @@ Explain: optional Understanding author, implementer, work verifier, etc. as harn
 Do **not** ask “any standing notes?” after A–E. Missing `standing:` is correct. Write `standing.instructions` only if they **already** stated a playbook override this conversation and no first-class key fits (Workflow §0.2). Do **not** invent bullets.
 
 Explicit later (any preference): *Set docs profile to …* / *Set sync to …* / *Set orchestrator git to …* / *Add standing note: …* / enable-decline optionals.
+
+## Step 3v — Create live Product-Vision.md *(whole-product end-state)*
+
+Read `docs_profile.mode` (unset → **prevent**). See [`workflow/product-vision.md`](workflow/product-vision.md) §4.5.
+
+| Profile | Action |
+|---------|--------|
+| **`prevent`** | If `docs/Product-Vision.md` is missing → copy [`Product_Vision_Template.md`](../Product_Vision_Template.md). **Peek `docs/reference/` first** if it has files (newest 3–5 idea/identity exports, or user-pointed). Draft **What this product is / is NOT** + **End-state picture** from those + this conversation (lock obvious; empty Assumptions OK). Status `draft`; user confirms product shape. **Do not** build the picture from the Document Map / feature files. **How the map fits** stays empty until Step 3d, then fill from **existing** map rows only (one line each). Link from Master Index Key Locations / §3.4. |
+| **`balanced`** | **Always create** a lightweight file if missing (same peek + draft). Deepen when they named **2+ features**, whole-product identity is fuzzy, or they asked *lock product shape*. |
+| **`ship-first`** | **Always create** a lightweight file if missing (same peek + draft). **Not a gate** — do not wait for confirm before coding. Leave **Confirmed with user** empty until *lock product shape*. |
+
+Do **not** invent a feature checklist as the end-state picture. Do **not** invent stems. After Step 3d, return here once to fill **How the map fits**.
+
+If the file already exists → do not overwrite; offer to update the picture / map-fit table when the whole product changed.
 
 ## Step 3d — Create files for every Document Map row *(mandatory)*
 
@@ -288,9 +308,11 @@ Add InEditor/Asset TODOs when Project Profile / game extensions apply.
 
 If the user named **no** features yet, skip Step 3d and say so in Step 4.
 
+After 3d: if `docs/Product-Vision.md` exists, fill **How the map fits** from the map rows you just created (one line each). Do not invent extra stems.
+
 ## Step 4 — Tell the user what's next
 
-1. Confirm or correct Section 1 (Project Overview), Document Map, `docs/Tooling.md`, and `docs/Human-TODO.md`. Confirm **preferences** recorded in Step 3p (docs profile, sync, git, optionals).
+1. Confirm or correct Section 1 (Project Overview), Document Map, `docs/Tooling.md`, and `docs/Human-TODO.md`. Confirm **preferences** recorded in Step 3p (docs profile, sync, git, optionals). If `docs/Product-Vision.md` is `draft` under **prevent** — user reviews **whole-product** shape (is / is not + end-state picture), not a feature list. Under **ship-first**, the file is destination-only — do **not** wait for confirm before coding.
 2. If draft `-Understanding.md` files exist — user reviews / corrects **shape** before implementation (**prevent** / those stems). Under **ship-first**, point at specs + TODOs instead.
 3. Point at **Open** items on `Human-TODO.md` — things only the human can close (procure, playtest, decide, waiting).
 4. After they confirm an Understanding (when used), graduate durable content into the spec and continue from TODOs ([`../help/SETUP.md`](../help/SETUP.md)). Under ship-first, continue from TODOs and grow the spec as you build.

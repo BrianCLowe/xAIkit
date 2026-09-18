@@ -16,7 +16,7 @@ Source of truth is **on disk** under `docs/templates/`. Do **not** re-fetch from
    - Else **from** is unset (first sync)
 4. **Select changelog entries** — see **Catch-up** below. Union their **Live impact** tags. Skim each selected entry’s **Step B** line only for one-shots not already covered by tags.
 5. Do **only** the actions implied by the **unioned tags** + those skimmed Step B one-shots. Run the gated checklist **once** (do not walk each version as its own sync). Bump **Pack version** once to **to**.
-6. If `CHANGELOG.md` is missing: fall back to comparing **content-template paths only** (`Feature_*_Template.md`, `TODO_Template.md`, `Tooling_Template.md`, `Human_TODO_Template.md`, `Decision_Template.md`) via `git diff` against HEAD or a prior pack copy. Never open all live feature docs “just in case.”
+6. If `CHANGELOG.md` is missing: fall back to comparing **content-template paths only** (`Feature_*_Template.md`, `TODO_Template.md`, `Tooling_Template.md`, `Human_TODO_Template.md`, `Team_Roster_Template.md`, `Product_Vision_Template.md`, `Decision_Template.md`) via `git diff` against HEAD or a prior pack copy. Never open all live feature docs “just in case.”
 
 ### Catch-up *(version jumps)*
 
@@ -34,6 +34,7 @@ Compare semver `X.Y.Z` numerically (major, minor, patch).
 - If the union includes any of `content-templates`, `optional-live-reshape`, `optional-assumption-cleanout`, `optional-todo-ambition`, `optional-todo-operable`, or `optional-todo-kit-coverage`, run those steps even when newer selected entries also list `process-docs-only` (`process-docs-only` on one release does not cancel live passes from skipped releases).
 - Skim Step B lines from selected entries for tips / one-shots not expressed by tags (e.g. Human-TODO tip refresh). Do **not** invent a broader audit than the unioned tags + those lines.
 - Do **not** bump Pack version through intermediate numbers — set it once to **to**.
+- The Live impact table below is a **lasting catalog**. A tag fires only when it appears in this union. **Summarize the union only** — do not name catalog optional tags that were not selected as “skipped.”
 
 | Live impact tag | Do in Step B |
 |-----------------|--------------|
@@ -63,7 +64,7 @@ Compare semver `X.Y.Z` numerically (major, minor, patch).
    - **Do not** invent `check_mode` or `check_mode_recorded` here — B0.4 asks (legacy weekly days are a hint only).
    - If `sync.mode` missing → leave unset (B0.2 will ask).
    - Write `ADT-settings.yaml`, then **delete** the old status file(s). Note migration in the end summary.
-3. Else → create `ADT-settings.yaml` from the example when first recording a tool/optional/sync decision (do not invent installs). Do **not** copy a `standing:` key from the example — omit it unless the user already stated a playbook override.
+3. Else → create `ADT-settings.yaml` from the example when first recording a tool/optional/sync decision (do not invent installs). Do **not** copy a `standing:` key from the example — omit it unless the user already stated a playbook override. Do **not** copy a `team_inbox:` key from the example — omit it unless the user already enabled team routing (unset = human-only inbox; do not silent-enable).
 
 ### B0.2 — Sync mode *(ask once if unset)*
 
@@ -72,7 +73,7 @@ Read `sync.mode` from `docs/ADT-settings.yaml`.
 | Mode | Behavior |
 |------|----------|
 | **`auto`** | Apply all changelog-gated live work without mid-sync optionals quiz: versions, master-index, content-templates (missing only), **optional-live-reshape** / **optional-assumption-cleanout** (all Document Map Understanding stems when tagged), **optional-todo-ambition** / **optional-todo-operable** / **optional-todo-kit-coverage** (all Document Map `*-TODO.md` when tagged), rules refresh, upstream stamp. **Also** perform **post-sync hygiene commits** (below) without asking. Still **ask once** for brand-new unset `optional_rules.*`. Summarize at end (include commit subjects). |
-| **`auto-all`** | Same as **`auto`**, and also **enable + install** any unset `optional_rules.*` (doc-roles, update-check, future optionals) without asking. Never re-enable **`declined`**. New update-check → `check_mode: always` + record cadence (skip B0.4 ask). Summarize what was auto-enabled. |
+| **`auto-all`** | Same as **`auto`**, and also **enable + install** any unset `optional_rules.*` (doc-roles, update-check, future optionals) without asking. Never re-enable **`declined`**. New update-check → `check_mode: always` + record cadence (skip B0.4 ask). Summarize what was auto-enabled. Does **not** mean run every optional pass in the tag table — only unioned tagged passes, on all Document Map stems, without asking. |
 | **`choose`** | Present reshape / assumption clean-out / TODO ambition / TODO operable / TODO kit-coverage (and similar future optional live tags) each sync — ask once per tagged pass. Suggest (do not force) separate commits; commit only if they explicitly ask. |
 | **missing / unset** | **Ask once** before the first optional live pass (or before stopping if none tagged): *Recommended live updates automatically (`auto`), everything including new pack optionals (`auto-all`), or ask each sync (`choose`)?* Record `sync.mode` + `sync.recorded`. Then continue under that mode. Do **not** silent-default. |
 
@@ -150,7 +151,7 @@ Read `orchestrator.git.mode` from `docs/ADT-settings.yaml`.
 
 | Mode | One-line |
 |------|----------|
-| **`milestone-pr`** | **Overnight:** each milestone (several related TODOs OK; concurrent implementers when they do not overlap **and** the host can isolate) → own PR → **squash before ready** → wait CI/Bugbot → **merge** → next branch |
+| **`milestone-pr`** | **Overnight:** each milestone (several related TODOs OK; concurrent implementers when they do not overlap **and** the host can isolate) → own PR → wait CI/Bugbot → **merge** → next branch. Bugbot reads the PR until ready — squash-before-ready is not required |
 | **`branch-pr-squash`** | One run branch → end: **build-verify → squash whole run → mark ready** (no merge; one morning PR) |
 | **`branch-pr`** | Same without squash (keeps milestone history; no merge) |
 | **`branch-push`** | Branch → commits → push; no PR |
@@ -158,7 +159,9 @@ Read `orchestrator.git.mode` from `docs/ADT-settings.yaml`.
 | **`current-push`** | Commit + push **whatever branch you are on** (often `main`); solo opt-in only |
 | **`none`** | No commits |
 
-Recommend: remote + forge CLI → **`milestone-pr`** (overnight drain: per-milestone PR — several related TODOs + concurrent implementers when they do not overlap **and** the host can isolate; squash before ready; CI/Bugbot; merge; next branch); offer **`branch-pr-squash`** for one PR / human merges in the morning; offer **`branch-pr`** to keep history on one PR; remote, no CLI → still offer **`milestone-pr`** (with install ask) or **`branch-push`**; else **`local`**. Record choice + `recorded` (+ `source`). Explicit later: *Set orchestrator git to …*. **Note (do not re-ask):** a later **Cloud Agent** orchestration this-runs **`milestone-pr`** if durable stays `local` / `none` / `branch-pr-squash` / etc. — see [`roles/orchestrator-git.md`](roles/orchestrator-git.md); sync does not need a second key. **Host worktrees** are not a key — do **not** write `orchestrator.git.worktrees`.
+**Write-in (not a quiz, not an eighth mode):** same user-facing line as bootstrap Step 3p **E**. Closest mode + *Add standing note: …* for merge commit / rebase-merge / always squash before ready (HEAD-only reviewer) / custom close-out. Do **not** invent a mode. Do **not** quiz for standing.
+
+Recommend: remote + forge CLI → **`milestone-pr`** (overnight drain: per-milestone PR — several related TODOs + concurrent implementers when they do not overlap **and** the host can isolate; CI/Bugbot; merge; next branch); offer **`branch-pr-squash`** for one PR / human merges in the morning; offer **`branch-pr`** to keep history on one PR; remote, no CLI → still offer **`milestone-pr`** (with install ask) or **`branch-push`**; else **`local`**. Record choice + `recorded` (+ `source`). Explicit later: *Set orchestrator git to …*. **Note (do not re-ask):** a later **Cloud Agent** orchestration this-runs **`milestone-pr`** if durable stays `local` / `none` / `branch-pr-squash` / etc. — see [`roles/orchestrator-git.md`](roles/orchestrator-git.md); sync does not need a second key. **Host worktrees** are not a key — do **not** write `orchestrator.git.worktrees`.
 
 **After the mode is recorded** → **Forge tooling probe** ([`roles/orchestrator-git.md`](roles/orchestrator-git.md)): if **`milestone-pr` / `branch-pr` / `branch-pr-squash`** and CLI missing → ask to install; if not authenticated → **ask to start login** (install alone is not enough). Fall back / switch mode if they decline. Do not silent-install or silent-login.
 
@@ -180,6 +183,8 @@ Recommend: remote + forge CLI → **`milestone-pr`** (overnight drain: per-miles
 | `TODO_Template.md` + Workflow §5.4 | Chosen `*-TODO.md` + matching spec — covering TODOs for spec-named leftovers; one research item if spec is thin | `optional-todo-kit-coverage` **and** (`auto` / `auto-all` **or** user said yes) |
 | `Tooling_Template.md` | `docs/Tooling.md` — create if missing; add sections only | `content-templates` |
 | `Human_TODO_Template.md` | `docs/Human-TODO.md` — create if missing; add columns/sections only | `content-templates` |
+| `Team_Roster_Template.md` | `docs/Team-Roster.md` — create **only** if live `team_inbox.enabled`; named-human fill-in if user-stated; do not invent bot or human-name rows | `content-templates` **and** team inbox on |
+| `Product_Vision_Template.md` | `docs/Product-Vision.md` — create if missing (**all** profiles). Lightweight draft; **peek `docs/reference/` first**; do **not** rebuild from the map. **`ship-first`:** not a gate | `content-templates` |
 | `agent/Modular_Documentation_Rule.*` | Installed rule paths — refresh via each `tools/<key>.md` for `status: installed` tools | `rules` |
 | `agent/Agent_Timescale_Planning_Rule.*` | Core timescale rule — install/refresh with modular rule via each `tools/<key>.md` | `rules` |
 | `agent/Agent_Build_Verify_Rule.*` | Core build/verify rule — install/refresh with modular rule via each `tools/<key>.md` | `rules` |
@@ -195,8 +200,8 @@ Versions:
 ### Gated checklist
 
 1. **Versions** — Set **Pack version** in live `Master_Index.md` from local `VERSION`. Remove obsolete Template/Workflow version lines when present. Update `<!-- pack-version -->` if present (or replace `<!-- template-version -->`).
-2. **Master Index** *(if `master-index`)* — Required when tagged — not gated on reshape / `optional-live-reshape`. Read local `Master_Index_Template.md` + live `Master_Index.md`. Compare **headings / Key Locations / Document Map columns / At a Glance** only — not project prose. **Preserve** overview, Project Profile, Document Map rows (§3.0–3.4), user §3.0 exceptions, custom sections. **Adopt** new index sections, renumbers, Quick Start pointer, Key Locations row for `docs/ADT-settings.yaml` (remove stale `rule-install-status.yaml` / `upstream-status.yaml` rows if present). If §2.2 At a Glance is still a policy dump (Simplicity / Idea sources / full git-mode list / Understanding essay), replace it with the template’s short pointer table (keep first-class docs profile + host-worktrees one-liner). Update links from `templates/Modular_Docs_Workflow.md` → `templates/agent/Modular_Docs_Workflow.md` if still on the old path. §3.0: record only **user-stated** exceptions.
-3. **Content templates** *(if `content-templates`)* — Add **missing** sections/structure from local templates into live Understanding / Spec / TODO / Tooling / Human-TODO. Do **not** remove or reshape existing sections here. Create `Tooling.md` / `Human-TODO.md` from templates when missing and link from Master Index.
+2. **Master Index** *(if `master-index`)* — Required when tagged — not gated on reshape / `optional-live-reshape`. Read local `Master_Index_Template.md` + live `Master_Index.md`. Compare **headings / Key Locations / Document Map columns / At a Glance** only — not project prose. **Preserve** overview, Project Profile, Document Map rows (§3.0–3.4), user §3.0 exceptions, custom sections. **Adopt** new index sections, renumbers, Quick Start pointer, Key Locations row for `docs/ADT-settings.yaml` (remove stale `rule-install-status.yaml` / `upstream-status.yaml` rows if present). If §2.2 At a Glance is still a policy dump (Simplicity / Idea sources / full git-mode list / Understanding essay), replace it with the template’s short pointer table (keep first-class docs profile + host-worktrees one-liner + docs-freshness / stay≠current pointer). Adopt the Key Locations `docs/templates/` “pack-owned; do not edit” wording and the Quick Start freshness first step when missing. Update links from `templates/Modular_Docs_Workflow.md` → `templates/agent/Modular_Docs_Workflow.md` if still on the old path. §3.0: record only **user-stated** exceptions.
+3. **Content templates** *(if `content-templates`)* — Add **missing** sections/structure from local templates into live Understanding / Spec / TODO / Tooling / Human-TODO / Product-Vision. Do **not** remove or reshape existing sections here. Create `Tooling.md` / `Human-TODO.md` from templates when missing and link from Master Index. Create `Team-Roster.md` from the template **only** when live `team_inbox.enabled` (named-human fill-in if user-stated; do **not** invent bot or human-name rows; do **not** create the file on a human-only inbox). Create `Product-Vision.md` from the template if missing (**all** profiles, including `ship-first`). **Peek `docs/reference/` first** (list files; open the newest 3–5 idea/identity chat exports / PRDs, or user-pointed files — Workflow §4.5 Draft source). Draft is / is not + end-state picture from **those** + this-turn conversation (lock obvious; examples ≠ target unless clearly set; lightweight). **Then** fill How the map fits from existing map rows only. **Do not** build the picture by summarizing the Document Map / feature Understandings / specs. **Do not** skip `reference/` because the map looks complete. **`ship-first`:** create if missing; **not a gate** — do **not** wait for confirm before coding.
 4. **Live Understanding reshape** *(if `optional-live-reshape`)* —
    - **`sync.mode: auto` or `auto-all`:** execute for **all Document Map Understanding stems** (no ask). After pack/stamp hygiene commit (B0.3) when applicable; reshape gets its own commit after execute (B0.3).
    - **`sync.mode: choose`:** **Present before stopping** (explain + ask once; **do not** report “skipped by design” without asking). **Highly recommended.**
@@ -266,11 +271,22 @@ Run only when selected catch-up includes **2.7.27** and reshape is executing. Op
 6. **Rules** *(if `rules`)* — For each tool with `tools.*.status: installed` in `docs/ADT-settings.yaml`, open **only** `docs/templates/agent/tools/<key>.md` and refresh that harness.
    - **Default:** refresh pack-managed modular + timescale + **build-verify** rules (and enabled optionals) **without asking** — installed means pack-owned.
    - **Ask before overwrite only if** that tool entry has `customized: true` (or an explicit note that pack rule bodies were hand-edited).
-   - If `optional_rules.doc-roles` is `enabled`, refresh that tool’s agents folder (seven adapters including `todo-warden`; **no** `orchestrator` adapter).
+   - If `optional_rules.doc-roles` is `enabled`, refresh that tool’s agents folder (**six** adapters including `todo-warden`; **no** `orchestrator` or `docs-bootstrap` adapter). **Delete leftover** installed `docs-bootstrap.md` / `docs-bootstrap.agent.md` (pack no longer ships that adapter — bootstrap is parent-only).
    - Remove any stale `.cursor/skills/modular-docs-*` leftovers from older pack drafts (ask first only if deleting user-looking paths outside known leftovers).
 7. **Upstream stamp** *(if `optional-upstream-check` or update-check enabled)* — If `optional_rules.template-update-check.status` is `enabled`: ensure `upstream:` exists; set `local_pack_version` from local `VERSION`, `last_checked` today, clear `update_available` / stale `upstream_pack_version`. Do **not** delete `ADT-settings.yaml`. Refresh optional update-check rules if tagged `rules` / body changed (same customized rule as above).
 8. **Layout migration** — Run [`BOOTSTRAP.md`](BOOTSTRAP.md) Step 0b **only** if layout markers show older layout (`docs/help/` or `docs/agent/` at docs root, or flat setup files in `templates/`). Skip on a normal modern pack refresh.
-9. **Summarize** pack refresh + live-doc updates + sync mode used + catch-up **from→to** (or top-entry-only) + reshape / assumption clean-out / TODO ambition / TODO operable / TODO kit-coverage executed or (choose) offered/declined + settings migration if any + **git** (A0 preflight outcome; hygiene commits made or skipped; push status — default not pushed).
+9. **Summarize from the union only:**
+   - sync mode used
+   - catch-up **from→to** (or top-entry-only) + the **unioned** Live impact tags (+ skimmed Step B one-shots)
+   - of those **unioned** optional live passes: executed / offered / declined (`choose`)
+   - settings migration if any
+   - **git** (A0 preflight outcome; hygiene commits made or skipped; push status — default not pushed)
+
+   **Do not** name optional tags that were **not** in the union as “skipped.” They were not this jump’s instructions — listing them sounds like missed work. The tag table is a lasting catalog; a tag fires only when selected changelog entries tag it.
+
+   **“Skipped”** is reserved for: a **unioned** tagged pass that was in scope but not executed (`choose`: user declined); or a path check that did not apply (B8 modern layout — no old `docs/help/` / `docs/agent/` leftovers).
+
+   `auto-all` does **not** mean “run every optional pass every sync.” It means: when a tagged pass is **in the union**, execute it on all Document Map stems without asking.
 10. **Present / apply unset options** *(every sync — before stopping)* — Users cannot ask for what they were never told exists. Read `docs/ADT-settings.yaml`. For each known pack optional (`optional_rules.template-update-check`, `optional_rules.doc-roles`, plus any **new** optional named in selected catch-up entries / Step B):
    - **`declined`** → do not re-ask or re-enable; a one-line “still off” note is enough.
    - **`enabled`** → already handled by refresh steps above; no re-pitch of the feature — but if update-check is enabled and cadence was never recorded, **B0.4** still applies.
@@ -313,6 +329,8 @@ Run only when selected catch-up includes **2.7.27** and reshape is executing. Op
 - Under **`auto-all`:** flip **`declined`** optionals back to enabled
 - Read **only the top** changelog entry when **from** < **to** and intermediate `##` entries exist — **union** those entries (Catch-up above)
 - Let a newer entry’s `process-docs-only` cancel `content-templates` / reshape / assumption-cleanout / ambition / operable / kit-coverage tags from skipped releases in the same jump
+- Name catalog optional tags that were **not** in the union as “skipped” (they were not this jump’s instructions)
+- Treat `auto-all` as license to run every pass in the Live impact tag table
 - Walk each catch-up version as its own full sync or bump Pack version through intermediate numbers
 - Rewrite an already-set `orchestrator.git.mode` because the pack now recommends `milestone-pr`, because At a Glance wording changed, or because a Cloud Agent this-runs `milestone-pr`
 - Fail, revert, or treat as a forbidden migrate a durable `orchestrator.git.mode` change that stamps **`source: user`** (or the user asked to change that setting on this PR) — that is user-directed

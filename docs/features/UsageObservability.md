@@ -1,6 +1,7 @@
 # UsageObservability
 
 **Last Updated**: 2026-08-13 *(price-table provenance)*  
+**Related Understanding**: —  
 **Related TODO**: [UsageObservability-TODO.md](UsageObservability-TODO.md)
 
 ---

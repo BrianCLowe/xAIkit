@@ -1,15 +1,22 @@
 # xAIkit — Human TODO
 
-**Last Updated**: 2026-09-15  
+**Last Updated**: 2026-09-18  
 **Related**: [Master_Index.md](Master_Index.md) · [Tooling.md](Tooling.md) · [workflow/human-todo.md](templates/agent/workflow/human-todo.md) §13
 
 ---
 
-**Your inbox** — everything waiting on a human.
+**Your inbox** — everything waiting on a human. New here? Scroll to [Instructions for Humans](#instructions-for-humans) (and agent notes below that).
 
 ---
 
 ## Open
+
+Keep this list short — **one `- [ ]` list item per human action**.
+
+**Owner:** link to the feature/shared TODO item title for `playtest` / `decide`; `this file` for `procure` / `waiting`.  
+**Kinds:** `procure` · `playtest` · `decide` · `waiting`  
+**Assignee** *(optional):* `<role_id>` · `unassigned` · leftover `human` — omit when team inbox is unset. Named humans use their slug (e.g. `alex`), not a generic `human` dump. Leftover `human` only if that id is Active. When `team_inbox` is enabled, new rows **stamp from `kind_defaults` only if that `role_id` is Active on Team-Roster**; else `unassigned`.  
+**Claim / reassign:** override only (*assign playtest to QA* / *I’ll take it*) — not the bulk path. One-shot *apply defaults to Open* fills leftover unassigned rows after enable **only if that `role_id` is Active on Team-Roster**; else leave `unassigned`.
 
 - [ ] **REST embed live** (`playtest`) — 2026-08-16 — Split from ApiCoverage / Usage extras. Team `GET /v1/embedding-models` is empty; `POST /v1/embeddings` with OpenAPI example `v1` (and `grok-embedding-small`) 404s. Inference key already has `api-key:model:*`. Not a management-key ACL. Re-run when the team has an embed SKU. Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) · also [UsageObservability-TODO.md](features/UsageObservability-TODO.md) · Blocks: none
 
@@ -49,6 +56,7 @@
 - Keep secrets out of git.
 - Orchestration look-lists are **library-only** (paths + pytest), not a UI tour. Reply in chat when a row is done.
 - Consumer proof (e.g. Rivenquill) can close a **core** slice; leave **extras** open when the fat look-list bundled unused surfaces.
+- You can **claim** or **reassign** any Open item (*I’ll take the embed playtest.* / *Assign playtest to QA.*). That is an **override**. First fill is stamp-on-create (or one-shot *apply defaults to Open*, Active `role_id` only). *Put me on the roster as Alex.* / *I'm Sam — I take decide and procure.* Unset settings = this inbox waits on you; no auto-stamp; no Team-Roster file.
 
 **Kinds:**
 
@@ -74,7 +82,7 @@
 | `playtest` · `decide` | Thin pointer + checkbox | Owner feature/shared `*-TODO.md` item |
 | `procure` · `waiting` | Row holds how-to / status | This file; features **link here** |
 
-**Agent role:** Dual-write when creating a human-gated task (owner TODO item **and** a checkbox item here). Do **not** mark done unless the user said so.
+**Agent role:** Dual-write when creating a human-gated task (owner TODO item **and** a checkbox item here). When `team_inbox` is enabled, stamp Assignee from `kind_defaults` only if that `role_id` is Active on Team-Roster; else `unassigned` (do not fallback-stamp `human`). Do **not** invent roster bots or human names on a handoff. Do **not** mark done unless the user said so. Do **not** run *apply defaults to Open* unless the user asked and the default ids are Active.
 
 ## Instructions for AI Agents
 

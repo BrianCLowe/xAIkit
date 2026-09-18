@@ -2,6 +2,7 @@
 
 **Last Updated**: 2026-09-16  
 **Related Spec**: [VideoGeneration.md](VideoGeneration.md)
+**Related Understanding**: —
 
 ---
 

@@ -2,6 +2,7 @@
 
 **Last Updated**: 2026-09-17  
 **Related Spec**: [ApiCoverage.md](ApiCoverage.md)
+**Related Understanding**: —
 
 ---
 

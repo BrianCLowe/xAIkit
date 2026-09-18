@@ -2,6 +2,7 @@
 
 **Last Updated**: 2026-09-15 
 **Related Spec**: [Catalog.md](Catalog.md)
+**Related Understanding**: —
 
 ---
 
