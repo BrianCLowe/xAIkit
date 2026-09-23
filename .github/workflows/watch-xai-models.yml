@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   issues: write
 
 concurrency:
@@ -31,7 +31,8 @@ jobs:
         id: scan
         run: |
           set +e
-          uv run python scripts/watch_xai_models.py --github-output "$GITHUB_OUTPUT"
+          uv run python scripts/watch_xai_models.py --github-output "$GITHUB_OUTPUT" \
+            --write-prices scripts/data/xai_public_prices.json
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
         continue-on-error: true
 
@@ -90,7 +91,7 @@ jobs:
           - [ ] Imagine \`quality\` / \`resolution\` (2.0 vs later; 4k?)
           - [ ] Video 1080p contraction / new caps
           - [ ] \`pricing.py\` defaults + \`PRICE_TABLE_FETCHED\`
-          - [ ] \`BOOTSTRAP_MODEL\` if the flagship moved
+          - [ ] \`BOOTSTRAP_MODEL\` only if the offline fallback should move (a live unpinned client follows the list within an hour)
           - [ ] Refresh baseline: \`uv run python scripts/watch_xai_models.py --write-baseline\`
 
           Sources: models, pricing, Imagine image + video generation pages. Release notes are not scanned.
@@ -98,6 +99,24 @@ jobs:
           )"
           gh issue create --title "$title" --label xai-models --body "$body"
           echo "opened xai-models issue for slugs=${slugs:-none} resolutions=${res:-none}"
+
+      - name: Commit price gap file when the extract changes
+        if: steps.scan.outputs.exit_code != '1'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! uv run python -c 'import json,sys; from pathlib import Path; d=json.loads(Path("scripts/data/xai_public_prices.json").read_text()); sys.exit(0 if d.get("models") else 1)'; then
+            echo "refusing to commit an empty public price gap file"
+            exit 1
+          fi
+          git add scripts/data/xai_public_prices.json
+          if git diff --cached --quiet; then
+            echo "public price gap file unchanged"
+            exit 0
+          fi
+          git commit -m "Update xAI public price gap file"
+          git push
 
       - name: Fail fetch errors
         if: steps.scan.outputs.exit_code == '1'

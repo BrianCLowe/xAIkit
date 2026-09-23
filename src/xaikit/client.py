@@ -27,6 +27,10 @@ from xaikit.catalog import (
     BOOTSTRAP_MODEL,
     DEFAULT_IMAGE_MODEL,
     DEFAULT_VIDEO_MODEL,
+    ROLE_CHAT,
+    ROLE_IMAGE,
+    ROLE_VIDEO,
+    ROLE_VOICE,
     contract_imagine_aspect_ratio,
     contract_model_for_need,
     contract_thought_level,
@@ -71,6 +75,7 @@ from xaikit.tts_stream import (
     tts_session_url,
 )
 from xaikit.retry import RetryPolicy, call_with_retry, default_retry_policy
+from xaikit.types import ModelSelection
 from xaikit.traces import CompletionTracer
 from xaikit.types import CompletionResponse, StreamChunk
 from xaikit.usage import UsageMeter
@@ -187,30 +192,22 @@ class XaiClient:
     ) -> None:
         # effort is an alias for thought_level → reasoning_effort on the wire
         level_in = thought_level if thought_level is not None else effort
-
-        if model is not None and str(model).strip():
-            self.model = str(model).strip()
-            self._resolve_source = "override"
-            self.thought_level = normalize_thought_level(level_in)
-        else:
-            selection = resolve_model_selection(
-                pin=None,
-                intent=intent,
-                task=task,
-                thought_level=level_in,
-                bootstrap=bootstrap_model,
-            )
-            self.model = selection.model_id
-            self._resolve_source = selection.source
-            self.thought_level = (
-                normalize_thought_level(level_in)
-                if level_in is not None
-                else selection.thought_level
-            )
+        self._remember_role_pins(
+            model=model,
+            image_model=image_model,
+            video_model=video_model,
+            voice_model=voice_model,
+            intent=intent,
+            task=task,
+            bootstrap_model=bootstrap_model,
+            level_in=level_in,
+        )
 
         if provider is not None:
             self._provider: ChatProvider = provider
-            self.api_key = (api_key or "").strip() or "mock"
+            supplied = (api_key or "").strip()
+            self.api_key = supplied or "mock"
+            self._catalog_api_key = supplied or None
             self._client = None
         else:
             key = (api_key or "").strip()
@@ -231,15 +228,135 @@ class XaiClient:
                 management_api_key=management_api_key,
             )
             self._provider = SdkChatProvider(self._client)
+            self._catalog_api_key = key or None
 
+        self._finish_role_resolution()
         self._usage_meter = usage_meter
         self._completion_tracer = completion_tracer
         self._retry_policy = (
             retry_policy if retry_policy is not None else default_retry_policy()
         )
-        self.image_model = (image_model or DEFAULT_IMAGE_MODEL).strip()
-        self.video_model = (video_model or DEFAULT_VIDEO_MODEL).strip()
-        self.voice_model = (voice_model or DEFAULT_VOICE_MODEL).strip()
+
+    def _remember_role_pins(
+        self,
+        *,
+        model: str | None,
+        image_model: str | None,
+        video_model: str | None,
+        voice_model: str | None,
+        intent: str | None,
+        task: str | None,
+        bootstrap_model: str,
+        level_in: str | None,
+    ) -> None:
+        chat = (model or "").strip()
+        image = (image_model or "").strip()
+        video = (video_model or "").strip()
+        voice = (voice_model or "").strip()
+        self._chat_pinned = bool(model is not None and chat)
+        self._image_pinned = bool(image_model is not None and image)
+        self._video_pinned = bool(video_model is not None and video)
+        self._voice_pinned = bool(voice_model is not None and voice)
+        self._chat_model = chat
+        self._image_model = image
+        self._video_model = video
+        self._voice_model = voice
+        self._intent = intent
+        self._task = task
+        self._bootstrap_model = bootstrap_model
+        self._level_in = level_in
+        self._catalog_api_key: str | None = None
+        self._resolve_source = "bootstrap"
+        self.thought_level = normalize_thought_level(level_in)
+
+    def _selection_for(self, role: str):
+        try:
+            return resolve_model_selection(
+                intent=self._intent,
+                task=self._task,
+                thought_level=self._level_in,
+                bootstrap=self._bootstrap_model,
+                role=role,
+                api_key=self._catalog_api_key,
+            )
+        except Exception:
+            logger.warning("Role resolve failed for %s", role, exc_info=True)
+            fallback = {
+                ROLE_IMAGE: DEFAULT_IMAGE_MODEL,
+                ROLE_VIDEO: DEFAULT_VIDEO_MODEL,
+                ROLE_VOICE: DEFAULT_VOICE_MODEL,
+            }.get(role, self._bootstrap_model or BOOTSTRAP_MODEL)
+            return ModelSelection(
+                model_id=fallback,
+                thought_level=normalize_thought_level(self._level_in),
+                source="bootstrap",
+            )
+
+    def _finish_role_resolution(self) -> None:
+        if self._chat_pinned:
+            self._resolve_source = "override"
+        else:
+            selection = self._selection_for(ROLE_CHAT)
+            self._chat_model = selection.model_id
+            self._resolve_source = selection.source
+            if self._level_in is None:
+                self.thought_level = selection.thought_level
+        if not self._image_pinned:
+            self._image_model = self._selection_for(ROLE_IMAGE).model_id
+        if not self._video_pinned:
+            self._video_model = self._selection_for(ROLE_VIDEO).model_id
+        if not self._voice_pinned:
+            self._voice_model = self._selection_for(ROLE_VOICE).model_id
+
+    @property
+    def model(self) -> str:
+        if not self._chat_pinned:
+            selection = self._selection_for(ROLE_CHAT)
+            self._chat_model = selection.model_id
+            self._resolve_source = selection.source
+        return self._chat_model
+
+    @model.setter
+    def model(self, value: str) -> None:
+        text = str(value or "").strip()
+        self._chat_model = text
+        self._chat_pinned = bool(text)
+
+    @property
+    def image_model(self) -> str:
+        if not self._image_pinned:
+            self._image_model = self._selection_for(ROLE_IMAGE).model_id
+        return self._image_model or DEFAULT_IMAGE_MODEL
+
+    @image_model.setter
+    def image_model(self, value: str) -> None:
+        text = str(value or "").strip()
+        self._image_model = text
+        self._image_pinned = bool(text)
+
+    @property
+    def video_model(self) -> str:
+        if not self._video_pinned:
+            self._video_model = self._selection_for(ROLE_VIDEO).model_id
+        return self._video_model or DEFAULT_VIDEO_MODEL
+
+    @video_model.setter
+    def video_model(self, value: str) -> None:
+        text = str(value or "").strip()
+        self._video_model = text
+        self._video_pinned = bool(text)
+
+    @property
+    def voice_model(self) -> str:
+        if not self._voice_pinned:
+            self._voice_model = self._selection_for(ROLE_VOICE).model_id
+        return self._voice_model or DEFAULT_VOICE_MODEL
+
+    @voice_model.setter
+    def voice_model(self, value: str) -> None:
+        text = str(value or "").strip()
+        self._voice_model = text
+        self._voice_pinned = bool(text)
 
     def _require_purpose_if_metered(self, purpose: str | None) -> str | None:
         if self._usage_meter is None:

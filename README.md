@@ -105,7 +105,7 @@ When `usage_meter` is attached, **purpose is required**. Without a meter, purpos
 
 - **Source:** [docs.x.ai/developers/pricing](https://docs.x.ai/developers/pricing) (chat also [docs.x.ai/docs/models](https://docs.x.ai/docs/models))
 - **Last copied into the kit:** `default_price_table().fetched` (also `PRICE_TABLE_FETCHED`)
-- **Refresh:** re-read those pages and update the dicts in `src/xaikit/pricing.py` (kit release), **or** overlay JSON with `load_price_table("prices.json")` / `save_price_table_template("prices.json")` without waiting on a kit bump. There is no auto-fetch on import.
+- **Refresh:** the meter prices a call from the response’s `cost_in_usd_ticks` when present, then rates on the in-process model list, then a public gap file this repo publishes (at most once per process per 24 hours, and only when a rate is still missing). A failed fetch does not fail the call. The shipped table in `pricing.py` is the last resort: an exact id, or a prefix whose remainder is empty or starts with `-` (`grok-4.7-latest` follows `grok-4.7`; `grok-4.8` does not follow `grok-4`). Unknown ids leave `estimated_usd` unset. There is no fetch on import. Operators can still overlay JSON with `load_price_table("prices.json")`.
 - **No public rate → no invented USD.** Embeddings, tokenizer, batch, collections, Responses, Files, REST TTS, and similar still record purpose/tokens/success; `estimated_usd` stays unset.
 
 ```python
@@ -178,7 +178,7 @@ extend_id = resolve_model(intent="best", role="video", need="video_extend")
 
 `feature_options(model=)` lists extra capabilities for settings UIs (not role tags). No model → Grok 4.7 chat extras, the same set as Grok 4.6+ (`web_search`, `x_search`, `code_execution`, `file_attachments`, `collections_search`, `image_understanding`, `x_video_understanding`, `mcp`). Imagine quality (`grok-imagine-video`) reports `video_extend` / `video_edit` / `r2v`; `grok-imagine-video-1.5` reports `1080p` / `r2v` and not extend. Unknown or older SKUs return `[]`. Pass the same ids as `need=` on resolve so `best` is best for that job (quality over 1.5 when the job is extend).
 
-When `model` is omitted, chat resolve falls back to `BOOTSTRAP_MODEL` (`grok-4.7`). Offline with no API key or fixture, `list_models` injects `grok-4.7` plus cheaper-band `grok-4.3`. Pass `persist_path=` to write a JSON snapshot after a live SDK fetch and reload it later; there is no default disk path.
+When `model` is omitted, an unpinned client resolves chat from the live list (the API key is passed into `list_models`) and re-resolves on later calls when that cache expires (one hour). `BOOTSTRAP_MODEL` (`grok-4.7`) is only the offline fallback. A pin on the client or on the call stays fixed. Image defaults follow the image list the same way. Video and voice stay on their role default until the SDK lists them. Offline with no API key or fixture, `list_models` injects `grok-4.7` plus cheaper-band `grok-4.3`. Pass `persist_path=` to write a JSON snapshot after a live SDK fetch and reload it later; there is no default disk path. Newest chat ids compare integer major then minor (`grok-5` above `grok-4.10` above `grok-4.7`). `grok-4.20` stays older than `grok-4.3`.
 
 ## Image generation and edit
 

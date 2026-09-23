@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +21,14 @@ logger = logging.getLogger(__name__)
 PRICE_TABLE_SOURCE_URL = "https://docs.x.ai/developers/pricing"
 PRICE_TABLE_MODELS_URL = "https://docs.x.ai/docs/models"
 PRICE_TABLE_FETCHED = "2026-09-23"
+# Daily watch commits this file on master. Installed kits fetch it only to
+# fill a price the response and the in-process catalog did not already have.
+PUBLIC_PRICES_URL = (
+    "https://raw.githubusercontent.com/BrianCLowe/xAIkit/master/scripts/data/xai_public_prices.json"
+)
+_PUBLIC_PRICE_TTL_SECONDS = 24 * 60 * 60
+# Public chat long-context tier starts at 200k prompt tokens.
+LONG_CONTEXT_PROMPT_TOKENS = 200_000
 
 # Chat token rates: public under-200k list prices (USD / 1M). Estimates, not billing.
 # grok-3 / grok-3-mini kept for old event estimates (off the public table).
@@ -138,6 +148,11 @@ class ModelPrice(BaseModel):
         ge=0.0,
         description="USD per audio minute (realtime voice; estimates, not billing)",
     )
+    cached_input_per_million: float | None = Field(default=None, ge=0.0)
+    image_token_per_million: float | None = Field(default=None, ge=0.0)
+    input_long_per_million: float | None = Field(default=None, ge=0.0)
+    output_long_per_million: float | None = Field(default=None, ge=0.0)
+    cached_input_long_per_million: float | None = Field(default=None, ge=0.0)
 
 
 class PriceTable(BaseModel):
@@ -152,25 +167,26 @@ class PriceTable(BaseModel):
     )
     models: dict[str, ModelPrice] = Field(default_factory=dict)
 
-    def price_for(self, model: str) -> ModelPrice:
-        """Resolve price for a model id; fall back to ``default`` then bootstrap."""
+    def price_for(self, model: str) -> ModelPrice | None:
+        """Exact row, or a prefix whose remainder is empty or starts with ``-``.
+
+        ``grok-4.7-latest`` follows ``grok-4.7``. ``grok-4.8`` does not follow
+        ``grok-4``. Unknown ids return None — the ``default`` row is only an
+        exact match for the id ``default``.
+        """
         key = (model or "").strip()
-        if key and key in self.models:
+        if not key:
+            return None
+        if key in self.models:
             return self.models[key]
-        if key:
-            candidates = sorted(
-                (k for k in self.models if k != "default" and key.startswith(k)),
-                key=len,
-                reverse=True,
-            )
-            if candidates:
-                return self.models[candidates[0]]
-        if "default" in self.models:
-            return self.models["default"]
-        return ModelPrice(
-            input_per_million=_DEFAULT_MODELS["default"]["input_per_million"],
-            output_per_million=_DEFAULT_MODELS["default"]["output_per_million"],
-        )
+        candidates = [
+            name
+            for name in self.models
+            if name != "default" and _prefix_remainder_ok(key, name)
+        ]
+        if not candidates:
+            return None
+        return self.models[max(candidates, key=len)]
 
     def estimate_usd(
         self,
@@ -180,9 +196,12 @@ class PriceTable(BaseModel):
         completion_tokens: int | None = None,
         duration_seconds: float | None = None,
         resolution: str | None = None,
+        usage: dict[str, Any] | None = None,
     ) -> float | None:
         """Estimate USD from video duration, voice minutes, token counts, or per-call fallback."""
         price = self.price_for(model)
+        if price is None:
+            return None
         if duration_seconds is not None:
             rate = None
             res_map = price.per_second_usd_by_resolution or {}
@@ -198,16 +217,74 @@ class PriceTable(BaseModel):
                     (float(duration_seconds) / 60.0) * float(price.per_minute_usd),
                     8,
                 )
-        pt = prompt_tokens if prompt_tokens is not None else 0
-        ct = completion_tokens if completion_tokens is not None else 0
         if prompt_tokens is not None or completion_tokens is not None:
-            cost = (pt / 1_000_000.0) * price.input_per_million + (
-                ct / 1_000_000.0
-            ) * price.output_per_million
-            return round(cost, 8)
+            return _token_estimate_usd(
+                price,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                usage=usage,
+            )
         if price.per_call_usd is not None:
             return float(price.per_call_usd)
         return None
+
+
+def _prefix_remainder_ok(model_id: str, prefix: str) -> bool:
+    if not prefix or not model_id.startswith(prefix):
+        return False
+    rest = model_id[len(prefix) :]
+    return rest == "" or rest.startswith("-")
+
+
+def _usage_int(usage: dict[str, Any] | None, *keys: str) -> int | None:
+    if not usage:
+        return None
+    for key in keys:
+        raw = usage.get(key)
+        if raw is None:
+            continue
+        try:
+            return int(raw)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _token_estimate_usd(
+    price: ModelPrice,
+    *,
+    prompt_tokens: int | None,
+    completion_tokens: int | None,
+    usage: dict[str, Any] | None,
+) -> float | None:
+    """Token USD. Long-context rates apply at 200k prompt tokens when present."""
+    pt = prompt_tokens if prompt_tokens is not None else 0
+    ct = completion_tokens if completion_tokens is not None else 0
+    long = pt >= LONG_CONTEXT_PROMPT_TOKENS
+    input_rate = price.input_per_million
+    output_rate = price.output_per_million
+    cached_rate = price.cached_input_per_million
+    if long and price.input_long_per_million is not None:
+        input_rate = price.input_long_per_million
+    if long and price.output_long_per_million is not None:
+        output_rate = price.output_long_per_million
+    if long and price.cached_input_long_per_million is not None:
+        cached_rate = price.cached_input_long_per_million
+    cached = _usage_int(usage, "cached_tokens", "cached_prompt_tokens")
+    image_tokens = _usage_int(usage, "prompt_image_tokens", "image_tokens")
+    uncached = pt
+    cached_cost = 0.0
+    if cached is not None and cached_rate is not None:
+        used = min(max(cached, 0), pt)
+        uncached = pt - used
+        cached_cost = (used / 1_000_000.0) * float(cached_rate)
+    cost = (uncached / 1_000_000.0) * float(input_rate) + (
+        ct / 1_000_000.0
+    ) * float(output_rate)
+    cost += cached_cost
+    if image_tokens and price.image_token_per_million is not None:
+        cost += (image_tokens / 1_000_000.0) * float(price.image_token_per_million)
+    return round(cost, 8)
 
 
 def default_price_table() -> PriceTable:
@@ -270,3 +347,96 @@ def save_price_table_template(path: str | Path) -> Path:
         encoding="utf-8",
     )
     return p
+
+
+def price_table_from_public_payload(payload: dict[str, Any] | None) -> PriceTable | None:
+    """Build a table from the committed gap-file JSON. None when the shape is wrong."""
+    if not isinstance(payload, dict):
+        return None
+    models = payload.get("models")
+    if not isinstance(models, dict) or not models:
+        return None
+    parsed: dict[str, ModelPrice] = {}
+    for key, row in models.items():
+        if not isinstance(row, dict):
+            continue
+        try:
+            parsed[str(key)] = ModelPrice.model_validate(row)
+        except Exception:
+            logger.warning("Skipping invalid public price row %s", key, exc_info=True)
+    if not parsed:
+        return None
+    fetched = str(payload.get("fetched") or "").strip() or PRICE_TABLE_FETCHED
+    source = str(payload.get("source_url") or "").strip() or PRICE_TABLE_MODELS_URL
+    return PriceTable(
+        version=1,
+        currency="USD",
+        source_url=source,
+        fetched=fetched,
+        models=parsed,
+    )
+
+
+class _PublicPriceCache:
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.fetched_at: float | None = None
+        self.table: PriceTable | None = None
+
+
+_public_prices = _PublicPriceCache()
+
+
+def clear_public_price_cache() -> None:
+    """Drop the in-process gap-file cache (tests)."""
+    with _public_prices.lock:
+        _public_prices.fetched_at = None
+        _public_prices.table = None
+
+
+def fetch_public_price_payload(
+    url: str = PUBLIC_PRICES_URL,
+    *,
+    timeout: float = 10.0,
+) -> dict[str, Any] | None:
+    """GET the gap file. Never raises. Not called on import."""
+    try:
+        import httpx
+
+        response = httpx.get(
+            url,
+            timeout=timeout,
+            headers={"User-Agent": "xaikit-price-gap", "Accept": "application/json"},
+        )
+        response.raise_for_status()
+        payload = response.json()
+    except Exception:
+        logger.warning("Public price gap fetch failed", exc_info=True)
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def public_price_table(
+    *,
+    now: float | None = None,
+    ttl_seconds: int = _PUBLIC_PRICE_TTL_SECONDS,
+) -> PriceTable | None:
+    """Gap file, at most once per process per 24 hours.
+
+    A failed refresh keeps the previous table. A later failure cannot replace
+    a successful fetch that finished first.
+    """
+    stamp = time.monotonic() if now is None else now
+    with _public_prices.lock:
+        fetched_at = _public_prices.fetched_at
+        if fetched_at is not None and stamp - fetched_at < ttl_seconds:
+            return _public_prices.table
+    payload = fetch_public_price_payload()
+    table = price_table_from_public_payload(payload)
+    with _public_prices.lock:
+        if table is None and _public_prices.table is not None:
+            _public_prices.fetched_at = stamp
+            return _public_prices.table
+        _public_prices.fetched_at = stamp
+        _public_prices.table = table
+    return table

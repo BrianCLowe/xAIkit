@@ -101,6 +101,48 @@ def clear_catalog_cache() -> None:
         _state.snapshot = None
 
 
+def find_cached_model(model_id: str) -> ModelInfo | None:
+    """Match a cached catalog row by id or alias. None when the cache is empty."""
+    rows = cached_catalog()
+    if not rows:
+        return None
+    key = (model_id or "").strip()
+    if not key:
+        return None
+    for row in rows:
+        if row.id == key:
+            return row
+    low = key.lower()
+    for row in rows:
+        if row.id.lower() == low:
+            return row
+        if any(alias.lower() == low for alias in row.aliases):
+            return row
+    return None
+
+
+def cached_catalog() -> list[ModelInfo] | None:
+    """Return the in-process snapshot, or None when nothing has been fetched.
+
+    Does not call the SDK or write the bootstrap pair. Metering uses this so
+    a price lookup cannot populate the catalog cache.
+    """
+    with _state.lock:
+        snap = _state.snapshot
+    if snap is None:
+        return None
+    return list(snap.models)
+
+
+def _live_key_needs_fetch(snap: CatalogSnapshot, key: str | None) -> bool:
+    """A no-key bootstrap/persist snapshot must not hide a later keyed fetch."""
+    if not key:
+        return False
+    if _injected_models is not None or _test_fetch is not None:
+        return False
+    return snap.source in {"bootstrap", "persist"}
+
+
 def set_test_fetch(fn: _FetchFn | None) -> None:
     """Inject or clear a test fetch function (bypasses SDK)."""
     global _test_fetch
@@ -523,12 +565,44 @@ def _modality_name(value: Any) -> str:
         return str(value).lower()
 
 
+# Public docs token scale: 20000 = $2 / 1M, 60000 = $6 / 1M.
+_SDK_TOKEN_SCALE = 10_000
+# Public docs media scale: 500000000 = $0.05 / image, 800000000 = $0.08 / video second.
+_SDK_MEDIA_SCALE = 10_000_000_000
+
+
 def _price_from_sdk_units(raw: int | None) -> float | None:
+    """Language-token list price (USD per 1M) from SDK / docs integer units."""
     if raw is None or raw == 0:
         return None
-    if abs(raw) >= 100:
-        return float(raw) / 1000.0
-    return float(raw)
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if value == 0:
+        return None
+    if abs(value) >= 100:
+        return float(value) / float(_SDK_TOKEN_SCALE)
+    return float(value)
+
+
+def _price_from_media_units(raw: int | None) -> float | None:
+    """Per-image (or per-second) USD from the public media integer scale.
+
+    Values under 1_000_000 are already dollars (test fixtures). Docs and the
+    live list use 1e10 = $1.
+    """
+    if raw is None or raw == 0:
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if value == 0:
+        return None
+    if abs(value) >= 1_000_000:
+        return float(value) / float(_SDK_MEDIA_SCALE)
+    return float(value)
 
 
 def _slug_role(*parts: str) -> str | None:
@@ -604,6 +678,21 @@ def model_info_from_language_proto(lm: Any) -> ModelInfo:
         output_per_million=_price_from_sdk_units(
             getattr(lm, "completion_text_token_price", None)
         ),
+        cached_input_per_million=_price_from_sdk_units(
+            getattr(lm, "cached_prompt_token_price", None)
+        ),
+        image_token_per_million=_price_from_sdk_units(
+            getattr(lm, "prompt_image_token_price", None)
+        ),
+        input_long_per_million=_price_from_sdk_units(
+            getattr(lm, "prompt_text_token_price_long_context", None)
+        ),
+        output_long_per_million=_price_from_sdk_units(
+            getattr(lm, "completion_token_price_long_context", None)
+        ),
+        cached_input_long_per_million=_price_from_sdk_units(
+            getattr(lm, "cached_prompt_token_price_long_context", None)
+        ),
         created=_created_unix(getattr(lm, "created", None)),
     )
 
@@ -611,9 +700,10 @@ def model_info_from_language_proto(lm: Any) -> ModelInfo:
 def model_info_from_image_proto(im: Any) -> ModelInfo:
     """Map xAI SDK ImageGenerationModel proto (or duck-typed object) → ModelInfo.
 
-    Tags ``image`` (or ``video`` / ``voice`` when the slug says so). Does
-    **not** copy ``image_price`` into ``input_per_million`` (incompatible
-    units). Resolve ranks image/video/voice on public list rates.
+    Tags ``image`` (or ``video`` / ``voice`` when the slug says so). Stores
+    ``image_price`` as ``per_image_usd`` and does **not** copy it into
+    ``input_per_million`` (incompatible units). Resolve ranks image/video/voice
+    on public list rates.
     """
     name = (getattr(im, "name", None) or "").strip()
     aliases = list(getattr(im, "aliases", None) or [])
@@ -634,6 +724,7 @@ def model_info_from_image_proto(im: Any) -> ModelInfo:
         capabilities=caps,
         context_length=context_length,
         input_per_million=None,
+        per_image_usd=_price_from_media_units(getattr(im, "image_price", None)),
         created=_created_unix(getattr(im, "created", None)),
     )
 
@@ -664,6 +755,36 @@ def _merge_catalog_row(by_id: dict[str, ModelInfo], info: ModelInfo) -> None:
                 existing.output_per_million
                 if existing.output_per_million is not None
                 else info.output_per_million
+            ),
+            "cached_input_per_million": (
+                existing.cached_input_per_million
+                if existing.cached_input_per_million is not None
+                else info.cached_input_per_million
+            ),
+            "image_token_per_million": (
+                existing.image_token_per_million
+                if existing.image_token_per_million is not None
+                else info.image_token_per_million
+            ),
+            "input_long_per_million": (
+                existing.input_long_per_million
+                if existing.input_long_per_million is not None
+                else info.input_long_per_million
+            ),
+            "output_long_per_million": (
+                existing.output_long_per_million
+                if existing.output_long_per_million is not None
+                else info.output_long_per_million
+            ),
+            "cached_input_long_per_million": (
+                existing.cached_input_long_per_million
+                if existing.cached_input_long_per_million is not None
+                else info.cached_input_long_per_million
+            ),
+            "per_image_usd": (
+                existing.per_image_usd
+                if existing.per_image_usd is not None
+                else info.per_image_usd
             ),
             "created": existing.created if existing.created is not None else info.created,
         }
@@ -776,23 +897,29 @@ def list_models(
 
     Order when no inject/test-fetch: fresh memory cache → SDK if key →
     ``persist_path`` file if present → ``fixture_path`` → bootstrap.
+    A fresh bootstrap or persist snapshot does not count when *api_key* is
+    set — that call tries the SDK. SDK failure with fallback allowed caches
+    the bootstrap pair as ``sdk-error`` for the TTL so a dead list is not
+    retried on every call.
 
     After a successful SDK fetch, if ``persist_path`` is set, write
     ``{models: [...]}`` there (best-effort: disk errors are logged and the
     live list is still returned). No default path — omit to skip disk.
     ``clear_catalog_cache`` drops memory only; it does not delete the file.
     """
+    key = (api_key or "").strip() or None
     with _state.lock:
+        snap = _state.snapshot
         if (
             not force_refresh
-            and _state.snapshot is not None
-            and _state.snapshot.is_fresh(ttl_seconds)
+            and snap is not None
+            and snap.is_fresh(ttl_seconds)
+            and not _live_key_needs_fetch(snap, key)
         ):
-            return list(_state.snapshot.models)
+            return list(snap.models)
 
     models: list[ModelInfo] | None = None
     source: str | None = None
-    key = (api_key or "").strip() or None
     persist = _optional_path(persist_path)
     sdk_error: BaseException | None = None
 
@@ -821,7 +948,10 @@ def list_models(
         if models is None and fixture_path is not None and allow_fixture_fallback:
             models = load_fixture_catalog(fixture_path)
             source = "fixture"
-        if models is None and key is None and allow_fixture_fallback:
+        if models is None and key and sdk_error is not None and allow_fixture_fallback:
+            models = _bootstrap_offline_models()
+            source = "sdk-error"
+        elif models is None and key is None and allow_fixture_fallback:
             models = _bootstrap_offline_models()
             source = "bootstrap"
 
@@ -901,10 +1031,6 @@ def models_for_role(
     return matched
 
 
-_GROK_NUM = re.compile(
-    r"grok[-_]?(\d+(?:\.\d+)?)(?:[-_]|$)",
-    re.IGNORECASE,
-)
 _NON_REASONING = re.compile(r"non[-_]?reasoning", re.IGNORECASE)
 # Match **id** only — grok-4.5 currently aliases grok-build-latest.
 _CODE_SKU_ID = re.compile(
@@ -924,21 +1050,40 @@ def _slug_implies_reasoning(*parts: str) -> bool:
     return False
 
 
+_CHAT_VERSION = re.compile(r"grok-(\d+)(?:[.-](\d+))?", re.IGNORECASE)
+# Historical grok-4.20 (the Feb 2026 generation) is older than grok-4.3.
+# A float parse turned 4.20 into 4.2 by accident and 4.10 into 4.1.
+_HISTORICAL_4_20 = re.compile(r"grok-4[.-]20(?!\d)", re.IGNORECASE)
+
+
+def _chat_major_minor(model_id: str) -> tuple[int, int]:
+    """Integer ``(major, minor)`` for chat newest-sort.
+
+    ``grok-4.10`` is ``(4, 10)`` (above 4.9). ``grok-5`` / ``grok-5.0`` is
+    ``(5, 0)`` (above every 4.x). ``grok-4.20`` sorts as minor 2 so it stays
+    older than ``grok-4.3``.
+    """
+    mid = (model_id or "").lower().replace("_", "-")
+    matched = _CHAT_VERSION.search(mid)
+    if not matched:
+        return (0, 0)
+    major = int(matched.group(1))
+    minor = int(matched.group(2) or 0)
+    if major == 4 and minor == 20 and _HISTORICAL_4_20.search(mid):
+        minor = 2
+    return (major, minor)
+
+
 def _version_tuple(model: ModelInfo) -> tuple:
     mid = model.id.lower()
     is_latest_alias = mid.endswith("-latest") or mid.endswith("_latest")
-    num = 0.0
-    m = _GROK_NUM.search(mid)
-    if m:
-        try:
-            num = float(m.group(1))
-        except ValueError:
-            num = 0.0
+    major, minor = _chat_major_minor(mid)
     is_mini = "mini" in mid
     is_fast = "fast" in mid and "non-reasoning" not in mid
     created = model.created or 0
     return (
-        num,
+        major,
+        minor,
         1 if is_latest_alias else 0,
         0 if is_mini else 1,
         0 if is_fast else 1,
@@ -1018,17 +1163,7 @@ def _public_ranking_price(model: ModelInfo, role: str) -> float | None:
     key = (model.id or "").strip()
     if not key:
         return None
-    price = None
-    if key in table.models:
-        price = table.models[key]
-    else:
-        candidates = sorted(
-            (k for k in table.models if k != "default" and key.startswith(k)),
-            key=len,
-            reverse=True,
-        )
-        if candidates:
-            price = table.models[candidates[0]]
+    price = table.price_for(key)
     if price is None:
         return None
     if role == ROLE_VIDEO and price.per_second_usd is not None:
@@ -1182,6 +1317,7 @@ def resolve_model(
     task_assignment: _TaskAssignFn | None = None,
     role: str | None = None,
     need: str | Sequence[str] | None = None,
+    api_key: str | None = None,
 ) -> str:
     """Resolve a model id via the kit policy chain."""
     return resolve_model_selection(
@@ -1194,6 +1330,7 @@ def resolve_model(
         task_assignment=task_assignment,
         role=role,
         need=need,
+        api_key=api_key,
     ).model_id
 
 
@@ -1214,6 +1351,7 @@ def resolve_model_selection(
     task_assignment: _TaskAssignFn | None = None,
     role: str | None = None,
     need: str | Sequence[str] | None = None,
+    api_key: str | None = None,
 ) -> ModelSelection:
     """pin → need-filter → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap.
 
@@ -1233,7 +1371,7 @@ def resolve_model_selection(
     cat: Sequence[ModelInfo] | None = catalog
     if cat is None:
         try:
-            cat = list_models()
+            cat = list_models(api_key=api_key)
         except Exception as exc:
             logger.warning("Catalog unavailable (%s)", type(exc).__name__)
             cat = None

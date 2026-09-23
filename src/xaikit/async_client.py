@@ -22,11 +22,8 @@ from xaikit.batch import (
 from xaikit.catalog import (
     BOOTSTRAP_MODEL,
     DEFAULT_IMAGE_MODEL,
-    DEFAULT_VIDEO_MODEL,
     contract_imagine_aspect_ratio,
     imagine_generate_knobs,
-    normalize_thought_level,
-    resolve_model_selection,
 )
 from xaikit.client import (
     DEFAULT_FILE_PURPOSE,
@@ -176,30 +173,22 @@ class AsyncXaiClient(XaiClient):
         completion_tracer: CompletionTracer | None = None,
     ) -> None:
         level_in = thought_level if thought_level is not None else effort
-
-        if model is not None and str(model).strip():
-            self.model = str(model).strip()
-            self._resolve_source = "override"
-            self.thought_level = normalize_thought_level(level_in)
-        else:
-            selection = resolve_model_selection(
-                pin=None,
-                intent=intent,
-                task=task,
-                thought_level=level_in,
-                bootstrap=bootstrap_model,
-            )
-            self.model = selection.model_id
-            self._resolve_source = selection.source
-            self.thought_level = (
-                normalize_thought_level(level_in)
-                if level_in is not None
-                else selection.thought_level
-            )
+        self._remember_role_pins(
+            model=model,
+            image_model=image_model,
+            video_model=video_model,
+            voice_model=voice_model,
+            intent=intent,
+            task=task,
+            bootstrap_model=bootstrap_model,
+            level_in=level_in,
+        )
 
         if provider is not None:
             self._provider = provider
-            self.api_key = (api_key or "").strip() or "mock"
+            supplied = (api_key or "").strip()
+            self.api_key = supplied or "mock"
+            self._catalog_api_key = supplied or None
             self._client = None
         else:
             key = (api_key or "").strip()
@@ -217,15 +206,14 @@ class AsyncXaiClient(XaiClient):
                 management_api_key=management_api_key,
             )
             self._provider = AsyncSdkChatProvider(self._client)
+            self._catalog_api_key = key or None
 
+        self._finish_role_resolution()
         self._usage_meter = usage_meter
         self._completion_tracer = completion_tracer
         self._retry_policy = (
             retry_policy if retry_policy is not None else default_retry_policy()
         )
-        self.image_model = (image_model or DEFAULT_IMAGE_MODEL).strip()
-        self.video_model = (video_model or DEFAULT_VIDEO_MODEL).strip()
-        self.voice_model = (voice_model or DEFAULT_VOICE_MODEL).strip()
         self._http: httpx.AsyncClient | None = None
         self._owns_http = False
         self._inflight_video_waits: set[asyncio.Task[Any]] = set()

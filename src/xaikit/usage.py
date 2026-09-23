@@ -16,7 +16,8 @@ from typing import Any, Iterable, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
-from xaikit.pricing import PriceTable, default_price_table
+from xaikit.catalog import find_cached_model
+from xaikit.pricing import ModelPrice, PriceTable, default_price_table, public_price_table
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +248,58 @@ def _parse_usage_dict(
     return pt_i, ct_i
 
 
+def _estimate_from_catalog(
+    model: str,
+    *,
+    prompt_tokens: int | None,
+    completion_tokens: int | None,
+    duration_seconds: float | None,
+    usage: dict[str, Any] | None,
+) -> float | None:
+    """In-process catalog rates. None when the row cannot price this call.
+
+    Video seconds stay on the gap file / static table — the language list has
+    no per-second field. A partial token row does not invent $0.
+    """
+    if duration_seconds is not None:
+        return None
+    info = find_cached_model(model)
+    if info is None:
+        return None
+    has_tokens = prompt_tokens is not None or completion_tokens is not None
+    if has_tokens:
+        if info.input_per_million is None or info.output_per_million is None:
+            return None
+        price = ModelPrice(
+            input_per_million=info.input_per_million,
+            output_per_million=info.output_per_million,
+            cached_input_per_million=info.cached_input_per_million,
+            image_token_per_million=info.image_token_per_million,
+            input_long_per_million=info.input_long_per_million,
+            output_long_per_million=info.output_long_per_million,
+            cached_input_long_per_million=info.cached_input_long_per_million,
+            per_call_usd=info.per_image_usd,
+        )
+        table = PriceTable(models={(model or "").strip() or info.id: price})
+        return table.estimate_usd(
+            model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            usage=usage,
+        )
+    if info.per_image_usd is not None:
+        count = 1
+        if usage:
+            raw = usage.get("image_count", usage.get("images"))
+            try:
+                if raw is not None:
+                    count = max(1, int(raw))
+            except (TypeError, ValueError):
+                count = 1
+        return round(float(info.per_image_usd) * count, 8)
+    return None
+
+
 def _usd_from_ticks(raw: Any) -> float | None:
     try:
         ticks = int(raw)
@@ -328,13 +381,33 @@ class UsageMeter:
                 raw_res = usage.get("resolution")
                 if raw_res is not None:
                     resolution = str(raw_res).strip() or None
-            estimated_usd = self.price_table.estimate_usd(
+            estimated_usd = _estimate_from_catalog(
                 model,
                 prompt_tokens=pt,
                 completion_tokens=ct,
                 duration_seconds=duration,
-                resolution=resolution,
+                usage=usage,
             )
+            if estimated_usd is None:
+                gap = public_price_table()
+                if gap is not None:
+                    estimated_usd = gap.estimate_usd(
+                        model,
+                        prompt_tokens=pt,
+                        completion_tokens=ct,
+                        duration_seconds=duration,
+                        resolution=resolution,
+                        usage=usage,
+                    )
+            if estimated_usd is None:
+                estimated_usd = self.price_table.estimate_usd(
+                    model,
+                    prompt_tokens=pt,
+                    completion_tokens=ct,
+                    duration_seconds=duration,
+                    resolution=resolution,
+                    usage=usage,
+                )
 
         event = UsageEvent(
             timestamp=timestamp or _utc_now(),
