@@ -426,6 +426,10 @@ def test_need_filters_best_for_the_job() -> None:
         == "grok-4.3"
     )
     assert (
+        contract_model_for_need("grok-4.7", "batch", role="chat", catalog=chat)
+        == "grok-4.3"
+    )
+    assert (
         contract_model_for_need("grok-4.5", "batch", role="chat", catalog=chat)
         == "grok-4.3"
     )
@@ -632,7 +636,7 @@ def test_image_role_ranks_on_public_per_call_not_sdk_token_units() -> None:
 
 
 def test_bootstrap_model_is_current_flagship() -> None:
-    assert BOOTSTRAP_MODEL == "grok-4.6"
+    assert BOOTSTRAP_MODEL == "grok-4.7"
 
 
 def test_list_models_offline_bootstrap_has_two_current_chat_bands() -> None:
@@ -656,9 +660,14 @@ def test_default_price_table_current_chat_rates() -> None:
     from xaikit.pricing import default_price_table
 
     table = default_price_table()
-    flagship = table.price_for("grok-4.6")
+    flagship = table.price_for("grok-4.7")
     assert flagship.input_per_million == 2.0
     assert flagship.output_per_million == 6.0
+    # Exact row, not the grok-4 prefix ($3 / $15).
+    assert table.price_for("grok-4").input_per_million == 3.0
+    previous = table.price_for("grok-4.6")
+    assert previous.input_per_million == 2.0
+    assert previous.output_per_million == 6.0
     mid = table.price_for("grok-4.5")
     assert mid.input_per_million == 2.0
     assert mid.output_per_million == 6.0

@@ -187,6 +187,8 @@ def test_normalize_thought_level_contract(raw: str | None, expected: str | None)
 @pytest.mark.parametrize(
     ("level", "model", "expected"),
     [
+        ("xhigh", "grok-4.7", "xhigh"),
+        ("medium", "grok-4.7", "medium"),
         ("xhigh", "grok-4.6", "xhigh"),
         ("medium", "grok-4.6", "medium"),
         ("xhigh", "grok-4.5", "high"),
@@ -208,6 +210,7 @@ def test_contract_thought_level_by_model(
 
 def test_effort_options_full_set_and_per_model() -> None:
     assert effort_options() == ["low", "medium", "high", "xhigh"]
+    assert effort_options("grok-4.7") == ["low", "medium", "high", "xhigh"]
     assert effort_options("grok-4.6") == ["low", "medium", "high", "xhigh"]
     assert effort_options("grok-4.5") == ["low", "medium", "high"]
     assert effort_options("grok-4.20-0309-non-reasoning") == []
@@ -230,6 +233,7 @@ def test_feature_options_chat_and_video_per_sku() -> None:
     assert feature_options("grok-4.7") == flagship
     assert feature_options("grok-4.5") == []
     assert "batch" not in feature_options("grok-4.6")
+    assert "batch" not in feature_options("grok-4.7")
     assert feature_options("grok-4.3") == ["batch"]
     assert feature_options("grok-4.20-0309-non-reasoning") == []
     assert feature_options("grok-imagine-video") == [

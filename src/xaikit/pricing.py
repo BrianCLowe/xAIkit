@@ -18,11 +18,14 @@ logger = logging.getLogger(__name__)
 # Refresh: re-read those pages, update the `_DEFAULT_*` dicts below, set PRICE_TABLE_FETCHED.
 PRICE_TABLE_SOURCE_URL = "https://docs.x.ai/developers/pricing"
 PRICE_TABLE_MODELS_URL = "https://docs.x.ai/docs/models"
-PRICE_TABLE_FETCHED = "2026-08-13"
+PRICE_TABLE_FETCHED = "2026-09-23"
 
 # Chat token rates: public under-200k list prices (USD / 1M). Estimates, not billing.
 # grok-3 / grok-3-mini kept for old event estimates (off the public table).
+# grok-4.7 is an exact key on purpose: price_for prefix-matches, and "grok-4.7"
+# startswith "grok-4" ($3 / $15) when this row is missing.
 _DEFAULT_MODELS: dict[str, dict[str, float]] = {
+    "grok-4.7": {"input_per_million": 2.0, "output_per_million": 6.0},
     "grok-4.6": {"input_per_million": 2.0, "output_per_million": 6.0},
     "grok-4.5": {"input_per_million": 2.0, "output_per_million": 6.0},
     "grok-4.3": {"input_per_million": 1.25, "output_per_million": 2.5},

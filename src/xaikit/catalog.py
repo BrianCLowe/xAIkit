@@ -24,7 +24,7 @@ from xaikit.types import ModelInfo, ModelSelection
 
 logger = logging.getLogger(__name__)
 
-BOOTSTRAP_MODEL = "grok-4.6"
+BOOTSTRAP_MODEL = "grok-4.7"
 DEFAULT_IMAGE_MODEL = "grok-imagine-image-quality"
 DEFAULT_VIDEO_MODEL = "grok-imagine-video-1.5"
 DEFAULT_VOICE_MODEL = "grok-voice-latest"
@@ -156,8 +156,8 @@ _VIDEO_EXTRAS_1_5 = ("1080p", "r2v")
 def feature_options(model: str | None = None) -> list[str]:
     """UI-queryable extra capabilities for a SKU (tools + media knobs).
 
-    No ``model`` → current chat flagship extras (Grok 4.6 set).
-    ``grok-4.6`` and later chat SKUs → that set (not ``batch``).
+    No ``model`` → current chat flagship extras (Grok 4.7; same set as 4.6+).
+    ``grok-4.6`` and later chat SKUs (including ``grok-4.7``) → that set (not ``batch``).
     ``grok-4.3`` → ``batch``. Imagine **quality**
     (``grok-imagine-video`` without ``-1.5``) → extend / edit / R2V.
     ``grok-imagine-video-1.5`` → 1080p / R2V (no extend or edit).
@@ -744,7 +744,7 @@ def fetch_models_from_sdk(api_key: str) -> list[ModelInfo]:
 
 def _bootstrap_offline_models() -> list[ModelInfo]:
     # Two current chat bands so cheapest / economy / best still differ.
-    # Public under-200k rates: https://docs.x.ai/docs/models (fetched 2026-08-13).
+    # Public under-200k rates: https://docs.x.ai/developers/models (fetched 2026-09-23).
     return [
         ModelInfo(
             id=BOOTSTRAP_MODEL,
