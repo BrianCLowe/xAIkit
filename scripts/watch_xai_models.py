@@ -5,6 +5,7 @@ an API key. Does not invent knobs — it only prompts a human/kit check.
 
     uv run python scripts/watch_xai_models.py
     uv run python scripts/watch_xai_models.py --write-baseline
+    uv run python scripts/watch_xai_models.py --select-unlisted --slugs grok-4.7 --issues-json issues.json
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -124,6 +126,88 @@ def diff_watch(live: dict[str, list[str]], baseline: dict[str, Any]) -> dict[str
     return {"slugs": new_slugs, "resolutions": new_res}
 
 
+# Slug characters, so ``grok-4`` does not count as ``grok-4.7`` (``.`` is not a ``\b``).
+_TOKEN_EDGE = r"A-Za-z0-9._-"
+_DECLARED_LINE = re.compile(
+    r"^\s*\*\*New (?:slugs|resolutions):\*\*\s*`([^`]*)`",
+    re.IGNORECASE | re.MULTILINE,
+)
+
+
+def split_watch_tokens(raw: str) -> list[str]:
+    """Comma list from Actions output. ``none`` and blanks drop out."""
+    out: list[str] = []
+    for part in (raw or "").split(","):
+        token = part.strip().lower()
+        if token and token != "none":
+            out.append(token)
+    return out
+
+
+def token_is_listed(token: str, text: str) -> bool:
+    """True when ``token`` appears as a whole slug/resolution in ``text``."""
+    raw = (token or "").strip()
+    if not raw or not text:
+        return False
+    pattern = rf"(?<![{_TOKEN_EDGE}]){re.escape(raw)}(?![{_TOKEN_EDGE}])"
+    return re.search(pattern, text, flags=re.IGNORECASE) is not None
+
+
+def declared_watch_tokens(text: str) -> set[str]:
+    """Tokens named on ``**New slugs:**`` / ``**New resolutions:**`` lines.
+
+    The issue checklist mentions ``4k`` as an example. That prose is not a listing.
+    """
+    found: set[str] = set()
+    for match in _DECLARED_LINE.finditer(text or ""):
+        found.update(split_watch_tokens(match.group(1)))
+    return found
+
+
+def _comment_text(issue: dict[str, Any]) -> str:
+    raw = issue.get("comments")
+    if raw is None:
+        return ""
+    if isinstance(raw, str):
+        return raw
+    if isinstance(raw, list):
+        parts: list[str] = []
+        for item in raw:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                parts.append(str(item.get("body") or ""))
+        return "\n".join(parts)
+    return ""
+
+
+def unlisted_watch_tokens(tokens: Sequence[str], issues: Sequence[dict[str, Any]]) -> list[str]:
+    """Tokens that still need their own watch issue.
+
+    A token is already listed when it is on a New slugs / New resolutions line,
+    a whole token in the issue title, or a whole token in a comment.
+    """
+    declared: set[str] = set()
+    loose: list[str] = []
+    for issue in issues:
+        declared.update(declared_watch_tokens(str(issue.get("body") or "")))
+        declared.update(declared_watch_tokens(str(issue.get("title") or "")))
+        loose.append(str(issue.get("title") or ""))
+        loose.append(_comment_text(issue))
+    haystack = "\n".join(loose)
+    pending: list[str] = []
+    seen: set[str] = set()
+    for token in tokens:
+        key = token.strip().lower()
+        if not key or key == "none" or key in seen:
+            continue
+        seen.add(key)
+        if key in declared or token_is_listed(key, haystack):
+            continue
+        pending.append(key)
+    return pending
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -143,11 +227,48 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Append new_slugs / new_resolutions for Actions",
     )
+    parser.add_argument(
+        "--select-unlisted",
+        action="store_true",
+        help="Print slugs/resolutions not already listed on open watch issues",
+    )
+    parser.add_argument("--slugs", default="", help="Comma-separated slugs to filter")
+    parser.add_argument(
+        "--resolutions",
+        default="",
+        help="Comma-separated resolution tokens to filter",
+    )
+    parser.add_argument(
+        "--issues-json",
+        type=Path,
+        default=None,
+        help="Open xai-models issues (number, title, body, comments)",
+    )
     return parser.parse_args(argv)
+
+
+def _load_issues(path: Path | None) -> list[dict[str, Any]]:
+    if path is None or not path.is_file():
+        return []
+    raw = json.loads(path.read_text(encoding="utf-8") or "[]")
+    if not isinstance(raw, list):
+        return []
+    return [row for row in raw if isinstance(row, dict)]
+
+
+def _select_unlisted(args: argparse.Namespace) -> int:
+    issues = _load_issues(args.issues_json)
+    slugs = unlisted_watch_tokens(split_watch_tokens(args.slugs), issues)
+    resolutions = unlisted_watch_tokens(split_watch_tokens(args.resolutions), issues)
+    print(f"slugs={','.join(slugs)}")
+    print(f"resolutions={','.join(resolutions)}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
+    if args.select_unlisted:
+        return _select_unlisted(args)
     pages: dict[str, str] = {}
     for url in WATCH_URLS:
         try:

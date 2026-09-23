@@ -62,6 +62,68 @@ def test_diff_watch_reports_new_slug_and_4k() -> None:
     assert delta["resolutions"] == ["4k"]
 
 
+def test_unlisted_watch_tokens_ignore_other_open_issue_and_checklist() -> None:
+    watch = _load()
+    issues = [
+        {
+            "number": 57,
+            "title": "xAI public docs added models or resolutions",
+            "body": (
+                "**New slugs:** `grok-voice-transcribe-1.0,grok-voice-transcribe-2.0`\n"
+                "**New resolutions:** `none`\n"
+                "- [ ] Imagine quality (2.0 vs later; 4k?)\n"
+            ),
+            "comments": "saw grok-4 in passing",
+        }
+    ]
+    pending_slugs = watch.unlisted_watch_tokens(
+        ["grok-4-7", "grok-4.7", "grok-voice-transcribe-1.0"],
+        issues,
+    )
+    assert pending_slugs == ["grok-4-7", "grok-4.7"]
+    assert watch.unlisted_watch_tokens(["4k"], issues) == ["4k"]
+    assert watch.token_is_listed("grok-4", "prefix grok-4.7 suffix") is False
+    assert watch.token_is_listed("grok-4.7", "prefix grok-4.7 suffix") is True
+
+
+def test_comment_or_title_lists_a_token_the_body_line_omits() -> None:
+    watch = _load()
+    issues = [
+        {
+            "number": 60,
+            "title": "flagship grok-4.7",
+            "body": "**New slugs:** `none`\n**New resolutions:** `none`\n",
+            "comments": [{"body": "also grok-voice-transcribe-2.0"}],
+        }
+    ]
+    assert watch.unlisted_watch_tokens(
+        ["grok-4.7", "grok-voice-transcribe-2.0", "grok-4-7"],
+        issues,
+    ) == ["grok-4-7"]
+
+
+def test_select_unlisted_cli_prints_only_new_tokens(tmp_path, capsys) -> None:
+    watch = _load()
+    path = tmp_path / "issues.json"
+    path.write_text(
+        '[{"number": 57, "title": "watch", "body": "**New slugs:** `grok-4.6`", "comments": ""}]',
+        encoding="utf-8",
+    )
+    code = watch.main(
+        [
+            "--select-unlisted",
+            "--slugs", "grok-4.6,grok-4.7,none",
+            "--resolutions", "4k",
+            "--issues-json",
+            str(path),
+        ]
+    )
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "slugs=grok-4.7" in out
+    assert "resolutions=4k" in out
+
+
 def test_committed_baseline_has_current_public_table() -> None:
     watch = _load()
     baseline = watch.load_baseline(watch.BASELINE_PATH)
