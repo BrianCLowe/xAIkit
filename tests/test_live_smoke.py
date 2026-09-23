@@ -625,7 +625,7 @@ _RUN_LIVE_BATCH = _env_on("XAITKIT_LIVE_BATCH")
     reason="set XAITKIT_LIVE_BATCH=1 (batch is metered; not part of default live smokes)",
 )
 def test_live_batch_create_add_get_cancel(client: XaiClient) -> None:
-    """Live Batch rejects grok-4.6 / 4.5; omitted model remaps via ``need=batch``."""
+    """Live Batch rejects grok-4.6 / 4.5; grok-4.7 is documented unsupported. Omitted model remaps via ``need=batch``."""
     sink = InMemoryUsageSink()
     metered = XaiClient(
         api_key=client.api_key,

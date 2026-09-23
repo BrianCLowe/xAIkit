@@ -1971,7 +1971,8 @@ class XaiClient:
     ) -> dict[str, Any]:
         """Add chat-shaped request dicts to a batch (SDK ``client.batch.add``).
 
-        Live Batch rejects ``grok-4.6`` / ``grok-4.5``. Omitted model and those
+        Live Batch rejects ``grok-4.6`` / ``grok-4.5``. ``grok-4.7`` is documented
+        Batch API not supported (same 4.6+ extras family). Omitted model and those
         known SKUs remap via ``need=batch`` (official examples use ``grok-4.3``).
         Unknown pins stay.
         """

@@ -28,6 +28,7 @@ def test_save_price_table_template_includes_provenance(tmp_path) -> None:
     raw = json.loads(path.read_text(encoding="utf-8"))
     assert raw["source_url"] == PRICE_TABLE_SOURCE_URL
     assert raw["fetched"] == PRICE_TABLE_FETCHED
+    assert "grok-4.7" in raw["models"]
     assert "grok-4.6" in raw["models"]
 
 

@@ -42,7 +42,7 @@ from xaikit import MockChatProvider, XaiClient
 # Copy fastapi_mount.py into your app, or add examples/ to PYTHONPATH while experimenting.
 from fastapi_mount import create_xaikit_router
 
-client = XaiClient(provider=MockChatProvider(replies="hi"), model="grok-4.6")
+client = XaiClient(provider=MockChatProvider(replies="hi"), model="grok-4.7")
 app = FastAPI()
 app.include_router(create_xaikit_router(client, prefix="/xaikit"))
 ```

@@ -77,7 +77,7 @@ from xaikit import (
 meter = UsageMeter(sink=InMemoryUsageSink())
 client = XaiClient(
     provider=MockChatProvider(replies="hi"),
-    model="grok-4.6",
+    model="grok-4.7",
     usage_meter=meter,
 )
 resp = client.chat([{"role": "user", "content": "hello"}], purpose="demo.chat")
@@ -90,7 +90,7 @@ import asyncio
 from xaikit import AsyncXaiClient, MockChatProvider
 
 async def main() -> None:
-    client = AsyncXaiClient(provider=MockChatProvider(replies="hi"), model="grok-4.6")
+    client = AsyncXaiClient(provider=MockChatProvider(replies="hi"), model="grok-4.7")
     resp = await client.chat([{"role": "user", "content": "hello"}])
     print(resp.content)
 
@@ -114,7 +114,7 @@ from xaikit import PRICE_TABLE_FETCHED, PRICE_TABLE_SOURCE_URL, default_price_ta
 table = default_price_table()
 assert table.source_url == PRICE_TABLE_SOURCE_URL
 assert table.fetched == PRICE_TABLE_FETCHED
-# table.price_for("grok-4.6").input_per_million
+# table.price_for("grok-4.7").input_per_million
 ```
 
 Optional OpenTelemetry export (`pip install 'xaikit-py[otel]'`): `OpenTelemetryUsageSink` increments `xaikit.usage.calls` / `xaikit.usage.tokens` (attributes: purpose, model, modality, success). It is export-only — pair with `InMemoryUsageSink` via `CompositeUsageSink` to inspect events.
@@ -161,7 +161,7 @@ from xaikit import ModelInfo, feature_options, inject_catalog, resolve_model, re
 
 inject_catalog(
     [
-        ModelInfo(id="grok-4.6", capabilities=["chat"], input_per_million=20.0, created=2),
+        ModelInfo(id="grok-4.7", capabilities=["chat"], input_per_million=20.0, created=2),
         ModelInfo(id="grok-imagine-image", capabilities=["image"], created=1),
         ModelInfo(id="grok-imagine-image-quality", capabilities=["image"], created=2),
     ]
@@ -176,9 +176,9 @@ extend_id = resolve_model(intent="best", role="video", need="video_extend")
 
 `role` is `chat` | `image` | `video` | `voice`. Offline tests inject fixtures with `inject_catalog` — do not hit the network.
 
-`feature_options(model=)` lists extra capabilities for settings UIs (not role tags). No model → Grok 4.6 chat extras (`web_search`, `x_search`, `code_execution`, `file_attachments`, `collections_search`, `image_understanding`, `x_video_understanding`, `mcp`). Imagine quality (`grok-imagine-video`) reports `video_extend` / `video_edit` / `r2v`; `grok-imagine-video-1.5` reports `1080p` / `r2v` and not extend. Unknown or older SKUs return `[]`. Pass the same ids as `need=` on resolve so `best` is best for that job (quality over 1.5 when the job is extend).
+`feature_options(model=)` lists extra capabilities for settings UIs (not role tags). No model → Grok 4.7 chat extras, the same set as Grok 4.6+ (`web_search`, `x_search`, `code_execution`, `file_attachments`, `collections_search`, `image_understanding`, `x_video_understanding`, `mcp`). Imagine quality (`grok-imagine-video`) reports `video_extend` / `video_edit` / `r2v`; `grok-imagine-video-1.5` reports `1080p` / `r2v` and not extend. Unknown or older SKUs return `[]`. Pass the same ids as `need=` on resolve so `best` is best for that job (quality over 1.5 when the job is extend).
 
-When `model` is omitted, chat resolve falls back to `BOOTSTRAP_MODEL` (`grok-4.6`). Offline with no API key or fixture, `list_models` injects `grok-4.6` plus cheaper-band `grok-4.3`. Pass `persist_path=` to write a JSON snapshot after a live SDK fetch and reload it later; there is no default disk path.
+When `model` is omitted, chat resolve falls back to `BOOTSTRAP_MODEL` (`grok-4.7`). Offline with no API key or fixture, `list_models` injects `grok-4.7` plus cheaper-band `grok-4.3`. Pass `persist_path=` to write a JSON snapshot after a live SDK fetch and reload it later; there is no default disk path.
 
 ## Image generation and edit
 
@@ -261,7 +261,7 @@ When a usage meter is attached, `purpose=` is required. Events use `modality="to
 
 ## Batch
 
-SDK batch on `XaiClient` (mocked helper in tests — never hits gRPC). `create_batch` / `add_batch_requests` submit a job; `get_batch` polls status; `list_batch_results` reads completions as JSON dicts (no protobuf). Requests are chat-shaped dicts (`model`, `messages`, knobs). Live Batch rejects `grok-4.6` and `grok-4.5`; omitted model and those SKUs remap to `grok-4.3` (`need=batch`). Unknown pins stay. Empty name / batch id / requests are rejected before the RPC.
+SDK batch on `XaiClient` (mocked helper in tests — never hits gRPC). `create_batch` / `add_batch_requests` submit a job; `get_batch` polls status; `list_batch_results` reads completions as JSON dicts (no protobuf). Requests are chat-shaped dicts (`model`, `messages`, knobs). Live Batch rejects `grok-4.6` and `grok-4.5`. `grok-4.7` is documented as Batch API not supported. Omitted model and those SKUs remap to `grok-4.3` (`need=batch`). Unknown pins stay. Empty name / batch id / requests are rejected before the RPC.
 
 ```python
 from xaikit import MockChatProvider, XaiClient
@@ -481,7 +481,7 @@ client = XaiClient(
             {"title": "blue"},
         ]
     ),
-    model="grok-4.6",
+    model="grok-4.7",
 )
 
 # Vision: content may be a string or a list of parts
@@ -568,7 +568,7 @@ from xaikit import CompletionTracer, InMemoryTraceSink, MockChatProvider, XaiCli
 tracer = CompletionTracer(sink=InMemoryTraceSink())
 client = XaiClient(
     provider=MockChatProvider(replies="hi"),
-    model="grok-4.6",
+    model="grok-4.7",
     completion_tracer=tracer,
 )
 client.chat([{"role": "user", "content": "hello"}])

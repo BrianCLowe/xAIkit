@@ -1,6 +1,6 @@
 # Catalog — TODO
 
-**Last Updated**: 2026-09-15 
+**Last Updated**: 2026-09-23 
 **Related Spec**: [Catalog.md](Catalog.md)
 **Related Understanding**: —
 
@@ -16,7 +16,7 @@
 
 **Active task:** — (Human verify extras closed via tester 2026-08-16). Model-watch Action is the inbox when public docs drift.  
 **Blocked by:** —  
-**Last session:** 2026-08-23 — Reviewed [#49](https://github.com/BrianCLowe/xAIkit/issues/49): `grok-46` is a models-page UTM (`highlights-grok-46`), not a SKU. No knob/family/price/`BOOTSTRAP_MODEL` change. Watcher ignores collapsed `grok-<2+ digits>`. #49 is closed.
+**Last session:** 2026-09-23 — Grok 4.7 is the public chat/code default. `BOOTSTRAP_MODEL` and the under-200k price row are `grok-4.7` ($2 / $6). Reasoning and chat extras stay the 4.6+ family. Batch stays off (model page: not supported). Watch baseline also records docs-path `grok-4-7` and `grok-voice-transcribe-1.0` / `2.0` (same STT rates; meter key stays `stt`).
 
 ---
 
@@ -58,4 +58,5 @@
 - [x] 4.6 thought levels + per-model contraction (`contract_thought_level`, `effort_options(model=)`) (2026-08-14)
 - [x] Public-docs model watch — new slugs (Imagine 3.0) and resolution tokens (4k) open a `xai-models` GitHub issue (2026-08-14)
 - [x] Review [#49](https://github.com/BrianCLowe/xAIkit/issues/49) (`grok-46`) — UTM false positive; no kit catalog/price change; watcher drops collapsed dotted tokens (2026-08-23)
+- [x] Grok 4.7 flagship — `BOOTSTRAP_MODEL=grok-4.7`; price row $2 in / $6 out under 200k (exact key, not the `grok-4` prefix); 4.6+ thought levels and chat extras; no `batch` (model page). Watch baseline: `grok-4.7`, docs-path `grok-4-7`, `grok-voice-transcribe-1.0` / `2.0` (no new STT price key). Cite: https://docs.x.ai/developers/models and https://docs.x.ai/developers/models/grok-4.7 (2026-09-23)
 - [x] Feature map + `need=` — `feature_options(model=)` for settings knobs; resolve `best` filters to SKUs that have the job extras (quality over 1.5 for extend). `contract_model_for_need` remaps known SKUs that lack an extra. Dual-write: [Human-TODO.md](../Human-TODO.md) (2026-08-15)
