@@ -211,6 +211,9 @@ def test_contract_thought_level_by_model(
 def test_effort_options_full_set_and_per_model() -> None:
     assert effort_options() == ["low", "medium", "high", "xhigh"]
     assert effort_options("grok-4.7") == ["low", "medium", "high", "xhigh"]
+    assert effort_options("grok-4.8") == ["low", "medium", "high", "xhigh"]
+    assert effort_options("grok-4.10") == ["low", "medium", "high", "xhigh"]
+    assert effort_options("grok-5") == ["low", "medium", "high", "xhigh"]
     assert effort_options("grok-4.6") == ["low", "medium", "high", "xhigh"]
     assert effort_options("grok-4.5") == ["low", "medium", "high"]
     assert effort_options("grok-4.20-0309-non-reasoning") == []
@@ -231,9 +234,13 @@ def test_feature_options_chat_and_video_per_sku() -> None:
     assert feature_options() == flagship
     assert feature_options("grok-4.6") == flagship
     assert feature_options("grok-4.7") == flagship
+    assert feature_options("grok-4.8") == flagship
+    assert feature_options("grok-4.10") == flagship
+    assert feature_options("grok-5") == flagship
     assert feature_options("grok-4.5") == []
     assert "batch" not in feature_options("grok-4.6")
     assert "batch" not in feature_options("grok-4.7")
+    assert "batch" not in feature_options("grok-4.8")
     assert feature_options("grok-4.3") == ["batch"]
     assert feature_options("grok-4.20-0309-non-reasoning") == []
     assert feature_options("grok-imagine-video") == [

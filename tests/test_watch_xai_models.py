@@ -124,6 +124,98 @@ def test_select_unlisted_cli_prints_only_new_tokens(tmp_path, capsys) -> None:
     assert "resolutions=4k" in out
 
 
+def test_extract_public_prices_prefers_us_east_and_scales() -> None:
+    watch = _load()
+    blob = {
+        "clusterConfigs": [
+            {
+                "clusterName": "us-central-1",
+                "languageModels": [
+                    {
+                        "name": "grok-4.7",
+                        "promptTextTokenPrice": "22000",
+                        "completionTextTokenPrice": "66000",
+                    }
+                ],
+            },
+            {
+                "clusterName": "us-east-1",
+                "languageModels": [
+                    {
+                        "name": "grok-4.7",
+                        "promptTextTokenPrice": "20000",
+                        "completionTextTokenPrice": "60000",
+                        "cachedPromptTokenPrice": "5000",
+                        "promptTextTokenPriceLongContext": "40000",
+                        "completionTokenPriceLongContext": "120000",
+                    }
+                ],
+                "imageGenerationModels": [
+                    {"name": "grok-imagine-image-quality", "imagePrice": "500000000"}
+                ],
+                "videoGenerationModels": [
+                    {
+                        "name": "grok-imagine-video-1.5",
+                        "resolutionPricing": [
+                            {"resolution": "VIDEO_RESOLUTION_480P", "pricePerSecond": "800000000"},
+                            {"resolution": "VIDEO_RESOLUTION_720P", "pricePerSecond": "1400000000"},
+                        ],
+                    }
+                ],
+                "audioModels": [
+                    {
+                        "name": "grok-voice-transcribe-1.0",
+                        "endpoints": [
+                            {
+                                "pricing": {
+                                    "perAudioSecond": "277778",
+                                    "perAudioSecondStreaming": "555556",
+                                }
+                            }
+                        ],
+                    },
+                    {
+                        "name": "grok-voice-think-fast-2.0",
+                        "aliases": ["grok-voice-latest"],
+                        "endpoints": [
+                            {"pricing": {"realtimeAudioSecondPrice": "13333333"}}
+                        ],
+                    },
+                ],
+            },
+        ]
+    }
+    import json
+
+    html = f"<script>globalThis.__XAI_PUBLIC_MODELS__={json.dumps(blob)};</script>"
+    prices = watch.extract_public_prices(
+        {"https://docs.x.ai/developers/models": html}
+    )
+    flagship = prices["models"]["grok-4.7"]
+    assert flagship["input_per_million"] == 2.0
+    assert flagship["output_per_million"] == 6.0
+    assert flagship["cached_input_per_million"] == 0.5
+    assert flagship["input_long_per_million"] == 4.0
+    assert prices["models"]["grok-imagine-image-quality"]["per_call_usd"] == 0.05
+    video = prices["models"]["grok-imagine-video-1.5"]
+    assert video["per_second_usd"] == 0.08
+    assert video["per_second_usd_by_resolution"]["720p"] == 0.14
+    assert prices["models"]["grok-voice-latest"]["per_minute_usd"] == 0.08
+    assert prices["models"]["stt"]["per_minute_usd"] == round(555556 / 10_000_000_000 * 60, 8)
+
+
+def test_committed_public_prices_parse() -> None:
+    import json
+
+    raw = json.loads((ROOT / "scripts" / "data" / "xai_public_prices.json").read_text(encoding="utf-8"))
+    models = raw["models"]
+    assert models["grok-4.7"]["input_per_million"] > 0
+    assert models["grok-4.7"]["output_per_million"] > 0
+    video = models["grok-imagine-video-1.5"]["per_second_usd_by_resolution"]
+    assert video["480p"] > 0
+    assert models["stt"]["per_minute_usd"] > 0
+
+
 def test_committed_baseline_has_current_public_table() -> None:
     watch = _load()
     baseline = watch.load_baseline(watch.BASELINE_PATH)

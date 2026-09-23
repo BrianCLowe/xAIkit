@@ -56,7 +56,14 @@ def test_missing_modality_rates_do_not_invent_usd() -> None:
     assert "embed" not in table.models
     assert "collections" not in table.models
     assert "tokenize" not in table.models
-    # No tokens / duration / per-call → None. (Token estimates on unknown
-    # slugs still fall back to the chat ``default`` row — the meter skips
-    # the table for modalities with no public rate.)
+    # No tokens / duration / per-call → None. Unknown slugs do not fall
+    # back to the chat ``default`` row (``grok-4.8`` must not bill as ``grok-4``).
     assert table.estimate_usd("not-a-public-sku") is None
+    assert table.price_for("grok-4.8") is None
+    assert table.estimate_usd(
+        "grok-4.8", prompt_tokens=1_000_000, completion_tokens=0
+    ) is None
+    latest = table.price_for("grok-4.7-latest")
+    assert latest is not None
+    assert latest.input_per_million == 2.0
+    assert latest.output_per_million == 6.0

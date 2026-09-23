@@ -1,6 +1,6 @@
 # UsageObservability — TODO
 
-**Last Updated**: 2026-08-31  
+**Last Updated**: 2026-09-23  
 **Related Spec**: [UsageObservability.md](UsageObservability.md)
 **Related Understanding**: —
 
@@ -16,7 +16,7 @@
 
 **Active task:** — (OTel + unused modalities closed except embed).  
 **Blocked by:** —  
-**Last session:** 2026-08-16 — Tester: `OpenTelemetryUsageSink` + files/tokenize/batch/collections/responses/realtime mint. Embed modality split (empty team roster).
+**Last session:** 2026-09-23 — Meter price order is ticks, then catalog rates, then the daily public gap file, then an exact or safe prefix. Unknown ids leave USD unset.
 
 ---
 
@@ -76,4 +76,5 @@ Library look-list — reply in chat when done (do not mark this row yourself). S
 - [x] Realtime client-secret mint — purpose/success, `modality="realtime"`, no duration/USD (`apply_price_table=False`) (2026-08-13)
 - [x] OpenTelemetry export sink (2026-08-13)
 - [x] Price table provenance (`source_url` / `fetched`) + overlay template (2026-08-13)
+- [x] Meter order: ticks, catalog rates, daily public gap file, then exact/safe prefix; unknown ids leave USD unset (2026-09-23)
 - [x] **2026-08-15 — Live via Reelwright** — purpose + `parent_id` meter; `InMemoryUsageSink`; USD rollup by purpose. Dual-write: [Human-TODO.md](../Human-TODO.md) Done.

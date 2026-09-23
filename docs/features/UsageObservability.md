@@ -1,6 +1,6 @@
 # UsageObservability
 
-**Last Updated**: 2026-08-13 *(price-table provenance)*  
+**Last Updated**: 2026-09-23 *(gap-file price order)*  
 **Related Understanding**: —  
 **Related TODO**: [UsageObservability-TODO.md](UsageObservability-TODO.md)
 
@@ -33,7 +33,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - TTS voice roster listing (`list_tts_voices` / `get_tts_voice`) uses the same `tts` modality; no USD (`apply_price_table=False`) — listing is not billed audio
 - Deferred chat get: 202 pending meters purpose/success **without** tokens (like `get_file`); 200 may record tokens from `usage`; still `modality="chat"`; no invented USD (`apply_price_table=False`). Create is purpose/success only. 401 skips the meter.
 - Gap notes scrub secret-ish strings and cap length
-- Bootstrap `PriceTable` copies public list prices (`source_url` + `fetched` YYYY-MM-DD). Overlay JSON via `load_price_table`; `save_price_table_template` writes the current defaults. No auto-fetch. Modalities without a public rate skip USD (`apply_price_table=False`) — do not invent.
+- Meter price order: response `cost_in_usd_ticks`, then in-process catalog token/per-image rates, then the public gap file (at most once per process per 24 hours, only when a rate is still missing; a failed fetch does not fail the call), then the shipped table (exact id, or a prefix whose remainder is empty or starts with `-`). Unknown ids leave `estimated_usd` unset. No fetch on import. Overlay JSON via `load_price_table`; `save_price_table_template` writes the current defaults. Modalities without a public rate skip USD (`apply_price_table=False`) — do not invent.
 - Meter/trace failures must not break the user-facing call (logged). `UsageMeter.record` / sink `append` may raise; `XaiClient._record` catches and logs
 - `OpenTelemetryUsageSink` is export-only (optional extra `xaikit-py[otel]` / `opentelemetry-api`; lazy import). Default meter: `opentelemetry.metrics.get_meter("xaikit")`. Counters: `xaikit.usage.calls` (+1) and `xaikit.usage.tokens` (+`total_tokens` when known) with attributes `purpose`, `model`, `modality`, `success` — never prompts/secrets (`error` omitted). `iter_events()` raises `NotImplementedError`; inspect via `CompositeUsageSink(InMemoryUsageSink(), OpenTelemetryUsageSink())` (memory first)
 
@@ -55,7 +55,8 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 | 2026-08-13 | Streaming TTS: same `modality="tts"` as REST; no default price row | Public table has no TTS rate. Session records purpose/success + wall-clock duration; `apply_price_table=False` — no invented USD |
 | 2026-08-13 | Deferred chat get 202: purpose/success, no tokens; 200 may record usage tokens; no USD | Same `modality="chat"` as live chat. Pending poll is not a completion. Public priority premium is not estimated. |
 | 2026-08-13 | OTel sink is optional extra, export-only counters | Keep wheel on httpx/pydantic/websockets/xai-sdk. Mapping: meter `xaikit`, counters `xaikit.usage.calls` / `xaikit.usage.tokens`, attrs purpose/model/modality/success. Tests mock `opentelemetry.metrics`. `iter_events` not supported — compose with `InMemoryUsageSink`. Sink may raise; client `_record` still protects user calls. |
-| 2026-08-13 | Price table records `source_url` + `fetched`; overlay JSON for operator refresh | Feedback: people will rely on estimates. Cite https://docs.x.ai/developers/pricing. Kit bump or `load_price_table` — no live scrape. Still estimates, not billing. |
+| 2026-08-13 | Price table records `source_url` + `fetched`; overlay JSON for operator refresh | Feedback: people will rely on estimates. Cite https://docs.x.ai/developers/pricing. Kit bump or `load_price_table`. Still estimates, not billing. |
+| 2026-09-23 | Gap file before the shipped table; no `default` prefix for unknown ids | Ticks, then catalog list rates, then `scripts/data/xai_public_prices.json` (daily watch, fetched at most once a day on a gap), then exact/safe prefix. `grok-4.8` must not bill as `grok-4`. Failure leaves USD unset and does not fail the call. |
 
 ## Dependencies
 

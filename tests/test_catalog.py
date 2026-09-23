@@ -461,6 +461,7 @@ def test_image_proto_maps_price_and_capability() -> None:
     assert info.id == "grok-imagine-image-quality"
     assert info.capabilities == ["image"]
     assert info.input_per_million is None
+    assert info.per_image_usd == 50.0
     assert info.aliases == ["grok-imagine-image-pro"]
 
 
@@ -637,6 +638,110 @@ def test_image_role_ranks_on_public_per_call_not_sdk_token_units() -> None:
 
 def test_bootstrap_model_is_current_flagship() -> None:
     assert BOOTSTRAP_MODEL == "grok-4.7"
+
+
+def test_language_proto_token_price_uses_docs_scale() -> None:
+    info = model_info_from_language_proto(
+        _lm(
+            name="grok-4.7",
+            prompt_text_token_price=20000,
+            completion_text_token_price=60000,
+            cached_prompt_token_price=5000,
+            prompt_image_token_price=20000,
+            prompt_text_token_price_long_context=40000,
+            completion_token_price_long_context=120000,
+        )
+    )
+    assert info.input_per_million == 2.0
+    assert info.output_per_million == 6.0
+    assert info.cached_input_per_million == 0.5
+    assert info.image_token_per_million == 2.0
+    assert info.input_long_per_million == 4.0
+    assert info.output_long_per_million == 12.0
+
+
+def test_image_proto_media_scale_is_per_image() -> None:
+    info = model_info_from_image_proto(
+        SimpleNamespace(
+            name="grok-imagine-image-quality",
+            aliases=[],
+            version=None,
+            image_price=500_000_000,
+            created=None,
+            max_prompt_length=None,
+        )
+    )
+    assert info.input_per_million is None
+    assert info.per_image_usd == 0.05
+
+
+def test_chat_version_sort_ranks_double_digit_minor_and_major_5() -> None:
+    ids = [
+        "grok-4.20-0309-reasoning",
+        "grok-4.3",
+        "grok-4.5",
+        "grok-4.6",
+        "grok-4.7",
+        "grok-4.8",
+        "grok-4.9",
+        "grok-4.10",
+        "grok-5",
+        "grok-4.20-multi-agent-0309",
+    ]
+    cat = [ModelInfo(id=mid, capabilities=["chat"]) for mid in ids]
+    assert prefer_latest_model(cat) == "grok-5"
+    order = []
+    remaining = list(cat)
+    while remaining:
+        newest = prefer_latest_model(remaining)
+        assert newest
+        order.append(newest)
+        remaining = [row for row in remaining if row.id != newest]
+    assert order == [
+        "grok-5",
+        "grok-4.10",
+        "grok-4.9",
+        "grok-4.8",
+        "grok-4.7",
+        "grok-4.6",
+        "grok-4.5",
+        "grok-4.3",
+        "grok-4.20-multi-agent-0309",
+        "grok-4.20-0309-reasoning",
+    ]
+
+
+def test_sdk_failure_with_key_bootstraps_and_does_not_retry_within_ttl(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import xai_sdk
+
+    calls = {"n": 0}
+
+    class _Counting:
+        def __init__(self, api_key: str) -> None:
+            calls["n"] += 1
+            self.models = self
+
+        def list_language_models(self) -> list[object]:
+            raise RuntimeError("language list down")
+
+        def list_image_generation_models(self) -> list[object]:
+            raise RuntimeError("image list down")
+
+        def close(self) -> None:
+            pass
+
+    inject_catalog(None)
+    clear_catalog_cache()
+    monkeypatch.setattr(xai_sdk, "Client", _Counting)
+    first = list_models(api_key="test-key", force_refresh=True)
+    assert [m.id for m in first] == [BOOTSTRAP_MODEL, "grok-4.3"]
+    assert catalog_source() == "sdk-error"
+    second = list_models(api_key="test-key")
+    assert [m.id for m in second] == [BOOTSTRAP_MODEL, "grok-4.3"]
+    assert calls["n"] == 1
+    clear_catalog_cache()
 
 
 def test_list_models_offline_bootstrap_has_two_current_chat_bands() -> None:

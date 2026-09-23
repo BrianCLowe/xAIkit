@@ -60,6 +60,12 @@ class ModelInfo(BaseModel):
     context_length: int | None = None
     input_per_million: float | None = None
     output_per_million: float | None = None
+    cached_input_per_million: float | None = None
+    image_token_per_million: float | None = None
+    input_long_per_million: float | None = None
+    output_long_per_million: float | None = None
+    cached_input_long_per_million: float | None = None
+    per_image_usd: float | None = None
     created: int | None = None
 
     @property
