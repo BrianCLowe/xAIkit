@@ -204,6 +204,28 @@ def test_extract_public_prices_prefers_us_east_and_scales() -> None:
     assert prices["models"]["stt"]["per_minute_usd"] == round(555556 / 10_000_000_000 * 60, 8)
 
 
+def test_language_zero_token_side_is_kept() -> None:
+    watch = _load()
+    priced = watch._language_price(
+        {"promptTextTokenPrice": "0", "completionTextTokenPrice": "60000"}
+    )
+    assert priced["input_per_million"] == 0.0
+    assert priced["output_per_million"] == 6.0
+    assert watch._language_price({"completionTextTokenPrice": "60000"}) == {}
+
+
+def test_write_public_prices_refuses_empty_extract(tmp_path) -> None:
+    watch = _load()
+    path = tmp_path / "xai_public_prices.json"
+    path.write_text('{"models": {"keep-me": {}}}\n', encoding="utf-8")
+    changed = watch.write_public_prices(
+        path,
+        {"https://docs.x.ai/developers/models": "<html>no blob</html>"},
+    )
+    assert changed is None
+    assert "keep-me" in path.read_text(encoding="utf-8")
+
+
 def test_committed_public_prices_parse() -> None:
     import json
 

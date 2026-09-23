@@ -12,7 +12,11 @@ from xaikit.catalog import (
     list_models,
     set_test_fetch,
 )
-from xaikit.pricing import clear_public_price_cache, public_price_table
+from xaikit.pricing import (
+    clear_public_price_cache,
+    price_table_from_public_payload,
+    public_price_table,
+)
 
 
 def _client(**kwargs: object) -> XaiClient:
@@ -167,6 +171,93 @@ def test_meter_uses_ticks_then_catalog_then_gap_then_static_then_none(
         inject_catalog(None)
         clear_catalog_cache()
         clear_public_price_cache()
+
+
+def test_one_bad_gap_row_keeps_the_rest() -> None:
+    table = price_table_from_public_payload(
+        {
+            "models": {
+                "grok-4.8": {"input_per_million": 4.0, "output_per_million": 8.0},
+                "broken": {"input_per_million": "nope"},
+            }
+        }
+    )
+    assert table is not None
+    priced = table.price_for("grok-4.8")
+    assert priced is not None
+    assert priced.input_per_million == 4.0
+    assert table.price_for("broken") is None
+
+
+def test_failed_gap_refresh_keeps_the_previous_table(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"n": 0}
+
+    def fake_fetch(url: str = "", timeout: float = 10.0) -> dict | None:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return {
+                "models": {
+                    "grok-4.8": {"input_per_million": 4.0, "output_per_million": 8.0}
+                }
+            }
+        return None
+
+    monkeypatch.setattr("xaikit.pricing.fetch_public_price_payload", fake_fetch)
+    clear_public_price_cache()
+    first = public_price_table(now=0.0)
+    assert first is not None
+    refreshed = public_price_table(now=float(24 * 3600))
+    assert refreshed is not None
+    kept = refreshed.price_for("grok-4.8")
+    assert kept is not None
+    assert kept.input_per_million == 4.0
+    clear_public_price_cache()
+
+
+def test_parallel_gap_fetch_keeps_the_successful_table(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import threading
+
+    barrier = threading.Barrier(2)
+
+    def fake_fetch(url: str = "", timeout: float = 10.0) -> dict | None:
+        barrier.wait(timeout=2)
+        if threading.current_thread().name == "gap-fail":
+            return None
+        return {
+            "models": {
+                "grok-4.8": {"input_per_million": 4.0, "output_per_million": 8.0}
+            }
+        }
+
+    monkeypatch.setattr("xaikit.pricing.fetch_public_price_payload", fake_fetch)
+    clear_public_price_cache()
+    errors: list[BaseException] = []
+
+    def run() -> None:
+        try:
+            public_price_table(now=0.0)
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(target=run, name="gap-ok"),
+        threading.Thread(target=run, name="gap-fail"),
+    ]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+    assert errors == []
+    cached = public_price_table(now=1.0)
+    assert cached is not None
+    kept = cached.price_for("grok-4.8")
+    assert kept is not None
+    assert kept.input_per_million == 4.0
+    clear_public_price_cache()
 
 
 def test_public_price_table_fetches_at_most_once_per_day(

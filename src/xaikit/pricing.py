@@ -356,15 +356,14 @@ def price_table_from_public_payload(payload: dict[str, Any] | None) -> PriceTabl
     models = payload.get("models")
     if not isinstance(models, dict) or not models:
         return None
-    try:
-        parsed = {
-            str(key): ModelPrice.model_validate(row)
-            for key, row in models.items()
-            if isinstance(row, dict)
-        }
-    except Exception:
-        logger.warning("Public price gap file has an invalid model row", exc_info=True)
-        return None
+    parsed: dict[str, ModelPrice] = {}
+    for key, row in models.items():
+        if not isinstance(row, dict):
+            continue
+        try:
+            parsed[str(key)] = ModelPrice.model_validate(row)
+        except Exception:
+            logger.warning("Skipping invalid public price row %s", key, exc_info=True)
     if not parsed:
         return None
     fetched = str(payload.get("fetched") or "").strip() or PRICE_TABLE_FETCHED
@@ -422,7 +421,11 @@ def public_price_table(
     now: float | None = None,
     ttl_seconds: int = _PUBLIC_PRICE_TTL_SECONDS,
 ) -> PriceTable | None:
-    """Gap file, at most once per process per 24 hours. Failure caches as a miss."""
+    """Gap file, at most once per process per 24 hours.
+
+    A failed refresh keeps the previous table. A later failure cannot replace
+    a successful fetch that finished first.
+    """
     stamp = time.monotonic() if now is None else now
     with _public_prices.lock:
         fetched_at = _public_prices.fetched_at
@@ -431,6 +434,9 @@ def public_price_table(
     payload = fetch_public_price_payload()
     table = price_table_from_public_payload(payload)
     with _public_prices.lock:
+        if table is None and _public_prices.table is not None:
+            _public_prices.fetched_at = stamp
+            return _public_prices.table
         _public_prices.fetched_at = stamp
         _public_prices.table = table
     return table

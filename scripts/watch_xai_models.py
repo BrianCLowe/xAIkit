@@ -218,13 +218,12 @@ def unlisted_watch_tokens(tokens: Sequence[str], issues: Sequence[dict[str, Any]
 
 
 def _usd_per_million(raw: Any) -> float | None:
+    """USD per 1M tokens. ``0`` is a real rate. Missing values stay unset."""
     if raw is None or raw == "":
         return None
     try:
         value = int(raw)
     except (TypeError, ValueError):
-        return None
-    if value == 0:
         return None
     return round(value / float(_TOKEN_SCALE), 8)
 
@@ -273,9 +272,15 @@ def _language_price(row: dict[str, Any]) -> dict[str, Any]:
         ("cached_input_long_per_million", "cachedPromptTokenPriceLongContext"),
     )
     for dest, src in mapping:
+        if row.get(src) in (None, ""):
+            continue
         price = _usd_per_million(row.get(src))
         if price is not None:
             out[dest] = price
+    # ModelPrice requires both token sides. A missing side is an incomplete
+    # row (skip it). A documented 0 is free and must still be written.
+    if "input_per_million" not in out or "output_per_million" not in out:
+        return {}
     return out
 
 
@@ -403,9 +408,20 @@ def extract_public_prices(pages: dict[str, str]) -> dict[str, Any]:
     }
 
 
-def write_public_prices(path: Path, pages: dict[str, str]) -> bool:
-    """Write the gap file. Return True when the bytes changed."""
+def write_public_prices(path: Path, pages: dict[str, str]) -> bool | None:
+    """Write the gap file.
+
+    Return True when the bytes changed, False when they matched, None when
+    the extract had no models. None leaves an existing file untouched so a
+    docs HTML change cannot wipe the committed rates.
+    """
     payload = extract_public_prices(pages)
+    if not payload.get("models"):
+        print(
+            "refusing to write an empty public price extract; gap file left untouched",
+            file=sys.stderr,
+        )
+        return None
     text = json.dumps(payload, indent=2) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
     previous = path.read_text(encoding="utf-8") if path.is_file() else None
@@ -491,11 +507,13 @@ def main(argv: list[str] | None = None) -> int:
             return 1
 
     live = scan_pages(pages)
+    prices_failed = False
     if args.write_prices is not None:
         changed = write_public_prices(args.write_prices, pages)
-        print(
-            f"{'updated' if changed else 'unchanged'} {args.write_prices}"
-        )
+        if changed is None:
+            prices_failed = True
+        else:
+            print(f"{'updated' if changed else 'unchanged'} {args.write_prices}")
     if args.write_baseline:
         args.baseline.parent.mkdir(parents=True, exist_ok=True)
         payload = {
@@ -504,7 +522,7 @@ def main(argv: list[str] | None = None) -> int:
         }
         args.baseline.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         print(f"wrote {args.baseline} ({len(live['slugs'])} slugs, {len(live['resolutions'])} resolutions)")
-        return 0
+        return 1 if prices_failed else 0
 
     if not args.baseline.is_file():
         print(f"missing baseline {args.baseline}", file=sys.stderr)
@@ -519,7 +537,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if not delta["slugs"] and not delta["resolutions"]:
         print("xAI public docs match the committed watch baseline")
-        return 0
+        return 1 if prices_failed else 0
 
     print("New xAI public-docs signals (kit may need a knob/family/price check):")
     if delta["slugs"]:
@@ -528,7 +546,7 @@ def main(argv: list[str] | None = None) -> int:
         print("  resolutions:", ", ".join(delta["resolutions"]))
     print("Checklist: thought_level families, Imagine quality/resolution, video 1080p/4k, pricing.py, BOOTSTRAP_MODEL")
     print("Then add the new tokens to scripts/data/xai_models_watch.json (--write-baseline after review)")
-    return 2
+    return 1 if prices_failed else 2
 
 
 if __name__ == "__main__":

@@ -106,6 +106,10 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! uv run python -c 'import json,sys; from pathlib import Path; d=json.loads(Path("scripts/data/xai_public_prices.json").read_text()); sys.exit(0 if d.get("models") else 1)'; then
+            echo "refusing to commit an empty public price gap file"
+            exit 1
+          fi
           git add scripts/data/xai_public_prices.json
           if git diff --cached --quiet; then
             echo "public price gap file unchanged"
