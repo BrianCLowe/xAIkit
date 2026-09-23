@@ -35,7 +35,7 @@ jobs:
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
         continue-on-error: true
 
-      - name: Open or update issue when docs changed
+      - name: Open issue for tokens not already listed
         if: steps.scan.outputs.has_new == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -44,12 +44,45 @@ jobs:
         run: |
           set -euo pipefail
           gh label create xai-models --description "Public xAI model/docs drift" --color 1D76DB --force
+          issues_json="$(mktemp)"
+          enriched="$(mktemp)"
+          gh issue list --label xai-models --state open --limit 100 \
+            --json number,title,body > "$issues_json"
+          uv run python - "$issues_json" "$enriched" << 'PY'
+          import json
+          import subprocess
+          import sys
+          from pathlib import Path
+
+          src, dest = sys.argv[1], sys.argv[2]
+          issues = json.loads(Path(src).read_text(encoding="utf-8") or "[]")
+          for issue in issues:
+              raw = subprocess.check_output(
+                  ["gh", "issue", "view", str(issue["number"]), "--json", "comments"],
+                  text=True,
+              )
+              comments = json.loads(raw).get("comments") or []
+              issue["comments"] = "\n".join(
+                  (comment.get("body") or "") for comment in comments
+              )
+          Path(dest).write_text(json.dumps(issues), encoding="utf-8")
+          PY
+          filtered="$(uv run python scripts/watch_xai_models.py --select-unlisted \
+            --slugs "$NEW_SLUGS" \
+            --resolutions "$NEW_RES" \
+            --issues-json "$enriched")"
+          slugs="$(printf '%s\n' "$filtered" | sed -n 's/^slugs=//p')"
+          res="$(printf '%s\n' "$filtered" | sed -n 's/^resolutions=//p')"
+          if [ -z "$slugs" ] && [ -z "$res" ]; then
+            echo "new tokens already listed on an open xai-models issue"
+            exit 0
+          fi
           title="xAI public docs added models or resolutions"
           body="$(cat <<EOF
           Public xAI docs drifted from \`scripts/data/xai_models_watch.json\`.
 
-          **New slugs:** \`${NEW_SLUGS:-none}\`
-          **New resolutions:** \`${NEW_RES:-none}\`
+          **New slugs:** \`${slugs:-none}\`
+          **New resolutions:** \`${res:-none}\`
 
           Check whether the kit needs a knob / family / price update:
 
@@ -63,12 +96,8 @@ jobs:
           Sources: models, pricing, Imagine image + video generation pages. Release notes are not scanned.
           EOF
           )"
-          existing="$(gh issue list --label xai-models --state open --json number --jq '.[0].number')"
-          if [ -n "$existing" ]; then
-            echo "issue #$existing already open — not re-commenting"
-          else
-            gh issue create --title "$title" --label xai-models --body "$body"
-          fi
+          gh issue create --title "$title" --label xai-models --body "$body"
+          echo "opened xai-models issue for slugs=${slugs:-none} resolutions=${res:-none}"
 
       - name: Fail fetch errors
         if: steps.scan.outputs.exit_code == '1'
