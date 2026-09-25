@@ -37,6 +37,18 @@ Machine / workflow tools to **develop this library** — not the package depende
 | GitHub CLI (`gh`) | Inspect PRs / CI (read-only in Cloud Agents) | https://cli.github.com/ | `gh --version` |
 | FastAPI + uvicorn | Run `examples/run_mock_server.py` | `uv run --with fastapi --with "uvicorn[standard]"` | — |
 
+## Services this app consumes *(omit section if none)*
+
+External APIs and services the **running app** calls. Not CLIs or SDKs — those stay in Required / Optional. Not package dependencies. A successor should see this list without reading code.
+
+No secrets, tokens, or key values. Credential **name** only (`.env` variable or vault entry).
+
+| Service | Why the app calls it | Credential name | Docs |
+|---------|----------------------|-----------------|------|
+| [Add rows or delete section] | | | |
+
+---
+
 ## After tools are installed
 
 1. `uv sync --group dev`

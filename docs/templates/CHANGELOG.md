@@ -12,15 +12,99 @@
 | `master-index` | Adopt structural deltas in live `Master_Index.md` (headings, Key Locations, Document Map columns) |
 | `content-templates` | Add *missing* sections/structure from content templates into live Understanding / Spec / TODO / Tooling / Human-TODO — **not** trim/remove (see `optional-live-reshape`) |
 | `optional-live-reshape` | Live Understanding → shape trim + relocate into specs (Workflow §4). **`auto` / `auto-all`:** run all Document Map stems. **`choose`:** present + ask once (default yes). Do **not** silent-skip under choose |
-| `optional-assumption-cleanout` | Live Understanding lock-gate clean-out (Workflow §4). **`auto` / `auto-all`:** all Document Map Understanding stems. **`choose`:** present + ask once (default yes). Lock obvious defaults; delete invented quizzes; do not treat `docs/reference/` examples as the target unless clearly set as the target; leave only real forks. Do not invent new Assumptions or Understanding on `ship-first` |
+| `optional-assumption-cleanout` | Live Understanding lock-gate clean-out (Workflow §4). **`auto` / `auto-all`:** all Document Map Understanding stems. **`choose`:** present + ask once (default yes). Lock obvious defaults; delete invented quizzes; do not treat `docs/reference/` examples as the target unless clearly set as the target; leave only real forks. Do not invent new Assumptions or Understanding on `build-first` |
 | `optional-todo-ambition` | Live TODO ambition pass (agent timescale). **`auto` / `auto-all`:** all Document Map `*-TODO.md`. **`choose`:** present + ask once. Do not invent work |
 | `optional-todo-operable` | Live TODO operable dual-track (Workflow §5.3). **`auto` / `auto-all`:** all Document Map `*-TODO.md`. **`choose`:** present + ask once. Add exercise-path rows or **library-only** labels; do not invent unrelated backlog |
 | `optional-todo-kit-coverage` | Live TODO kit-coverage pass (Workflow §5.4). **`auto` / `auto-all`:** all Document Map `*-TODO.md`. **`choose`:** present + ask once. Add covering TODOs for spec-named in-scope leftovers on **existing** stems (**open or Completed** counts — do not resurrect); one research item if the spec is thin. No new map rows; no vendor-doc fetch in sync |
+| `optional-todo-outcomes` | Live TODO outcomes pass (Workflow §5.5). **`auto` / `auto-all`:** all Document Map `*-TODO.md`. **`choose`:** present + ask once. Mirror operable Acceptance into unchecked Outcomes rows; label children; one exercise task when an outcome has no path. Do not check outcomes. Do not mint a task per architecture bullet |
+| `optional-todo-completed-cleanout` | Live TODO Completed cleanout. **`auto` / `auto-all`:** all Document Map `*-TODO.md`. **`choose`:** present + ask once. Remove a Completed checkbox that git shows was never an open `[ ]` task and is not an exercise note. Unsure → leave the row |
 | `rules` | Refresh installed agent rules/adapters from local pack (**no ask** unless tool has `customized: true`) |
 | `optional-upstream-check` | Stamp `upstream:` in `docs/ADT-settings.yaml` / offer enable update-check if unset |
 | `process-docs-only` | Pack process/help/agent docs only — no live feature/shared content scan |
 
 ---
+
+## 2.9.10
+
+- **Live impact:** `versions-only`, `rules`, `optional-todo-completed-cleanout`
+- **Summary:** Completed is not a repair log. A Completed row is a plotted slice or the exercise note that proves an Outcome. An incidental fix stays in git. Sync pass `optional-todo-completed-cleanout` removes a Completed checkbox that was never an open task. A passing exercise note names each observable clause on the stem’s exercise path. A unit-test path does not check the outcome. A code change that alters an observable the outcome names, or a human report that the scenario did not hold, unchecks the outcome and adds one Exercise. Work-verifier compares one claimed TODO item to that unit’s diff. Warden honesty reopens a checked item the code does not implement. Declining doc-roles does not skip either compare.
+- **Changes:**
+  - `VERSION` — 2.9.9 → 2.9.10
+  - `agent/workflow/todos.md` §5.5 — Completed rows, passing note, reopen, code versus the checklist
+  - modular rule, `feature-implementer.md`, `todo-warden.md` — do not add a Completed row for an incidental fix; reopen when an observable changes or the scenario did not hold
+  - `work-verifier.md`, `orchestrator.md`, `human-todo.md` — one unit’s diff; thin exercise note fails; parent runs the compare when the adapter is absent
+  - `TODO_Template.md` — one pointer under Completed
+  - `agent/TEMPLATE_SYNC_B.md` — **`optional-todo-completed-cleanout`**
+  - `DECISIONS.md` D30, D31
+- **Step B:** Bump Master Index **Pack version** to 2.9.10 from local `VERSION`. **`rules`:** refresh installed modular-rule copies so an incidental fix does not get a new Completed row, a passing note names each observable clause, a checked outcome reopens when an observable it names changes or a human says the scenario did not hold, and that audit runs even when the outcome is already `[x]`. An incidental fix that changes an observable is that reopen, not a sentence left on a checked row. A claimed TODO item is compared to that unit’s diff before mark-done. **`optional-todo-completed-cleanout`:** present/execute per `sync.mode` — for each Document Map `*-TODO.md`, under `## Completed` only, remove a `- [x]` row whose title never appears as `- [ ]` in `git log -p` for that file and whose text is an incidental fix (review patch, Bugbot finding, copy, typo). Keep a row that ever existed as an open task. Keep an exercise note. Unsure → leave the row. Do not remove open tasks. Do not check Outcomes. Under **`choose`:** ask once (default all stems). Under **`auto` / `auto-all`:** all Document Map `*-TODO.md`.
+
+## 2.9.9
+
+- **Live impact:** `versions-only`, `rules`, `content-templates`, `optional-todo-outcomes`
+- **Summary:** Sticky outcomes. A drained child list is not capability-done. `## Outcomes` stays open until a passing exercise note. A break note does not add a second Exercise. Slices do not check operable Acceptance. The outcome audit checks the parent row and fills the next blank. Doc-roles are optional: declining them, or a one-off change with no orchestrator, still runs that audit in the parent session. The check runs after work-verifier pass when that step exists. An outcome already checked does not get another human-verify playtest. The audit is the only creator of a human-verify playtest, and only after that note. Sync pass `optional-todo-outcomes` retrofits existing stems and withdraws premature look-rows.
+- **Changes:**
+  - `VERSION` — 2.9.8 → 2.9.9
+  - `agent/workflow/todos.md` §5.5 — outcome rows, flat `outcome:` labels, exercise task, who may check
+  - `TODO_Template.md` — Outcomes fill-in
+  - `agent/roles/feature-implementer.md`, `work-verifier.md`, `doc-graduate.md`, `todo-warden.md`, `orchestrator.md`, `orchestrator-git.md` — slice cannot close an outcome; warden outcome audit; empty list is not stem-drained; warden alone creates human-verify playtests; branch-pr and non-PR close-out commit audit edits on `clean`
+  - `agent/TEMPLATE_SYNC_B.md` — **`optional-todo-outcomes`** live pass
+  - `agent/workflow/human-todo.md`, modular rule, `help/USAGE.md` — dual-write is `procure` / `decide` / `waiting`; the outcome audit creates the human-verify playtest; declining doc-roles does not skip the audit
+  - `DECISIONS.md` D30
+- **Step B:** Bump Master Index **Pack version** to 2.9.9 from local `VERSION`. **`content-templates`:** if a live `*-TODO.md` has no `## Outcomes` heading, add that heading from the template (empty fill-in). Do not check outcomes in that step. **`optional-todo-outcomes`:** present/execute per `sync.mode` — for each Document Map stem, mirror each operable Acceptance line into an unchecked Outcomes row (rewrite a non-scenario line from Overview / Behavior; defer when an observable needs a product decision); label open tasks that clearly serve one outcome; uncheck operable Acceptance that is `[x]` with no passing exercise note; add one exercise task only when that outcome has no exercise item yet (none open, none Completed) and no passing note. A Completed break note is not a second Exercise. Do not check outcomes. Do not create a human-verify playtest (the outcome audit is the only creator of that row; this pass does not run it). Withdraw an Open `playtest` whose outcome is still `[ ]` (`not a human look`). Do not diff the repo into a task per architecture bullet. Do not reopen Completed items. Named spec leftovers stay on kit-coverage. Under **`choose`:** ask once (default all stems). Under **`auto` / `auto-all`:** all Document Map `*-TODO.md`. **`rules`:** refresh installed modular-rule copies so an Outcomes row stays open until a passing exercise note. No Understanding reshape.
+
+## 2.9.8
+
+- **Live impact:** `versions-only`, `process-docs-only`, `rules`
+- **Files:**
+  - `VERSION` — 2.9.7 → 2.9.8
+  - `workflow/team-roster.md` *(new)* — team inbox, two-stage roster, and one initial PR. Open only when `team_inbox.enabled`
+  - `workflow/human-todo.md` — solo dual-write only. One line: if team inbox is on, open `team-roster.md` for stamp and close
+  - Workflow index, scaffolds, roster template, bootstrap — point roster procedure at `team-roster.md`
+  - Modular rule — same one-line open
+- **Step B:** Bump Master Index **Pack version** to 2.9.8 from local `VERSION`. **`rules`:** refresh installed modular-rule copies so a `team_inbox.enabled` session opens `workflow/team-roster.md`. No live feature/shared scan. Do not create `Team-Roster.md` on a human-only inbox.
+
+## 2.9.7
+
+- **Live impact:** `versions-only`, `process-docs-only`, `rules`, `content-templates`, `master-index`
+- **Files:**
+  - `VERSION` — 2.9.6 → 2.9.7
+  - `Modular_Documentation_Rule.mdc` / `.instructions.md` — one route table (ask, playbook, adapter) names the short asks (*Bootstrap the doc templates*, *Bootstrap modular docs*, *Please update ADT*, *update ADT*, *sync ADT*, *sync the doc templates*, *check for ADT updates*, *drain unblocked TODOs*, reference files). Same playbooks. Profile modes stay in the coding-gate table only. Closing line keeps the scars that are not already in the session checklist. Session default: a `procure` for an API the running app will call also writes **Services this app consumes** on Tooling
+  - `Tooling_Template.md` / `workflow/tooling.md` — **Services this app consumes** (service, why, credential name, docs link). Not a Required/Optional row. Install skips it. No secrets
+  - `workflow/human-todo.md` — same turn as that `procure` row, add or update the Services row. The Human-TODO item stays the errand
+  - `Project_README_Template.md` / `BOOTSTRAP.md` **Step 3r** — if root `README.md` is missing, create the human entry point (what this is, link to Master Index, Tooling, Human-TODO). Do not overwrite a project README. Do not paste the services table or the Document Map
+  - `Master_Index_Template.md` — Key Locations row for root `README.md`
+- **Step B:** Bump Master Index **Pack version** to 2.9.7 from local `VERSION`. **`rules`:** refresh installed modular-rule copies so the route table is the single one, including those short asks, and session default names the Services row. **`content-templates`:** if live `docs/Tooling.md` has no **Services this app consumes** section, add the empty section from the template. Do not invent services. Do not scan the codebase for APIs. If root `README.md` is missing, copy `Project_README_Template.md` and fill the name from Master Index §1 when that heading is already a real project name. Do not overwrite an existing README. **`master-index`:** Key Locations gains the root `README.md` row when that row is missing. No live feature/shared scan.
+
+## 2.9.6
+
+- **Live impact:** `versions-only`, `process-docs-only`, `master-index`, `rules`
+- **Files:**
+  - `VERSION` — 2.9.5 → 2.9.6
+  - Docs profile value **`ship-first` renamed `build-first`** (same mode: spec + TODO, no Understanding gate). Playbooks, scaffolds, help, rules, and the example settings use the new value
+  - `TEMPLATE_SYNC_B.md` **B0.1b** — every sync: if `docs_profile.mode` is `ship-first`, rewrite it to `build-first`. Do not re-ask. Do not treat it as unset
+  - `workflow/profile-standing.md` — on sight, the same rewrite
+  - `BOOTSTRAP.md` Step 3p **C**, `RULE_INSTALL.md`, `TEMPLATE_SYNC_B.md` step 10 — when doc-roles are offered, say why: if installed, heavier moments leave the parent session so it stays slim; without them that work stays in the parent
+  - Root `DECISIONS.md` **D27** — do not silently undo
+  - `agent/commands/` — optional `/sync` and `/orchestrate` (same playbooks as the short asks). Offered once; decline if they would rather just ask. Cursor, Claude Code, and Copilot install files; other tools record the choice and install nothing
+  - Root `DECISIONS.md` **D28** — do not silently undo
+  - `workflow/profile-standing.md` §0.2, modular rule LOOKOUT — repo behavior that is **not** an ADT playbook override is **not** standing. Ask once: always-on rule/instruction, or a skill. Do not create either before they answer
+  - `workflow/profile-standing.md` **Sync cleanout (2.9.6)** — remove non-pack behavior from `standing.instructions` and ask once: rule, skill, or dropped. Do not silent-create. Playbook overrides stay
+  - Root `DECISIONS.md` **D29** — do not silently undo
+  - Git menu lives only in `roles/orchestrator-git.md` **Modes**. Bootstrap Step 3p **E** and sync **B0.6** still ask (unset → ask; never silent `current-push`; write-in is not an eighth mode) and present that table — they do not restate the seven modes
+  - Docs-profile words live only in `workflow/profile-standing.md` §0.1. Bootstrap Step 3p **A** still asks once before Step 3d and presents that section. The always-on rule keeps the short coding-gate table
+  - `eval/run_eval.py` — modular rule `.mdc` and `.instructions.md` bodies must match after frontmatter
+- **Step B:** Bump Master Index **Pack version** to 2.9.6 from local `VERSION`. **B0.1b:** rewrite `docs_profile.mode: ship-first` → `build-first` (note it in the summary). **`master-index`:** At a Glance / Key Locations that still say `ship-first` adopt `build-first`. **`rules`:** refresh installed modular-rule copies so the session default names `build-first` and the LOOKOUT line asks rule-or-skill for non-pack repo behavior (standing stays pack playbooks only). **Present unset `slash-commands`** (step 10 / Step 3p **F**): explain `/sync` and `/orchestrate` are a menu; decline if they would rather just ask. If already `enabled`, refresh those command files from `agent/commands/`. **Standing cleanout (2.9.6):** open `standing.instructions` only. Keep ADT playbook overrides. Remove how-to-act bullets that are not pack playbooks, then ask once: always-on rule/instruction, skill, or dropped. Do not create a rule or skill before they answer. Do not silent-create under `auto` / `auto-all`. No live feature/shared scan.
+
+## 2.9.5
+
+- **Live impact:** `versions-only`, `process-docs-only`, `master-index`, `rules`
+- **Files:**
+  - `VERSION` — 2.9.4 → 2.9.5
+  - `workflow/session-freshness.md` — sibling probe: **`git diff --quiet HEAD <other-HEAD> -- docs` is the drift verdict**. `git log HEAD..<other> -- docs` only **names** commits on a real stop. Squash-merge / rebase severs ancestry (GitHub default; `branch-pr-squash`) — graph-only “behind” with identical `docs/` is **not** drift. Pre-merge re-check does not cover the next-session miss the squash **creates**; the content check does
+  - `Modular_Documentation_Rule.*` / Workflow index / `Master_Index_Template.md` / `help/USING_WITH_AGENTS.md` — same verdict on the session-default path (was “`docs/` commits this HEAD lacks”)
+  - Root `DECISIONS.md` **D26** — do not silently undo
+  - Root `eval/` — `session-docs-freshness` covers content-first sibling probe
+- **Step B:** Bump Master Index **Pack version** to 2.9.5 from local `VERSION`. **`master-index`:** At a Glance **Docs freshness**: sibling drift = content (`git diff`), not ancestry after squash-merge. **`rules`:** refresh installed modular-rule copies so session default step 0 uses the content verdict — the gate still false-stops after squash-merge if only the pack copy updates. No live feature/shared scan.
 
 ## 2.9.4
 
@@ -84,7 +168,7 @@
   - `Master_Index_Template.md` / bootstrap / sync / help / paved path / understanding + implement pointers
   - Root `DECISIONS.md` **D21** — do not silently undo
   - Root `eval/` — `product-vision-end-state` pack contract + scaffold skeleton
-- **Step B:** Bump Master Index **Pack version** to 2.9.0 from local `VERSION`. **`master-index`:** add Key Locations / §3.4 / At a Glance row for Product-Vision. **`content-templates`:** if `docs_profile` is **`prevent`** (or unset) and `docs/Product-Vision.md` is missing → create from the template. **Peek `docs/reference/` first** (newest 3–5 idea/identity exports, or user-pointed files) + this-turn conversation; draft is / is not + end-state picture from **that** (lock obvious; empty Assumptions OK; examples ≠ target unless clearly set). **Then** fill How the map fits from **existing** map rows only. **Do not** build the picture by summarizing the Document Map / feature Understandings / specs. **`balanced`:** create only if 2+ feature stems or whole-product identity is already fuzzy (same peek). **`ship-first`:** **do not** create. Do not invent stems. Do not copy sermons into the live file. Do not skip `reference/` because the map looks complete. No live feature/shared scan beyond that peek + the map-fit table. No `rules` tag — do not refresh installed modular rules from 2.9.0 alone.
+- **Step B:** Bump Master Index **Pack version** to 2.9.0 from local `VERSION`. **`master-index`:** add Key Locations / §3.4 / At a Glance row for Product-Vision. **`content-templates`:** if `docs_profile` is **`prevent`** (or unset) and `docs/Product-Vision.md` is missing → create from the template. **Peek `docs/reference/` first** (newest 3–5 idea/identity exports, or user-pointed files) + this-turn conversation; draft is / is not + end-state picture from **that** (lock obvious; empty Assumptions OK; examples ≠ target unless clearly set). **Then** fill How the map fits from **existing** map rows only. **Do not** build the picture by summarizing the Document Map / feature Understandings / specs. **`balanced`:** create only if 2+ feature stems or whole-product identity is already fuzzy (same peek). **`ship-first`:** **do not** create *(superseded by 2.9.3 always-create)*. Do not invent stems. Do not copy sermons into the live file. Do not skip `reference/` because the map looks complete. No live feature/shared scan beyond that peek + the map-fit table. No `rules` tag — do not refresh installed modular rules from 2.9.0 alone.
 
 ## 2.8.1
 

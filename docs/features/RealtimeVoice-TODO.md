@@ -8,7 +8,7 @@
 
 **Humans:** [`help/SCAFFOLDS.md`](../templates/help/SCAFFOLDS.md). Inbox: [`Human-TODO.md`](../Human-TODO.md).
 
-**Agents:** Fill-in blanks. If context is thin, re-open [`agent/workflow/todos.md`](../templates/agent/workflow/todos.md) (Current focus §5.1 · operable §5.3 · kit coverage §5.4). Human dual-write: [`agent/workflow/human-todo.md`](../templates/agent/workflow/human-todo.md). Shared foundation: [`agent/workflow/shared-components.md`](../templates/agent/workflow/shared-components.md).
+**Agents:** Fill-in blanks. If context is thin, re-open [`agent/workflow/todos.md`](../templates/agent/workflow/todos.md) (Current focus §5.1 · operable §5.3 · outcomes §5.5 · kit coverage §5.4). Human dual-write: [`agent/workflow/human-todo.md`](../templates/agent/workflow/human-todo.md). Shared foundation: [`agent/workflow/shared-components.md`](../templates/agent/workflow/shared-components.md).
 
 ---
 
@@ -19,6 +19,8 @@
 **Last session:** 2026-08-13 — Human verify closed via Rivenquill live STS conversation mode (mint + browser WS + server VAD).
 
 ---
+
+## Outcomes
 
 ## High Priority / Next Actions
 

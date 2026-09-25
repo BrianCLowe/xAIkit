@@ -7,7 +7,7 @@ sync:
   source: user
 
 docs_profile:
-  mode: ship-first
+  mode: build-first
   recorded: 2026-08-12
   source: user
 
@@ -51,10 +51,15 @@ optional_rules:
     paths:
       cursor: .cursor/agents/
 
+  slash-commands:
+    status: enabled
+    recorded: 2026-09-25
+    source: auto-all
+    paths:
+      cursor: .cursor/commands/
+
 upstream:
   check_mode: always
   check_mode_recorded: 2026-08-12
   last_checked: 2026-09-25
-  local_pack_version: "2.9.4"
-  update_available: true
-  upstream_pack_version: "2.9.8"
+  local_pack_version: "2.9.10"

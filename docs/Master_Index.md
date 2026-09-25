@@ -2,7 +2,7 @@
 
 **Purpose**: Single entry point for this project's documentation — overview, locations, and Document Map. Read only the files relevant to the current task.
 
-**Pack version**: 2.9.4 *(from [`templates/VERSION`](templates/VERSION))*
+**Pack version**: 2.9.10 *(from [`templates/VERSION`](templates/VERSION))*
 
 ## 1. Project Overview
 
@@ -18,7 +18,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 | **TODO labels** | Core (no InEditor / Asset columns) |
 | **Engine / stack** | Python ≥3.10 (lockstep with xAI SDK), hatchling, uv, pytest, httpx, pydantic, websockets, xai-sdk |
 | **Game extensions** | Skip |
-| **Docs profile** | `ship-first` — spec + TODO; no Understanding files |
+| **Docs profile** | `build-first` — spec + TODO; no Understanding files |
 
 ## 2. Key Locations & At a Glance
 
@@ -35,7 +35,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 | `docs/features/` | Library-surface specs + TODOs |
 | `docs/reference/` | Optional chat exports / clippings — not living contracts |
 | `docs/Tooling.md` | Dev machine tools + verify commands |
-| `docs/Product-Vision.md` | Whole-product end-state picture — is / is not + how the map fits. Always create (lightweight). **`ship-first`:** destination, not a gate until *lock product shape* |
+| `docs/Product-Vision.md` | Whole-product end-state picture — is / is not + how the map fits. Always create (lightweight). **`build-first`:** destination, not a gate until *lock product shape* |
 | `docs/Human-TODO.md` | Human inbox |
 | `docs/Team-Roster.md` | Optional team inbox roster — **create only when `team_inbox` is enabled** (unset here = human-only inbox; file not present) |
 | `docs/templates/` | Upstream template pack — **pack-owned; do not edit; full overwrite on sync** ([`templates/README.md`](templates/README.md)). Scaffolds, `help/`, `agent/` (workflow index + modules, optional roles, per-tool install); [`VERSION`](templates/VERSION) and [`CHANGELOG.md`](templates/CHANGELOG.md) |
@@ -45,13 +45,13 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 
 | Topic | Where the rule lives |
 |-------|----------------------|
-| **Docs profile** | `docs/ADT-settings.yaml` → `docs_profile.mode`. This repo: **`ship-first`** (typed APIs / CRUD). **`prevent`** = editors / games / multi-surface (default if unset). [§0.1](templates/agent/workflow/profile-standing.md#01-docs-profile-ceremony-modes) |
+| **Docs profile** | `docs/ADT-settings.yaml` → `docs_profile.mode`. This repo: **`build-first`** (typed APIs / CRUD). **`prevent`** = editors / games / multi-surface (default if unset). **`balanced`** = mixed. [§0.1](templates/agent/workflow/profile-standing.md#01-docs-profile-ceremony-modes) |
 | **Orchestrator git** | Durable **`milestone-pr`**. Host worktrees: already-in-a-worktree → stay; pack does not `git worktree add`. Stay ≠ current — session-start docs freshness: `git status` + worktrees. [orchestrator-git](templates/agent/roles/orchestrator-git.md) · [§0.3](templates/agent/workflow/session-freshness.md) |
-| **Docs freshness** | Once per session: `git status` + `git worktree list` before treating Master Index / TODOs as current. Sibling `docs/` drift → stop. Same-stem live docs on an open PR → add there (do not stack PRs). [§0.3](templates/agent/workflow/session-freshness.md) |
+| **Docs freshness** | Once per session: `git status` + `git worktree list` before treating Master Index / TODOs as current. Sibling `docs/` drift = content (`git diff`), not ancestry after squash-merge. Same-stem live docs on an open PR → add there (do not stack PRs). [§0.3](templates/agent/workflow/session-freshness.md) |
 | **File layout / kit leftovers** | Leftovers stay as TODOs on the inventory stem ([ApiCoverage](features/ApiCoverage.md)) until that slice is next. [§0](templates/agent/workflow/naming-layout.md#0-naming--file-layout-read-before-creating-files) · [§5.4](templates/agent/workflow/todos.md#54-finished-kit-contract--covering-todos-not-wait-for-pickup) |
-| **Understanding / Spec** | Ship-first: spec + TODO; *lock shape* only if a stem gets identity pressure. [§4](templates/agent/workflow/understanding.md#4-understanding-features--shared) · [§2](templates/agent/workflow/understanding.md#2-understanding--spec-graduation) |
+| **Understanding / Spec** | build-first: spec + TODO; *lock shape* only if a stem gets identity pressure. [§4](templates/agent/workflow/understanding.md#4-understanding-features--shared) · [§2](templates/agent/workflow/understanding.md#2-understanding--spec-graduation) |
 | **Shared** | Only when actually shared. None yet. [§1](templates/agent/workflow/shared-components.md#1-shared-components--foundation-vs-consumption) |
-| **Product vision** | [`Product-Vision.md`](Product-Vision.md) — whole-product end-state; destination-only under `ship-first`. [§4.5](templates/agent/workflow/product-vision.md) |
+| **Product vision** | [`Product-Vision.md`](Product-Vision.md) — whole-product end-state; destination-only under `build-first`. [§4.5](templates/agent/workflow/product-vision.md) |
 | **Human inbox / Tooling** | [`Human-TODO.md`](Human-TODO.md) · [`Tooling.md`](Tooling.md). Team-Roster only if `team_inbox` is on (unset here) |
 | **Size / split** | Split when a file is bloated. [§8](templates/agent/workflow/extensions.md#8-how-to-split-a-large-document) |
 
@@ -65,7 +65,7 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 
 | Component / Feature | Omitted note types | Recorded |
 |---------------------|-------------------|----------|
-| *(none — ship-first omits Understanding by profile, not by exception)* | | |
+| *(none — build-first omits Understanding by profile, not by exception)* | | |
 
 ### 3.1 Shared / Core Components
 
@@ -106,9 +106,9 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 1. Docs freshness first ([Workflow §0.3](templates/agent/workflow/session-freshness.md)) — then read this file; find the stem in **§3 Document Map**.
 2. Consumers: `README.md`.
 3. Agents: this map → the stem spec + TODO.
-4. Workflow: [`templates/agent/Modular_Docs_Workflow.md`](templates/agent/Modular_Docs_Workflow.md) (ship-first: no Understanding gate).
+4. Workflow: [`templates/agent/Modular_Docs_Workflow.md`](templates/agent/Modular_Docs_Workflow.md) (build-first: no Understanding gate).
 5. Current focus: [Human-TODO.md](Human-TODO.md) — only Open item is REST embed live (empty team roster).
 
 ---
 
-Live docs layout based on [Agentic Doc Templates](https://github.com/BrianCLowe/Agentic-Doc-Templates) by Brian Lowe, licensed under CC BY 4.0. Pack copy: `docs/templates/` (v2.9.4).
+Live docs layout based on [Agentic Doc Templates](https://github.com/BrianCLowe/Agentic-Doc-Templates) by Brian Lowe, licensed under CC BY 4.0. Pack copy: `docs/templates/` (v2.9.10).

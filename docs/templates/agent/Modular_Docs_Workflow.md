@@ -8,7 +8,7 @@
 
 **Compaction / new session / memory loss:** If you cannot recall the paved path, **re-open this index**, then only the matching router module. Do not reconstruct procedure from a live Understanding/spec/TODO or from chat memory.
 
-**Docs profile:** `docs/ADT-settings.yaml` → `docs_profile.mode` — first-class choice. **`ship-first`** = typed APIs / CRUD. **`prevent`** = editors / games / multi-surface (default if unset). **`balanced`** = mixed. Full rules → [`workflow/profile-standing.md`](workflow/profile-standing.md). Never silent-downgrade a project full of Understandings.
+**Docs profile:** `docs/ADT-settings.yaml` → `docs_profile.mode` — first-class choice. **`build-first`** = typed APIs / CRUD. **`prevent`** = editors / games / multi-surface (default if unset). **`balanced`** = mixed. Full rules → [`workflow/profile-standing.md`](workflow/profile-standing.md). Never silent-downgrade a project full of Understandings.
 
 **Optional roles:** [`roles/`](roles/README.md) — never always-on; parent spawns when adapters exist, else playbook in-session. **Orchestrator** and **bootstrap** = parent only ([`roles/orchestrator.md`](roles/orchestrator.md) + git [`roles/orchestrator-git.md`](roles/orchestrator-git.md); [`BOOTSTRAP.md`](BOOTSTRAP.md)). Single-slice implement → [`roles/feature-implementer.md`](roles/feature-implementer.md).
 
@@ -18,9 +18,9 @@
 
 Use when the stem is already **ready** under the docs profile and scope is unchanged:
 
-1. **Docs freshness** (cheap): `git status --porcelain` + `git worktree list`. Clean + one worktree → continue. Sibling `docs/` drift → **stop** — open [`workflow/session-freshness.md`](workflow/session-freshness.md). Dirty **this** tree: one line, continue (do not auto-commit). **New PR / successive spawn:** if an open PR already touches this stem’s TODO/spec → add there (docs overlap ≠ code overlap)
+1. **Docs freshness** (cheap): `git status --porcelain` + `git worktree list`. Clean + one worktree → continue. Two or more worktrees → sibling probe in [`workflow/session-freshness.md`](workflow/session-freshness.md) (drift = uncommitted sibling `docs/` or `docs/` **content** differs — not ancestry-only after squash-merge). Dirty **this** tree: one line, continue (do not auto-commit). **New PR / successive spawn:** if an open PR already touches this stem’s TODO/spec → add there (docs overlap ≠ code overlap)
 2. Read `docs/ADT-settings.yaml` → `docs_profile.mode` (else **prevent**); `orchestrator.git.mode` when relevant; **`standing.instructions` if non-empty**
-3. [`Master_Index.md`](../../Master_Index.md) — Sections 1–3 only. If [`Product-Vision.md`](../../Product-Vision.md) exists, read it (especially when `confirmed`)
+3. [`Master_Index.md`](../../Master_Index.md) — Sections 1–3 only. Read [`Product-Vision.md`](../../Product-Vision.md) (especially when `confirmed`)
 4. Active TODO **Current focus** → that item’s Understanding *(if any — read-only)* → spec → code. Do **not** implement a fight with a **confirmed** product vision
 5. **Stop.** Do **not** open workflow modules unless a row in the router below matches.
 
@@ -30,11 +30,11 @@ Use when the stem is already **ready** under the docs profile and scope is uncha
 |---------|----------------|
 | **`prevent`** | Understanding is `confirmed` (or user waived) and scope unchanged |
 | **`balanced`** | If stem has Understanding → same as prevent; if none → thin spec + TODO exist and identity is clear |
-| **`ship-first`** | Spec + TODO exist for the stem; no Understanding required. Draft Product-Vision is not a blocker |
+| **`build-first`** | Spec + TODO exist for the stem; no Understanding required. Draft Product-Vision is not a blocker |
 
 **Additive vs shape (one line):** On a `confirmed` Understanding, a new research angle / extra behavior / edge case that still fits **is / is not** → **spec + TODO**, keep `confirmed`. De-confirm / re-draft **only** on a significant shape change — full rule in [`workflow/understanding.md`](workflow/understanding.md#4-understanding-features--shared).
 
-**Same-turn prefs:** Product/UI correction that could be “improved away” → spec **Decisions** ([`workflow/decisions.md`](workflow/decisions.md)). **Override an ADT playbook** (no first-class key) → standing ([`workflow/profile-standing.md`](workflow/profile-standing.md)). Do not jot random notes into standing.
+**Same-turn prefs:** Product/UI correction that could be “improved away” → spec **Decisions** ([`workflow/decisions.md`](workflow/decisions.md)). **Override an ADT playbook** (no first-class key) → standing ([`workflow/profile-standing.md`](workflow/profile-standing.md)). How to act in this repo that is **not** a pack playbook → ask once: always-on rule/instruction, or a skill (§0.2). Do not jot that into standing. Do not jot random notes into standing.
 
 ---
 
@@ -51,16 +51,17 @@ Use when the stem is already **ready** under the docs profile and scope is uncha
 | Whole-product vision / end-state picture / product vs feature fight | [`workflow/product-vision.md`](workflow/product-vision.md) (§4.5) |
 | Graduate confirmed shape → durable spec | [`workflow/understanding.md`](workflow/understanding.md) (§2) |
 | Path A vs Path B unclear · readiness table detail | [`workflow/implement.md`](workflow/implement.md) (§3) |
-| TODO layout · Current focus · operable done · exploration · kit covering TODOs | [`workflow/todos.md`](workflow/todos.md) (§5) |
+| TODO layout · Current focus · operable done · sticky outcomes · exploration · kit covering TODOs | [`workflow/todos.md`](workflow/todos.md) (§5) |
 | Spec Decisions (product/UI) | [`workflow/decisions.md`](workflow/decisions.md) (§10) |
 | Install tooling / Project verify handoff | [`workflow/tooling.md`](workflow/tooling.md) (§11) |
-| Human inbox dual-write · optional `team_inbox` · team roster (read vs self-ID) | [`workflow/human-todo.md`](workflow/human-todo.md) (§13) |
+| Human inbox dual-write | [`workflow/human-todo.md`](workflow/human-todo.md) (§13) |
+| Team inbox · roster (read vs self-ID) | [`workflow/team-roster.md`](workflow/team-roster.md) — only when `team_inbox` is enabled |
 | Game extensions · Catalog · sub-index · split large doc · Mermaid | [`workflow/extensions.md`](workflow/extensions.md) (§6–9 · §12) |
 | User asks “how does the workflow work?” | This index — then one module if they need depth |
 
 **Do not** open every module. **Do not** re-read this index every turn once you know the paved path. Module list for maintainers: [`workflow/README.md`](workflow/README.md).
 
-**Timescale / build green:** target architecture when shape is clear ([`Agent_Timescale_Planning_Rule.mdc`](Agent_Timescale_Planning_Rule.mdc)). Build green before “you can test” ([`Agent_Build_Verify_Rule.mdc`](Agent_Build_Verify_Rule.mdc)). Operable done detail → [`workflow/todos.md`](workflow/todos.md) §5.3.
+**Timescale / build green:** target architecture when shape is clear ([`Agent_Timescale_Planning_Rule.mdc`](Agent_Timescale_Planning_Rule.mdc)). Build green before “you can test” ([`Agent_Build_Verify_Rule.mdc`](Agent_Build_Verify_Rule.mdc)). Operable done → [`workflow/todos.md`](workflow/todos.md) §5.3. Sticky outcomes → §5.5.
 
 ---
 
@@ -102,7 +103,7 @@ Full procedure (incl. **de-confirm gate** + **lock gate**): [`workflow/understan
 
 ### 5. TODO Management
 
-Full procedure: [`workflow/todos.md`](workflow/todos.md#5-todo-management). Current focus §5.1 · exploration §5.2 · operable §5.3 · kit covering TODOs §5.4 live in that file.
+Full procedure: [`workflow/todos.md`](workflow/todos.md#5-todo-management). Current focus §5.1 · exploration §5.2 · operable §5.3 · sticky outcomes §5.5 · kit covering TODOs §5.4 live in that file.
 
 ### 5.1 Session handoff — Current focus
 
@@ -126,11 +127,11 @@ See [`workflow/tooling.md`](workflow/tooling.md#11-tooling-new-machine-setup).
 
 ### 4.5 Product vision *(whole-product end-state)*
 
-See [`workflow/product-vision.md`](workflow/product-vision.md#45-product-vision). Create on **all** profiles (lightweight on `balanced` / `ship-first`). **`ship-first`:** not a gate until *lock product shape*.
+See [`workflow/product-vision.md`](workflow/product-vision.md#45-product-vision). Create on **all** profiles (lightweight on `balanced` / `build-first`). **`build-first`:** not a gate until *lock product shape*.
 
 ### 13. Human TODO *(inbox — needs a human)*
 
-See [`workflow/human-todo.md`](workflow/human-todo.md#13-human-todo-inbox--needs-a-human). Optional `team_inbox` in `ADT-settings.yaml` (omit / unset = human-only). Optional `docs/Team-Roster.md` only when enabled — handoff agents read; named humans and bots self-ID (Name / Jobs / Anti-jobs if defined); one initial PR for a full team.
+See [`workflow/human-todo.md`](workflow/human-todo.md#13-human-todo-inbox--needs-a-human). Optional `team_inbox` in `ADT-settings.yaml` (omit / unset = human-only). When it is enabled, open [`workflow/team-roster.md`](workflow/team-roster.md) (read vs self-ID).
 
 ---
 
@@ -138,8 +139,8 @@ See [`workflow/human-todo.md`](workflow/human-todo.md#13-human-todo-inbox--needs
 
 - **Docs freshness** = *are this tree’s docs the ones the user means?* — [`workflow/session-freshness.md`](workflow/session-freshness.md). Run before treating Master Index as current.
 - **Master_Index.md** = *what this project is* and *where files live*.
-- **Product-Vision.md** = *the whole-product end-state* — [`workflow/product-vision.md`](workflow/product-vision.md). Feature map alone is not identity. **`ship-first`:** destination, not a gate.
+- **Product-Vision.md** = *the whole-product end-state* — [`workflow/product-vision.md`](workflow/product-vision.md). Feature map alone is not identity. **`build-first`:** destination, not a gate.
 - **This file** = *how to work* — paved path first; then **one** module from the router.
 - **Tooling.md** = *what to install on a new machine* (not package deps) — [`workflow/tooling.md`](workflow/tooling.md).
-- **Human-TODO.md** = *what only a human can close* — [`workflow/human-todo.md`](workflow/human-todo.md). Optional `team_inbox` assignees: same module (unset = human-only). **Team-Roster.md** = who exists + handoff (named humans and bots; create only when enabled; do not invent teammates).
+- **Human-TODO.md** = *what only a human can close* — [`workflow/human-todo.md`](workflow/human-todo.md). Optional `team_inbox` (unset = human-only) → [`workflow/team-roster.md`](workflow/team-roster.md). **Team-Roster.md** = who exists + handoff (create only when enabled; do not invent teammates).
 - The installed agent rule ([`Modular_Documentation_Rule.mdc`](Modular_Documentation_Rule.mdc)) is a short checklist — open this index when creating files, Path A/B, graduation, profile/standing questions, or the user asks about procedure; then open only the named module.
