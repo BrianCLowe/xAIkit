@@ -86,4 +86,4 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 
 ## Current status
 
-- **Last reconciled with code**: 2026-08-13 (`PriceTable.source_url` / `fetched`; `save_price_table_template`)
+- **Last reconciled with code**: 2026-09-23 (gap-file price order)
