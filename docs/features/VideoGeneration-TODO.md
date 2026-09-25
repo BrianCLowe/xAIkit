@@ -1,6 +1,6 @@
 # VideoGeneration — TODO
 
-**Last Updated**: 2026-09-16  
+**Last Updated**: 2026-09-25
 **Related Spec**: [VideoGeneration.md](VideoGeneration.md)
 **Related Understanding**: —
 
@@ -23,6 +23,8 @@
 ---
 
 ## Outcomes
+
+library-only — consumers own the exercise path.
 
 ## High Priority / Next Actions
 

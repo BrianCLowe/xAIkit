@@ -1,6 +1,6 @@
 # MediaRest — TODO
 
-**Last Updated**: 2026-08-31  
+**Last Updated**: 2026-09-25
 **Related Spec**: [MediaRest.md](MediaRest.md)
 **Related Understanding**: —
 
@@ -21,6 +21,8 @@
 ---
 
 ## Outcomes
+
+library-only — consumers own the exercise path.
 
 ## High Priority / Next Actions
 
