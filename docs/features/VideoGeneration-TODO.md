@@ -1,6 +1,6 @@
 # VideoGeneration — TODO
 
-**Last Updated**: 2026-09-16  
+**Last Updated**: 2026-09-25
 **Related Spec**: [VideoGeneration.md](VideoGeneration.md)
 **Related Understanding**: —
 
@@ -8,7 +8,7 @@
 
 **Humans:** [`help/SCAFFOLDS.md`](../templates/help/SCAFFOLDS.md). Inbox: [`Human-TODO.md`](../Human-TODO.md).
 
-**Agents:** Fill-in blanks. If context is thin, re-open [`agent/workflow/todos.md`](../templates/agent/workflow/todos.md) (Current focus §5.1 · operable §5.3 · kit coverage §5.4). Human dual-write: [`agent/workflow/human-todo.md`](../templates/agent/workflow/human-todo.md). Shared foundation: [`agent/workflow/shared-components.md`](../templates/agent/workflow/shared-components.md).
+**Agents:** Fill-in blanks. If context is thin, re-open [`agent/workflow/todos.md`](../templates/agent/workflow/todos.md) (Current focus §5.1 · operable §5.3 · outcomes §5.5 · kit coverage §5.4). Human dual-write: [`agent/workflow/human-todo.md`](../templates/agent/workflow/human-todo.md). Shared foundation: [`agent/workflow/shared-components.md`](../templates/agent/workflow/shared-components.md).
 
 ---
 
@@ -21,6 +21,10 @@
 *library-only · exercise path: `uv run pytest` + optional `XAITKIT_LIVE=1` + `XAITKIT_LIVE_VIDEO=1` start + poll + speaking `reference_audios` (extend also needs `XAITKIT_LIVE_VIDEO_FILE_ID`). Do not add a UI. Files upload stays on ApiCoverage. Video edits (`POST /v1/videos/edits`) not in this stem.*
 
 ---
+
+## Outcomes
+
+library-only — consumers own the exercise path.
 
 ## High Priority / Next Actions
 

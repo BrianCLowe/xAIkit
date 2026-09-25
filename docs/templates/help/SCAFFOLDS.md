@@ -10,7 +10,7 @@ Live files under `docs/` are **fill-in blanks**. Teaching, examples, and “how 
 | `Master_Index.md` | Overview + Document Map | [`SETUP.md`](SETUP.md) | [`workflow/naming-layout.md`](../agent/workflow/naming-layout.md) |
 | `Product-Vision.md` | Whole-product is / is not + **end-state picture** + how the map fits | This page | [`workflow/product-vision.md`](../agent/workflow/product-vision.md) |
 | `Human-TODO.md` / `Tooling.md` | Inbox / machine tools | This pack’s help | [`workflow/human-todo.md`](../agent/workflow/human-todo.md) · [`workflow/tooling.md`](../agent/workflow/tooling.md) |
-| `Team-Roster.md` | Name, Jobs, Anti-jobs *(if defined)*, handoff *(only when `team_inbox` is on)* | This pack’s help | [`workflow/human-todo.md`](../agent/workflow/human-todo.md) — named humans and bots self-ID; one initial PR for a full team; handoff agents do not invent rows |
+| `Team-Roster.md` | Name, Jobs, Anti-jobs *(if defined)*, handoff *(only when `team_inbox` is on)* | This pack’s help | [`workflow/team-roster.md`](../agent/workflow/team-roster.md) — named humans and bots self-ID; one initial PR for a full team; handoff agents do not invent rows |
 | `docs/decisions/` | Cross-cutting **why** | [`USAGE.md`](USAGE.md) | [`workflow/decisions.md`](../agent/workflow/decisions.md) |
 
 **Compaction / new session / memory loss:** Agents re-open the [workflow index](../agent/Modular_Docs_Workflow.md), then **only** the matching router module. Do not reconstruct procedure from the scaffold or from chat memory. Humans stay in `help/` — you do not need the playbooks.
@@ -19,13 +19,13 @@ Live files under `docs/` are **fill-in blanks**. Teaching, examples, and “how 
 
 ## Reviewing Product vision *(the whole, not the map)*
 
-The agent always drafts `docs/Product-Vision.md` (lightweight under **balanced** / **ship-first**). Under **prevent**, you confirm **one product**:
+The agent always drafts `docs/Product-Vision.md` (lightweight under **balanced** / **build-first**). Under **prevent**, you confirm **one product**:
 
 1. **What this product is / is NOT** — category and whole-product identity. Not each feature’s is-not.
 2. **End-state picture** — when it is whole, what is it? One sitting, one product feel. A feature list is the wrong confirm.
 3. **How the map fits** — each stem’s one-line role in that whole. Do not invent stems to fill the table.
 
-Empty Assumptions is correct when obvious defaults were locked. **`ship-first`:** the file is destination-only until you *lock product shape* — it does not block spec/TODO work.
+Empty Assumptions is correct when obvious defaults were locked. **`build-first`:** the file is destination-only until you *lock product shape* — it does not block spec/TODO work.
 
 A confirmed vision is the target the feature Understandings must fit. Procedure: [`workflow/product-vision.md`](../agent/workflow/product-vision.md).
 
@@ -50,7 +50,7 @@ Worked examples (too thin / right size / mini-spec, good vs bad is-not, lock vs 
 
 ## Spec, TODO, decisions
 
-- **Spec** = durable contract after shape confirm (or from day one under **ship-first**).
+- **Spec** = durable contract after shape confirm (or from day one under **build-first**).
 - **TODO** = living work list. User-facing stems need an **exercise path**, not library-only “done.”
 - **Decisions** on the spec (or `docs/decisions/` if cross-cutting) = why we chose X, so a later session cannot silently undo it.
 

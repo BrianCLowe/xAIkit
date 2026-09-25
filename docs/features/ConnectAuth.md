@@ -1,6 +1,6 @@
 # ConnectAuth
 
-**Last Updated**: 2026-08-13  
+**Last Updated**: 2026-09-25  
 **Related Understanding**: —  
 **Related TODO**: [ConnectAuth-TODO.md](ConnectAuth-TODO.md)
 
@@ -8,7 +8,7 @@
 
 **Humans:** This is the contract. How to read it: [`help/SCAFFOLDS.md`](../templates/help/SCAFFOLDS.md) · [`help/USAGE.md`](../templates/help/USAGE.md).
 
-**Agents:** Fill-in blanks — not a tutorial. If context is thin, re-open [`agent/workflow/understanding.md`](../templates/agent/workflow/understanding.md) §2. Catalog: [`agent/workflow/extensions.md`](../templates/agent/workflow/extensions.md) §7.1. Decisions: [`agent/workflow/decisions.md`](../templates/agent/workflow/decisions.md). Operable Acceptance: [`agent/workflow/todos.md`](../templates/agent/workflow/todos.md) §5.3. Ship-first (no Understanding): [`agent/workflow/profile-standing.md`](../templates/agent/workflow/profile-standing.md) §0.1.
+**Agents:** Fill-in blanks — not a tutorial. If context is thin, re-open [`agent/workflow/understanding.md`](../templates/agent/workflow/understanding.md) §2. Catalog: [`agent/workflow/extensions.md`](../templates/agent/workflow/extensions.md) §7.1. Decisions: [`agent/workflow/decisions.md`](../templates/agent/workflow/decisions.md). Operable Acceptance: [`agent/workflow/todos.md`](../templates/agent/workflow/todos.md) §5.3. build-first (no Understanding): [`agent/workflow/profile-standing.md`](../templates/agent/workflow/profile-standing.md) §0.1.
 
 ---
 
@@ -48,10 +48,10 @@ Credential injection and OAuth helpers with **no User/Session types**. Apps pass
 
 ## Acceptance *(library stem)*
 
-- [x] Stores + OAuth helpers exist
-- [x] Focused unit tests for authorize URL / exchange / env store
-- [x] Consumer docs: OAuth endpoints are caller-supplied (no kit portal URLs)
-- [x] Consumer docs: weekly Grok remaining is not fetched (no unofficial scrape)
+- [ ] **credential-store** — A caller stores an API key in a dict or env store, and `XaiClient` resolves `api_key=` else `credential_store.get_api_key(subject)`. There is no User or Session type.
+- [ ] **oauth-exchange** — A caller with both a client id and a secret builds an authorize URL (`response_type=code`, default scope `openid`, required `client_id` and a caller-supplied `authorize_url`) and posts the code to the caller-supplied `token_url`. A failed exchange raises `RuntimeError`. If either id or secret is empty, OAuth is not configured.
+- [ ] **caller-supplied-urls** — A caller supplies `authorize_url` and `token_url`. The kit does not embed an xAI or any other portal hostname, and the consumer docs say the same.
+- [ ] **no-weekly-remaining** — A caller does not get a weekly Grok remaining balance from this kit: no unofficial billing scrape, no leftover-pool display, and no User type.
 
 ## Visual references
 

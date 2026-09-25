@@ -8,7 +8,7 @@
 
 **Humans:** [`help/SCAFFOLDS.md`](../templates/help/SCAFFOLDS.md). Inbox: [`Human-TODO.md`](../Human-TODO.md).
 
-**Agents:** Fill-in blanks. If context is thin, re-open [`agent/workflow/todos.md`](../templates/agent/workflow/todos.md) (Current focus §5.1 · operable §5.3 · kit coverage §5.4). Human dual-write: [`agent/workflow/human-todo.md`](../templates/agent/workflow/human-todo.md). Shared foundation: [`agent/workflow/shared-components.md`](../templates/agent/workflow/shared-components.md).
+**Agents:** Fill-in blanks. If context is thin, re-open [`agent/workflow/todos.md`](../templates/agent/workflow/todos.md) (Current focus §5.1 · operable §5.3 · outcomes §5.5 · kit coverage §5.4). Human dual-write: [`agent/workflow/human-todo.md`](../templates/agent/workflow/human-todo.md). Shared foundation: [`agent/workflow/shared-components.md`](../templates/agent/workflow/shared-components.md).
 
 ---
 
@@ -19,6 +19,8 @@
 **Last session:** 2026-09-23 — Unpinned clients re-resolve from the live list within the catalog cache. Chat newest-sort is integer major/minor (`grok-5` > `grok-4.10` > `grok-4.7`; `grok-4.20` stays older than `grok-4.3`). Meter fills missing rates from the daily price gap file.
 
 ---
+
+## Outcomes
 
 ## High Priority / Next Actions
 
@@ -57,7 +59,6 @@
 - [x] Refresh bootstrap / fixture models when xAI retires slugs (2026-08-13 — `BOOTSTRAP_MODEL=grok-4.6`; offline cheap row `grok-4.3`; grok-3-mini out of fallback)
 - [x] 4.6 thought levels + per-model contraction (`contract_thought_level`, `effort_options(model=)`) (2026-08-14)
 - [x] Public-docs model watch — new slugs (Imagine 3.0) and resolution tokens (4k) open a `xai-models` GitHub issue (2026-08-14)
-- [x] Review [#49](https://github.com/BrianCLowe/xAIkit/issues/49) (`grok-46`) — UTM false positive; no kit catalog/price change; watcher drops collapsed dotted tokens (2026-08-23)
 - [x] Grok 4.7 flagship — `BOOTSTRAP_MODEL=grok-4.7`; price row $2 in / $6 out under 200k (exact key, not the `grok-4` prefix); 4.6+ thought levels and chat extras; no `batch` (model page). Watch baseline: `grok-4.7`, docs-path `grok-4-7`, `grok-voice-transcribe-1.0` / `2.0` (no new STT price key). Cite: https://docs.x.ai/developers/models and https://docs.x.ai/developers/models/grok-4.7 (2026-09-23)
 - [x] Model watch files a new issue for unlisted slugs/resolutions while another `xai-models` issue is open. Checklist examples (`4k`) are not listings. `grok-4` does not cover `grok-4.7` (2026-09-23)
 - [x] Live flagship + gap prices — unpinned role defaults re-resolve when the 1h catalog cache expires; integer `(major, minor)` chat sort with the `grok-4.20` exception; meter order ticks → catalog row (docs token scale) → daily `xai_public_prices.json` → exact/safe prefix → no USD (2026-09-23)
