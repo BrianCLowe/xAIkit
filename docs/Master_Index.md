@@ -2,7 +2,7 @@
 
 **Purpose**: Single entry point for this project's documentation — overview, locations, and Document Map. Read only the files relevant to the current task.
 
-**Pack version**: 2.9.10 *(from [`templates/VERSION`](templates/VERSION))*
+**Pack version**: 2.9.11 *(from [`templates/VERSION`](templates/VERSION))*
 
 ## 1. Project Overview
 
