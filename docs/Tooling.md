@@ -1,6 +1,6 @@
 # xAIkit — Tooling
 
-**Last Updated**: 2026-09-16  
+**Last Updated**: 2026-09-26  
 **Related**: [Master_Index.md](Master_Index.md) · [workflow/tooling.md](templates/agent/workflow/tooling.md) §11
 
 ---

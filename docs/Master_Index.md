@@ -111,4 +111,4 @@ Consumers call `XaiClient` (and optional meter/tracer/catalog helpers). Domain s
 
 ---
 
-Live docs layout based on [Agentic Doc Templates](https://github.com/BrianCLowe/Agentic-Doc-Templates) by Brian Lowe, licensed under CC BY 4.0. Pack copy: `docs/templates/` (v2.9.10).
+Live docs layout based on [Agentic Doc Templates](https://github.com/BrianCLowe/Agentic-Doc-Templates) by Brian Lowe, licensed under CC BY 4.0. Pack copy: `docs/templates/` (v2.9.11).
