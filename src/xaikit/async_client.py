@@ -101,7 +101,6 @@ from xaikit.collections import (
 from xaikit.credentials import CredentialStore
 from xaikit.provider import AsyncChatProvider, AsyncSdkChatProvider, ChatProvider
 from xaikit.realtime import (
-    DEFAULT_VOICE_MODEL,
     XAI_REALTIME_URL,
     AsyncRealtimeSession,
     connect_realtime_websocket_async,
