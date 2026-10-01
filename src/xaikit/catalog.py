@@ -51,7 +51,6 @@ _INTENT_ALIASES = {
     "economy": INTENT_ECONOMY,
     "best": INTENT_BEST,
 }
-KNOWN_INTENTS = frozenset(_INTENT_ALIASES.keys())
 
 # Canonical 4.6 set. Older families contract via contract_thought_level().
 THOUGHT_LEVELS_API = ("low", "medium", "high", "xhigh")
@@ -978,23 +977,10 @@ def list_models(
     return list(models)
 
 
-def chat_models(catalog: Sequence[ModelInfo] | None = None) -> list[ModelInfo]:
-    """Filter to chat-capable text models."""
-    rows = list(catalog) if catalog is not None else list_models()
-    return [m for m in rows if m.is_chat and m.id]
-
-
 def _is_coding_sku(model: ModelInfo) -> bool:
     """True for coding-specialized ids (grok-build-*, grok-code-*, *code-fast*)."""
     mid = (model.id or "").strip().lower().replace("_", "-")
     return bool(mid and _CODE_SKU_ID.search(mid))
-
-
-def general_chat_models(catalog: Sequence[ModelInfo] | None = None) -> list[ModelInfo]:
-    """Chat models minus coding SKUs; falls back to all chat if that would be empty."""
-    chat = chat_models(catalog)
-    general = [m for m in chat if not _is_coding_sku(m)]
-    return general or chat
 
 
 def _model_matches_role(model: ModelInfo, role: str) -> bool:

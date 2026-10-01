@@ -57,7 +57,6 @@ _RESOL_RE = re.compile(
 )
 
 BASELINE_PATH = Path(__file__).resolve().parent / "data" / "xai_models_watch.json"
-PRICES_PATH = Path(__file__).resolve().parent / "data" / "xai_public_prices.json"
 # Docs token integers: 20000 = $2 / 1M. Media integers: 800000000 = $0.08.
 _TOKEN_SCALE = 10_000
 _MEDIA_SCALE = 10_000_000_000

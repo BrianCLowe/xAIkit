@@ -7,7 +7,6 @@ and require a purpose tag. Attribution is generic (parent_id + labels dict).
 from __future__ import annotations
 
 import importlib
-import json
 import logging
 import threading
 from datetime import datetime, timezone
@@ -543,8 +542,3 @@ class UsageMeter:
                 continue
             buckets.setdefault(e.parent_id, []).append(e)
         return [self._rollup(k, v) for k, v in sorted(buckets.items())]
-
-
-def dump_events_jsonl(events: Iterable[UsageEvent]) -> str:
-    """Serialize events to JSONL string (debug / export; no secrets)."""
-    return "".join(json.dumps(e.model_dump(mode="json")) + "\n" for e in events)
