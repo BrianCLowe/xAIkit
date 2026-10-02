@@ -9,9 +9,10 @@ from __future__ import annotations
 import importlib
 import logging
 import threading
+from collections.abc import Iterable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, Field
 
