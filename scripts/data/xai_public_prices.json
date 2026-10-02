@@ -138,6 +138,16 @@
         "1080p": 0.25
       }
     },
+    "grok-imagine-video-1.5-lite": {
+      "input_per_million": 0.0,
+      "output_per_million": 0.0,
+      "per_second_usd": 0.02,
+      "per_second_usd_by_resolution": {
+        "480p": 0.02,
+        "720p": 0.03,
+        "1080p": 0.14
+      }
+    },
     "grok-imagine-video-1.5-preview": {
       "input_per_million": 0.0,
       "output_per_million": 0.0,
