@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, MutableSequence
 from dataclasses import dataclass, field
-from typing import Any, Union
+from typing import Any
 
 VIDEO_INTO_REQUIRED = (
     "generate_video/extend_video require into= — a VideoInbox, list, or callback "
@@ -67,7 +67,7 @@ class VideoInbox:
         return None
 
 
-VideoSink = Union[VideoInbox, MutableSequence[VideoReceipt], Callable[[VideoReceipt], None]]
+VideoSink = VideoInbox | MutableSequence[VideoReceipt] | Callable[[VideoReceipt], None]
 
 
 def require_video_into(into: VideoSink | None) -> VideoSink:
