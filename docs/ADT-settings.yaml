@@ -11,18 +11,6 @@ docs_profile:
   recorded: 2026-08-12
   source: user
 
-# Reviewers / Bugbot: a mode change in this file with source: user is an explicit
-#   user ask (same PR is fine) — not a forbidden pack migrate. Do not fail or revert it.
-# Sync must not rewrite a set mode just because the pack recommend flipped.
-# Cloud Agent this-run uses milestone-pr without writing this file.
-# Worktrees are not a key (do not add orchestrator.git.worktrees). Host isolation
-# for concurrent implementers lives in agent/roles/orchestrator-git.md + tools/<host>.md.
-orchestrator:
-  git:
-    mode: milestone-pr
-    recorded: 2026-08-12
-    source: user
-
 standing:
   instructions: |
     - README.md is consumer/release documentation only (install + public API usage). Do not put contributor ceremony, ADT workflow, or private-app names there.
@@ -36,7 +24,7 @@ tools:
     recorded: 2026-08-12
     source: user
     path: .cursor/rules/modular-documentation.mdc
-    note: Also agent-timescale-planning.mdc, agent-build-verify.mdc, template-update-check.mdc. Doc roles in .cursor/agents/.
+    note: Also template-update-check.mdc. Doc roles in .cursor/agents/. Slash command .cursor/commands/sync.md.
 
 optional_rules:
   template-update-check:
@@ -61,4 +49,4 @@ optional_rules:
 upstream:
   check_mode: always
   check_mode_recorded: 2026-08-12
-  local_pack_version: "2.9.14"
+  local_pack_version: "2.10.1"

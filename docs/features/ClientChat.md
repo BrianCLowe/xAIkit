@@ -2,7 +2,6 @@
 
 **Last Updated**: 2026-08-14 *(4.6 thought levels)*  
 **Related Understanding**: —  
-**Related TODO**: [ClientChat-TODO.md](ClientChat-TODO.md)
 
 ---
 

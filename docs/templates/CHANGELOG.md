@@ -20,9 +20,30 @@
 | `optional-todo-completed-cleanout` | Live TODO Completed cleanout. **`auto` / `auto-all`:** all Document Map `*-TODO.md`. **`choose`:** present + ask once. Remove a Completed checkbox that git shows was never an open `[ ]` task and is not an exercise note. Unsure → leave the row |
 | `rules` | Refresh installed agent rules/adapters from local pack (**no ask** unless tool has `customized: true`) |
 | `optional-upstream-check` | Stamp `upstream:` in `docs/ADT-settings.yaml` / offer enable update-check if unset |
-| `process-docs-only` | Pack process/help/agent docs only — no live feature/shared content scan **for that release alone**; still honor other unioned live tags |
+| `process-docs-only` | Pack process/help/agent docs only — no live feature/shared content scan **for that release alone**; still honor other unioned live tags. When any selected entry is **≥ 2.10.0**, drop every `optional-todo-*` tag before the checklist and do not create or edit `*-TODO.md`. B0.7 still lists feature/shared `*-TODO.md` paths when **from** < 2.10.1 (do not open them). The offer is that step; `auto-all` is not a yes |
 
 ---
+
+## 2.10.1
+
+- **Live impact:** `versions-only`, `rules`, `process-docs-only`
+- **Summary:** A sync that crosses this version offers to delete leftover feature TODO files and says why the pack removed them. The offer is the step. `auto` and `auto-all` are not a yes. `Human-TODO.md` stays.
+- **Changes:**
+  - `VERSION` — 2.10.0 → 2.10.1
+  - `TEMPLATE_SYNC_B.md` B0.7 — offer, then stop that step; cleanout only after an explicit yes
+  - `DECISIONS.md` D36
+- **Step B:** When **from** < 2.10.1 and **to** ≥ 2.10.1, list `*-TODO.md` files directly in `docs/features/` and `docs/_shared/` (include one in a subdirectory of those two folders). Do not open them. Do not list `docs/Human-TODO.md`. If the list is empty, skip. If it is not, the step is one offer: name the paths and say the pack removed feature TODOs because it writes documentation and syncs itself, keeps no feature checklist and no Current focus, and the harness owns the code — an agent that opens a leftover file still sees the old boxes. Do not delete or edit the files in this step. `sync.mode: auto` and `sync.mode: auto-all` do not answer the offer. A missing reply does not. Delete only after an explicit yes (B0.7 Cleanout). **No other live feature/shared scan.**
+
+## 2.10.0
+
+- **Live impact:** `versions-only`, `rules`, `master-index`, `process-docs-only`
+- **Summary:** The pack documents and syncs. Current focus, feature TODOs, implementation roles, and the git-delivery setting are gone. The instructed task is the work. A gap the confirmed spec or Understanding already makes obvious is part of that instruction and belongs on the spec. A second product or a checklist of future ideas is not. Do not create or extend `*-TODO.md`. Docs profile chooses which docs to write. It is not a coding gate. `/sync` is the only slash command.
+- **Changes:**
+  - `VERSION` — 2.9.14 → 2.10.0
+  - Removed `TODO_Template.md`, `workflow/todos.md`, Current focus, feature-implementer, work-verifier, todo-warden, orchestrator, orchestrator-git, timescale rule, build-verify rule, `/orchestrate`
+  - Modular rule, bootstrap, profile, Master Index, sync B0.6 — documentation and sync only
+  - `DECISIONS.md` D35 (D34 superseded)
+- **Step B:** Bump Master Index **Pack version** to 2.10.0 from local `VERSION`. **`master-index`:** drop At a Glance orchestrator-git / Current focus / TODO file-set columns to match the template. **`rules`:** refresh the modular rule; delete installed timescale and build-verify rules; delete installed feature-implementer, work-verifier, todo-warden, and orchestrate command files; refresh the three doc adapters when doc-roles are enabled. If `docs/ADT-settings.yaml` has an `orchestrator:` key, remove it. Do not ask a git mode. If this catch-up includes 2.10.0, drop `optional-todo-*` tags before the checklist. Do not create or edit `*-TODO.md`. Leave existing files. **No other live feature/shared scan.**
 
 ## 2.9.14
 

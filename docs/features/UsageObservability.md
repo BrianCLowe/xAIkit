@@ -2,7 +2,6 @@
 
 **Last Updated**: 2026-09-23 *(gap-file price order)*  
 **Related Understanding**: —  
-**Related TODO**: [UsageObservability-TODO.md](UsageObservability-TODO.md)
 
 ---
 
