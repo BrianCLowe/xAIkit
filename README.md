@@ -4,7 +4,7 @@
 
 # xAIkit
 
-**`0.1.2`.** Not an official xAI package. The API may still change. Problems or feedback: [open an issue](https://github.com/BrianCLowe/xAIkit/issues).
+**`0.1.3`.** Not an official xAI package. The API may still change. Problems or feedback: [open an issue](https://github.com/BrianCLowe/xAIkit/issues).
 
 **Unofficial** Python kit for the **xAI (Grok) API** — one typed client, living model catalog, usage metering, media, and realtime voice. Not a multi-provider SDK.
 
@@ -54,7 +54,7 @@ uv add xaikit-py
 # or: pip install xaikit-py
 
 # From a git tag
-uv add "xaikit-py @ git+https://github.com/BrianCLowe/xAIkit@v0.1.2"
+uv add "xaikit-py @ git+https://github.com/BrianCLowe/xAIkit@v0.1.3"
 
 # Editable neighbor checkout
 uv add --editable ../xAIkit
@@ -176,7 +176,7 @@ extend_id = resolve_model(intent="best", role="video", need="video_extend")
 
 `role` is `chat` | `image` | `video` | `voice`. Offline tests inject fixtures with `inject_catalog` — do not hit the network.
 
-`feature_options(model=)` lists extra capabilities for settings UIs (not role tags). No model → Grok 4.7 chat extras, the same set as Grok 4.6+ (`web_search`, `x_search`, `code_execution`, `file_attachments`, `collections_search`, `image_understanding`, `x_video_understanding`, `mcp`). Imagine quality (`grok-imagine-video`) reports `video_extend` / `video_edit` / `r2v`; `grok-imagine-video-1.5` reports `1080p` / `r2v` and not extend. Unknown or older SKUs return `[]`. Pass the same ids as `need=` on resolve so `best` is best for that job (quality over 1.5 when the job is extend).
+`feature_options(model=)` lists extra capabilities for settings UIs (not role tags). No model → Grok 4.7 chat extras, the same set as Grok 4.6+ (`web_search`, `x_search`, `code_execution`, `file_attachments`, `collections_search`, `image_understanding`, `x_video_understanding`, `mcp`). Imagine quality (`grok-imagine-video`) reports `video_extend` / `video_edit` / `r2v`; `grok-imagine-video-1.5` reports `1080p` / `r2v` and not extend; `grok-imagine-video-1.5-lite` reports `1080p` only. Unknown or older SKUs return `[]`. Pass the same ids as `need=` on resolve so `best` is best for that job (quality over 1.5 when the job is extend). Video `best` stays on `grok-imagine-video-1.5` even when a dated lite id is newer; `cheapest` can pick the lite SKU when it is on the list.
 
 When `model` is omitted, an unpinned client resolves chat from the live list (the API key is passed into `list_models`) and re-resolves on later calls when that cache expires (one hour). `BOOTSTRAP_MODEL` (`grok-4.7`) is only the offline fallback. A pin on the client or on the call stays fixed. Image defaults follow the image list the same way. Video and voice stay on their role default until the SDK lists them. Offline with no API key or fixture, `list_models` injects `grok-4.7` plus cheaper-band `grok-4.3`. Pass `persist_path=` to write a JSON snapshot after a live SDK fetch and reload it later; there is no default disk path. Newest chat ids compare integer major then minor (`grok-5` above `grok-4.10` above `grok-4.7`). `grok-4.20` stays older than `grok-4.3`.
 
@@ -336,7 +336,7 @@ status = client.poll_video(started["request_id"])
 # inbox.receipts still has the ticket if a parallel await is cancelled
 ```
 
-`extend_video(prompt, video_url=..., into=inbox)` continues a clip. Generate defaults to `grok-imagine-video-1.5`; extend remaps that SKU to `grok-imagine-video` (1.5 cannot extend). `1080p` is kept on 1.5 for text-to-video and image-to-video; reference-to-video and older `grok-imagine-video` send `720p` instead.
+`extend_video(prompt, video_url=..., into=inbox)` continues a clip. Generate defaults to `grok-imagine-video-1.5`; extend remaps 1.5 and `grok-imagine-video-1.5-lite` to `grok-imagine-video` (neither can extend). `1080p` is kept on 1.5 and 1.5 Lite for text-to-video and image-to-video; reference-to-video and older `grok-imagine-video` send `720p` instead. Lite list rates are $0.02 / $0.03 / $0.14 per second at 480p / 720p / 1080p.
 
 ## Realtime voice
 

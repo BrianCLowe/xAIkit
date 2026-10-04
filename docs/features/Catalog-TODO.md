@@ -1,6 +1,6 @@
 # Catalog — TODO
 
-**Last Updated**: 2026-09-23 
+**Last Updated**: 2026-10-04 
 **Related Spec**: [Catalog.md](Catalog.md)
 **Related Understanding**: —
 
@@ -16,7 +16,7 @@
 
 **Active task:** — (Human verify extras closed via tester 2026-08-16). Model-watch Action is the inbox when public docs drift.  
 **Blocked by:** —  
-**Last session:** 2026-09-23 — Unpinned clients re-resolve from the live list within the catalog cache. Chat newest-sort is integer major/minor (`grok-5` > `grok-4.10` > `grok-4.7`; `grok-4.20` stays older than `grok-4.3`). Meter fills missing rates from the daily price gap file.
+**Last session:** 2026-10-04 — Issue #69: `grok-imagine-video-1.5-lite` is an exact cheaper video row (`1080p` only). Video sort compares “not lite” before the numeric suffix, so a dated lite id stays under `grok-imagine-video-1.5`. Watch baseline includes the slug. Package version is `0.1.3`.
 
 ---
 
@@ -62,4 +62,5 @@
 - [x] Grok 4.7 flagship — `BOOTSTRAP_MODEL=grok-4.7`; price row $2 in / $6 out under 200k (exact key, not the `grok-4` prefix); 4.6+ thought levels and chat extras; no `batch` (model page). Watch baseline: `grok-4.7`, docs-path `grok-4-7`, `grok-voice-transcribe-1.0` / `2.0` (no new STT price key). Cite: https://docs.x.ai/developers/models and https://docs.x.ai/developers/models/grok-4.7 (2026-09-23)
 - [x] Model watch files a new issue for unlisted slugs/resolutions while another `xai-models` issue is open. Checklist examples (`4k`) are not listings. `grok-4` does not cover `grok-4.7` (2026-09-23)
 - [x] Live flagship + gap prices — unpinned role defaults re-resolve when the 1h catalog cache expires; integer `(major, minor)` chat sort with the `grok-4.20` exception; meter order ticks → catalog row (docs token scale) → daily `xai_public_prices.json` → exact/safe prefix → no USD (2026-09-23)
+- [x] Imagine Video 1.5 Lite — exact bootstrap rates $0.02 / $0.03 / $0.14 (480p / 720p / 1080p); `feature_options` is `1080p` only; video sort compares “not lite” before the numeric suffix so a dated lite id stays under `grok-imagine-video-1.5`; extend still remaps to quality. Watch baseline records the slug (issue #69). Cite: https://docs.x.ai/developers/models https://docs.x.ai/developers/pricing (2026-10-04)
 - [x] Feature map + `need=` — `feature_options(model=)` for settings knobs; resolve `best` filters to SKUs that have the job extras (quality over 1.5 for extend). `contract_model_for_need` remaps known SKUs that lack an extra. Dual-write: [Human-TODO.md](../Human-TODO.md) (2026-08-15)

@@ -1,6 +1,6 @@
 # VideoGeneration — TODO
 
-**Last Updated**: 2026-09-25
+**Last Updated**: 2026-10-04
 **Related Spec**: [VideoGeneration.md](VideoGeneration.md)
 **Related Understanding**: —
 
@@ -16,7 +16,7 @@
 
 **Active task:** — (Human verify extras closed via tester 2026-08-16)  
 **Blocked by:** —  
-**Last session:** 2026-08-16 — Live via xAIkit tester: extras look-list (extend, `reference_audios`, 1080p contraction, `wait=False` + poll). Dual-write Human-TODO Done.
+**Last session:** 2026-10-04 — `grok-imagine-video-1.5-lite` keeps 1080p on T2V/I2V. Extend remaps lite to `grok-imagine-video`. Generate default stays 1.5.
 
 *library-only · exercise path: `uv run pytest` + optional `XAITKIT_LIVE=1` + `XAITKIT_LIVE_VIDEO=1` start + poll + speaking `reference_audios` (extend also needs `XAITKIT_LIVE_VIDEO_FILE_ID`). Do not add a UI. Files upload stays on ApiCoverage. Video edits (`POST /v1/videos/edits`) not in this stem.*
 
@@ -58,7 +58,8 @@ library-only — consumers own the exercise path.
 ## Completed
 
 - [x] **Durable video start / no silent abandon** — Required `into=` (`VideoInbox` / list / callback). Kit delivers `request_id` as soon as POST is accepted, then the terminal result. Async wait is shielded so sibling `gather` cancel does not void the receipt. `VideoInbox.cancel(request_id)` is the only stop-listening. Offline tests in `tests/test_video_wiring.py`. Cite: 2026-08-15 consumer parallel-job loss (2026-08-15)
-- [x] **Resolution contraction** — kit allowlist is `480p`/`720p`/`1080p`. Docs: `1080p` only on `grok-imagine-video-1.5` **T2V / I2V**; **R2V capped at 720p**; older `grok-imagine-video` (no `-1.5`) does not send 1080p. Contract `1080p` → `720p` on those paths. Extend still omits `aspect_ratio` / `resolution`. Offline tests in `tests/test_video_wiring.py`. Cite: https://docs.x.ai/developers/model-capabilities/video/generation (2026-08-14)
+- [x] **Resolution contraction** — kit allowlist is `480p`/`720p`/`1080p`. Docs: `1080p` on `grok-imagine-video-1.5` and `grok-imagine-video-1.5-lite` **T2V / I2V**; **R2V capped at 720p**; older `grok-imagine-video` (no `-1.5`) does not send 1080p. Contract `1080p` → `720p` on those paths. Extend still omits `aspect_ratio` / `resolution`. Offline tests in `tests/test_video_wiring.py`. Cite: https://docs.x.ai/developers/model-capabilities/video/generation and https://docs.x.ai/developers/pricing (2026-10-04)
+- [x] **1.5 Lite extend remap** — `extend_video` on `grok-imagine-video-1.5-lite` contracts to `grok-imagine-video` (no Video input on the public row). Generate default stays 1.5. Offline test in `tests/test_video_wiring.py`. (2026-10-04)
 - [x] **`generate_video` T2V** — wrap `POST /v1/videos/generations`; knobs: model, prompt, duration, aspect_ratio, resolution (2026-08-12)
 - [x] **Poll / wait** — wait-by-default + `poll_video(request_id)` REST path (2026-08-12)
 - [x] **Contract tests** — `tests/test_video_wiring.py`: URL/auth/body, empty prompt, purpose-when-metered, usage modality (2026-08-12)

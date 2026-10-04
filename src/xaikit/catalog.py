@@ -192,6 +192,7 @@ _CHAT_EXTRAS_4_6 = (
 )
 _VIDEO_EXTRAS_QUALITY = ("video_extend", "video_edit", "r2v")
 _VIDEO_EXTRAS_1_5 = ("1080p", "r2v")
+_VIDEO_EXTRAS_1_5_LITE = ("1080p",)
 
 
 def feature_options(model: str | None = None) -> list[str]:
@@ -200,8 +201,10 @@ def feature_options(model: str | None = None) -> list[str]:
     No ``model`` → current chat flagship extras (Grok 4.7; same set as 4.6+).
     ``grok-4.6`` and later chat SKUs (including ``grok-4.7``) → that set (not ``batch``).
     ``grok-4.3`` → ``batch``. Imagine **quality**
-    (``grok-imagine-video`` without ``-1.5``) → extend / edit / R2V.
+    (    ``grok-imagine-video`` without ``-1.5``) → extend / edit / R2V.
     ``grok-imagine-video-1.5`` → 1080p / R2V (no extend or edit).
+    ``grok-imagine-video-1.5-lite`` → 1080p only (text and image in; no R2V,
+    extend, or edit).
     Unknown or older SKUs → empty (do not invent).
     ``resolve_model(need=…)`` uses this list so ``best`` is best for the job.
     """
@@ -218,8 +221,15 @@ def feature_options(model: str | None = None) -> list[str]:
     return []
 
 
+def _is_imagine_video_lite(slug: str) -> bool:
+    """True for a ``-lite`` Imagine video id (not ``-latest``)."""
+    return bool(re.search(r"(?:^|-)lite(?:-|$)", slug))
+
+
 def _video_feature_family(slug: str) -> tuple[str, ...] | None:
     if re.search(r"imagine-video-1[.-]5", slug):
+        if _is_imagine_video_lite(slug):
+            return _VIDEO_EXTRAS_1_5_LITE
         return _VIDEO_EXTRAS_1_5
     if "imagine-video" in slug:
         return _VIDEO_EXTRAS_QUALITY
@@ -1079,7 +1089,12 @@ def _version_tuple(model: ModelInfo) -> tuple:
 
 
 def _imagine_video_sort_key(model: ModelInfo) -> tuple:
-    """Newest grok-imagine-video* id: numeric suffix, then created, then id."""
+    """Newest grok-imagine-video* id. ``-lite`` loses to every non-lite id.
+
+    The lite flag is first so a calendar suffix (``-lite-2026-10-04``) cannot
+    outrank ``grok-imagine-video-1.5``. Among lite ids, the numeric suffix
+    still orders them.
+    """
     mid = (model.id or "").strip().lower().replace("_", "-")
     rest = mid
     if rest.startswith("grok-imagine-video"):
@@ -1088,9 +1103,10 @@ def _imagine_video_sort_key(model: ModelInfo) -> tuple:
     for part in re.split(r"[^0-9]+", rest):
         if part.isdigit():
             nums.append(int(part))
+    is_lite = 0 if _is_imagine_video_lite(mid) else 1
     is_latest = 1 if rest.endswith("latest") or "-latest-" in f"-{rest}-" else 0
     created = model.created or 0
-    return (tuple(nums) if nums else (0,), is_latest, created, mid)
+    return (is_lite, tuple(nums) if nums else (0,), is_latest, created, mid)
 
 
 def _newest_key(model: ModelInfo, role: str) -> tuple:

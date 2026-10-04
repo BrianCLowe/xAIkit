@@ -249,7 +249,11 @@ def test_feature_options_chat_and_video_per_sku() -> None:
         "r2v",
     ]
     assert feature_options("grok-imagine-video-1.5") == ["1080p", "r2v"]
+    assert feature_options("grok-imagine-video-1.5-preview") == ["1080p", "r2v"]
     assert "video_extend" not in feature_options("grok-imagine-video-1.5")
+    assert feature_options("grok-imagine-video-1.5-lite") == ["1080p"]
+    assert "r2v" not in feature_options("grok-imagine-video-1.5-lite")
+    assert "video_extend" not in feature_options("grok-imagine-video-1.5-lite")
     assert feature_options("unknown-sku") == []
 
 

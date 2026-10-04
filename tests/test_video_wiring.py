@@ -298,6 +298,16 @@ def test_extend_video_contracts_1_5_to_quality(
     client.extend_video(
         "keep going",
         video_url="https://example.com/clip.mp4",
+        model="grok-imagine-video-1.5-lite",
+        into=[],
+        wait=False,
+    )
+    assert cap.posts[0]["json"]["model"] == "grok-imagine-video"
+
+    cap.posts.clear()
+    client.extend_video(
+        "keep going",
+        video_url="https://example.com/clip.mp4",
         model="future-extend-sku",
         into=[],
         wait=False,
@@ -523,6 +533,21 @@ def test_default_price_table_video_per_second_rates() -> None:
     assert table.estimate_usd(
         "grok-imagine-video", duration_seconds=1, resolution="720p"
     ) == pytest.approx(0.07)
+    lite = table.price_for("grok-imagine-video-1.5-lite")
+    assert lite is not None
+    assert lite.per_second_usd == 0.02
+    assert table.estimate_usd(
+        "grok-imagine-video-1.5-lite", duration_seconds=8, resolution="480p"
+    ) == pytest.approx(0.16)
+    assert table.estimate_usd(
+        "grok-imagine-video-1.5-lite", duration_seconds=1, resolution="720p"
+    ) == pytest.approx(0.03)
+    assert table.estimate_usd(
+        "grok-imagine-video-1.5-lite", duration_seconds=1, resolution="1080p"
+    ) == pytest.approx(0.14)
+    dated = table.price_for("grok-imagine-video-1.5-lite-2026-10-04")
+    assert dated is not None
+    assert dated.per_second_usd == 0.02
 
 
 def test_contract_video_resolution_matrix() -> None:
@@ -534,6 +559,15 @@ def test_contract_video_resolution_matrix() -> None:
     assert (
         _contract_video_resolution(
             "1080p", "grok-imagine-video-1.5", is_r2v=True
+        )
+        == "720p"
+    )
+    assert (
+        _contract_video_resolution("1080p", "grok-imagine-video-1.5-lite") == "1080p"
+    )
+    assert (
+        _contract_video_resolution(
+            "1080p", "grok-imagine-video-1.5-lite", is_r2v=True
         )
         == "720p"
     )

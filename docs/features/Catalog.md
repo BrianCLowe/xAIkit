@@ -1,6 +1,6 @@
 # Catalog
 
-**Last Updated**: 2026-09-23  
+**Last Updated**: 2026-10-04  
 **Related Understanding**: —  
 **Related TODO**: [Catalog-TODO.md](Catalog-TODO.md)
 
@@ -28,7 +28,7 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 
 `normalize_thought_level`: canonical `low`\|`medium`\|`high`\|`xhigh` (4.6 set). `med`/`mid` → `medium`; `x-high`/`extra`/`max` → `xhigh`; empty/unknown → omit knob. `contract_thought_level(level, model)` clamps to what that family accepts (4.6+/multi-agent pass through; 4.5 `xhigh`→`high`; older reasoners also `medium`→`low`; `*-non-reasoning*` omits). `effort_options(model=)` returns that family's list (empty when none). `grok-4.20` is older than `grok-4.5` — do not treat numeric 20 as “4.6 and later”.
 
-`feature_options(model=)`: extra capabilities (tools + media), not role tags. No model / `grok-4.6`+ chat (including `grok-4.7`) → `web_search`, `x_search`, `code_execution`, `file_attachments`, `collections_search`, `image_understanding`, `x_video_understanding`, `mcp` (not `batch` — live Batch rejects 4.6/4.5; the 4.7 model page says Batch API is not supported). `grok-4.3` → `batch`. `grok-imagine-video` (quality) → `video_extend`, `video_edit`, `r2v`. `grok-imagine-video-1.5` → `1080p`, `r2v`. Unknown / older → `[]`. `resolve_model(..., need=)` / `need=["video_extend", …]` keeps only SKUs that have every requested extra, then runs cheapest / economy / best on that pool. Pin still wins. Empty need-filtered pool bootstraps a kit-known slug that has the extras (quality for extend; `grok-4.3` for batch).
+`feature_options(model=)`: extra capabilities (tools + media), not role tags. No model / `grok-4.6`+ chat (including `grok-4.7`) → `web_search`, `x_search`, `code_execution`, `file_attachments`, `collections_search`, `image_understanding`, `x_video_understanding`, `mcp` (not `batch` — live Batch rejects 4.6/4.5; the 4.7 model page says Batch API is not supported). `grok-4.3` → `batch`. `grok-imagine-video` (quality) → `video_extend`, `video_edit`, `r2v`. `grok-imagine-video-1.5` → `1080p`, `r2v`. `grok-imagine-video-1.5-lite` → `1080p` only. Unknown / older → `[]`. `resolve_model(..., need=)` / `need=["video_extend", …]` keeps only SKUs that have every requested extra, then runs cheapest / economy / best on that pool. Pin still wins. Empty need-filtered pool bootstraps a kit-known slug that has the extras (quality for extend; `grok-4.3` for batch).
 
 `intent_options()`: `cheapest`, `economy`, `best`. Overlap is allowed when the lineup is thin. `economy` is the cheaper-than-flagship rung, not a performance-per-dollar optimum.
 
@@ -43,7 +43,7 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 - General **chat** intents skip coding SKUs (`grok-build-*`, `grok-code-*`, `*code-fast*` **id**) unless the catalog is coding-only. Do not match aliases (`grok-4.5` currently aliases `grok-build-latest`). Coding-SKU skip does **not** apply to image/video/voice
 - `cheapest`: lowest ranking price. **One price band** → same as `best` (newer is usually more efficient at the same list price). **Multiple bands** → oldest / non-reasoning in the cheapest band
 - `best`: newest flagship in the role pool (`prefer_latest`), or newest that satisfies `need=`
-- **Feature map:** `feature_options(model=)` for settings knobs; `need=` on resolve so `best` is best **for the job**. 1.5 is newest video but cannot extend/edit — `need="video_extend"` picks quality. Chat extras (4.6+, flagship `grok-4.7`): web/X search, code execution, file attachments, collections search, image understanding, X video understanding, remote MCP. Newer SKUs may add tools; older may have fewer. Do not overload `ModelInfo.capabilities` (role tags).
+- **Feature map:** `feature_options(model=)` for settings knobs; `need=` on resolve so `best` is best **for the job**. 1.5 is the video flagship but cannot extend/edit — `need="video_extend"` picks quality. 1.5 Lite is the cheap text/image video SKU (`1080p` only). Video sort compares “not lite” before any numeric suffix, so a newer `created` stamp or a date in the id (`-lite-2026-10-04`) cannot make lite `best`. Chat extras (4.6+, flagship `grok-4.7`): web/X search, code execution, file attachments, collections search, image understanding, X video understanding, remote MCP. Newer SKUs may add tools; older may have fewer. Do not overload `ModelInfo.capabilities` (role tags).
 - `economy`: newest model in the price band **strictly below** flagship; overlaps `cheapest` when a cheaper band exists, overlaps `best` when there is only one band
 - `resolve_model` / `resolve_model_selection(..., role="image"|"video"|"voice")` use the same rules on that pool (default `role="chat"`)
 - Image/video/voice use list price (or public rates from `pricing.py`) when the SDK omits `input_per_million`. Image proto `image_price` is mapped when present
@@ -66,6 +66,7 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 | 2026-08-16 | `batch` extra on `grok-4.3` only (known) | Live Batch rejects 4.6/4.5. 4.5 is a known-empty extras family so contract remaps; unknown pins stay. |
 | 2026-09-23 | Bootstrap `grok-4.7`; under-200k price $2 / $6 | Public models page (fetched 2026-09-23): chat and code default is Grok 4.7. Same under-200k list price as 4.6, so the row must be exact — prefix match would bill it as `grok-4` ($3 / $15). Reasoning stays `low` / `medium` / `high` / `xhigh` (already the 4.6+ family). Model page: Batch API not supported, so `need=batch` still remaps to `grok-4.3`. Fast is Cursor / Grok Build only, not a public SKU. Watch baseline also records docs-path `grok-4-7` (not an API id; same class as `grok-4-6`) and `grok-voice-transcribe-1.0` / `2.0` (STT at the existing $0.10/hr REST and $0.20/hr streaming rates; meter key stays `stt`). Cite: https://docs.x.ai/developers/models https://docs.x.ai/developers/grok-4-7 https://docs.x.ai/developers/models/grok-4.7 |
 | 2026-09-23 | Live unpinned resolve; integer major/minor sort | A new flagship on the model list is `best` within the one-hour catalog cache. No kit release for that. Chat sort is `(major, minor)` so `grok-4.10` ranks above `grok-4.7` and `grok-5` ranks above every `4.x`. `grok-4.20` is the historical exception (sort minor 2, older than `grok-4.3`). 4.6+ extras already cover later minors and major 5. Language token units from the list are `/10000` (`20000` → $2). |
+| 2026-10-04 | Imagine Video 1.5 Lite is an exact cheaper row, not the flagship | Public models blob (us-east-1): `grok-imagine-video-1.5-lite` is Text + Image → Video at $0.02 / $0.03 / $0.14 per second (480p / 720p / 1080p). It is not an alias of `grok-imagine-video-1.5` ($0.08 / $0.14 / $0.25). Prefix match would bill lite as full 1.5, so the bootstrap row is exact. Inputs omit Audio and Video, so extras are `1080p` only. Video sort compares “not lite” before the numeric suffix, so a date in the id cannot outrank 1.5. Models page still recommends Imagine Video 1.5. `BOOTSTRAP_MODEL` stays `grok-4.7`. Cite: https://docs.x.ai/developers/models https://docs.x.ai/developers/pricing |
 
 ## Dependencies
 
@@ -91,4 +92,4 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 ## Current status
 
 - **In progress**: none — High / Medium / Low drained. Feature map + `need=` shipped
-- **Last reconciled with code**: 2026-09-23 (`BOOTSTRAP_MODEL=grok-4.7`; price row $2 / $6)
+- **Last reconciled with code**: 2026-10-04 (`grok-imagine-video-1.5-lite` exact $0.02 / $0.03 / $0.14; extras `1080p` only; flagship stays `grok-imagine-video-1.5`)

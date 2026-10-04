@@ -1,6 +1,6 @@
 # VideoGeneration
 
-**Last Updated**: 2026-08-31  
+**Last Updated**: 2026-10-04  
 **Related Understanding**: —  
 **Related TODO**: [VideoGeneration-TODO.md](VideoGeneration-TODO.md)
 
@@ -33,9 +33,9 @@ Upstream: `POST /v1/videos/generations`, `POST /v1/videos/extensions`, `GET /v1/
 
 Constants: `XAI_VIDEOS_URL`, `XAI_VIDEO_EXTENSIONS_URL`, `XAI_VIDEO_STATUS_URL` (`https://api.x.ai/v1/videos/{request_id}`), `DEFAULT_VIDEO_MODEL` (`grok-imagine-video-1.5`).
 
-Knobs forwarded on generate (omit unset optionals): `prompt`, `model`, `duration` (1–15s), `aspect_ratio`, `resolution` (`480p` / `720p` / `1080p`; `1080p` contracted to `720p` unless `grok-imagine-video-1.5` T2V/I2V), `image` (`url` / `file_id` via `image_url=` / `image_file_id=` or a dict), `reference_images`, `reference_audios` (`voice_id`, max 3). `purpose` / `parent_id` / `labels` like other media. Extend never sends `aspect_ratio` / `resolution`.
+Knobs forwarded on generate (omit unset optionals): `prompt`, `model`, `duration` (1–15s), `aspect_ratio`, `resolution` (`480p` / `720p` / `1080p`; `1080p` contracted to `720p` unless `grok-imagine-video-1.5` or `grok-imagine-video-1.5-lite` T2V/I2V), `image` (`url` / `file_id` via `image_url=` / `image_file_id=` or a dict), `reference_images`, `reference_audios` (`voice_id`, max 3). `purpose` / `parent_id` / `labels` like other media. Extend never sends `aspect_ratio` / `resolution`.
 
-`extend_video` remaps a known SKU that lacks `video_extend` (omitted model / constructor 1.5 / explicit 1.5) via `contract_model_for_need` → resolve `best` with `need="video_extend"` (quality). Generate stays on 1.5. Unknown pins are left alone. Same extras map as Catalog `feature_options` / `need=`. Video **edits** stay out of this stem.
+`extend_video` remaps a known SKU that lacks `video_extend` (omitted model / constructor 1.5 / explicit 1.5 or 1.5 Lite) via `contract_model_for_need` → resolve `best` with `need="video_extend"` (quality). Generate stays on 1.5. Unknown pins are left alone. Same extras map as Catalog `feature_options` / `need=`. Video **edits** stay out of this stem.
 
 Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `duration`, `model`, `respect_moderation`, `error`. `poll_video` and the wait path share `_normalize_video_payload` so a failed hop keeps the Imagine message (`error.message`, string `error`, or top-level `message`) — not status-only.
 
@@ -50,8 +50,8 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 - Purpose required when a meter is attached
 - Failures record failed usage with `modality="video"`; transport errors are `RuntimeError`
 - Offline contract tests assert URL/auth/JSON body without a live key
-- `1080p` is sent only for `grok-imagine-video-1.5` T2V/I2V; R2V and older `grok-imagine-video` contract `1080p` → `720p` (do not 400). Unknown resolution still rejected. Extend never sends `aspect_ratio` / `resolution`
-- `extend_video` contracts known SKUs missing `video_extend` (1.5 / omitted) to the job’s `best` (`grok-imagine-video`). Generate default stays 1.5. Unknown pins stay.
+- `1080p` is sent for `grok-imagine-video-1.5` and `grok-imagine-video-1.5-lite` T2V/I2V; R2V and older `grok-imagine-video` contract `1080p` → `720p` (do not 400). Unknown resolution still rejected. Extend never sends `aspect_ratio` / `resolution`
+- `extend_video` contracts known SKUs missing `video_extend` (1.5 / 1.5 Lite / omitted) to the job’s `best` (`grok-imagine-video`). Generate default stays 1.5. Unknown pins stay.
 - Optional live smoke: `XAITKIT_LIVE=1` **and** `XAITKIT_LIVE_VIDEO=1` (start + poll + speaking `reference_audios`; slow/expensive; skipped by default live suite). Extend also needs `XAITKIT_LIVE_VIDEO_FILE_ID`.
 
 ## Decisions
@@ -68,6 +68,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 | 2026-08-15 | Required `into=` receive path; deliver `request_id` before wait; sibling cancel ≠ abandon | Coding agents will `gather` long waits and lose billed clips unless the signature forces a keep-alive sink. `VideoInbox.cancel` is the only stop-listening. |
 | 2026-08-15 | `into=` stays video-only | Video is the expensive wait-after-accept. Do not require a sink on chat / image / unary TTS/STT / embed / files. Deferred chat, batch, and Responses already return an id; only add `into=` if those grow a kit-owned wait loop. |
 | 2026-08-15 | `poll_video` keeps `error` | Wait already raised `_video_error_message` and set `VideoReceipt.error`. `wait=False` + poll dropped it in `_normalize_video_payload`, so a failed hop looked like status-only. Same helper now puts `error` on the dict. |
+| 2026-10-04 | 1.5 Lite keeps 1080p on T2V/I2V and cannot extend | Public pricing: Text + Image → Video, with a 1080p rate. The 1080p allow mark is the `imagine-video-1.5` substring, so lite is included. Lite has no `video_extend`, so extend remaps it to quality the same way as 1.5. Generate default stays 1.5. |
 
 ## Dependencies
 
@@ -85,8 +86,8 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 - [x] Extend + poll (or SDK wait) documented and tested
 - [x] Meter purpose + video modality
 - [x] Offline contract tests; optional live smoke stays env-gated
-- [x] 1080p contracted: `grok-imagine-video-1.5` T2V/I2V only; R2V / older video → 720p
-- [x] `extend_video` contracts 1.5 / omitted model to `grok-imagine-video` (generate stays on 1.5)
+- [x] 1080p contracted: `grok-imagine-video-1.5` and `grok-imagine-video-1.5-lite` T2V/I2V; R2V / older video → 720p
+- [x] `extend_video` contracts 1.5 / 1.5 Lite / omitted model to `grok-imagine-video` (generate stays on 1.5)
 - [x] Durable start: required `into=`; `request_id` delivered before wait; wait-cancel ≠ abandon unless `inbox.cancel`
 - [x] `poll_video` / normalize keep Imagine `error` (wait and poll share the same text)
 
@@ -98,4 +99,4 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 
 - **Shipped** (library-only): generate / extend / poll / download + meter + default prices + `prefer_latest_video_model` + 1080p per-model/mode contraction + required `into=` / `VideoInbox` + extend-model contraction via `need=video_extend`
 - **Queued**: none on this stem (edits / Files stay elsewhere)
-- **Last reconciled with code**: 2026-08-15 (`poll_video` keeps Imagine `error`)
+- **Last reconciled with code**: 2026-10-04 (1.5 Lite keeps 1080p on T2V/I2V; extend remaps lite to quality)
