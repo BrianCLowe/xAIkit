@@ -2,7 +2,6 @@
 
 **Last Updated**: 2026-10-04  
 **Related Understanding**: —  
-**Related TODO**: [VideoGeneration-TODO.md](VideoGeneration-TODO.md)
 
 ---
 

@@ -2,7 +2,6 @@
 
 **Last Updated**: 2026-09-17  
 **Related Understanding**: —  
-**Related TODO**: [MediaRest-TODO.md](MediaRest-TODO.md)
 
 ---
 

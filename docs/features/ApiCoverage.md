@@ -2,7 +2,6 @@
 
 **Last Updated**: 2026-09-23  
 **Related Understanding**: —  
-**Related TODO**: [ApiCoverage-TODO.md](ApiCoverage-TODO.md)
 
 ---
 
