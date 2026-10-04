@@ -28,6 +28,7 @@ from xaikit.catalog import (
     models_for_role,
     normalize_intent,
     prefer_latest_model,
+    prefer_latest_video_model,
     resolve_model,
     resolve_model_selection,
     save_catalog_snapshot,
@@ -377,6 +378,58 @@ def test_empty_role_pool_bootstraps_role_default() -> None:
     assert video.model_id == DEFAULT_VIDEO_MODEL
     voice = resolve_model(role="voice", catalog=chat_only)
     assert voice == DEFAULT_VOICE_MODEL
+
+
+def test_video_lite_is_cheapest_and_not_the_flagship() -> None:
+    """1.5 Lite is the $0.02 band. A newer created stamp must not make it best."""
+    video = [
+        ModelInfo(id="grok-imagine-video", capabilities=["video"], created=1),
+        ModelInfo(id="grok-imagine-video-1.5", capabilities=["video"], created=2),
+        ModelInfo(
+            id="grok-imagine-video-1.5-lite",
+            capabilities=["video"],
+            created=99,
+        ),
+    ]
+    assert (
+        resolve_model_selection(intent="cheapest", role="video", catalog=video).model_id
+        == "grok-imagine-video-1.5-lite"
+    )
+    assert (
+        resolve_model_selection(intent="economy", role="video", catalog=video).model_id
+        == "grok-imagine-video-1.5-lite"
+    )
+    assert (
+        resolve_model_selection(intent="best", role="video", catalog=video).model_id
+        == "grok-imagine-video-1.5"
+    )
+    assert prefer_latest_video_model(video) == "grok-imagine-video-1.5"
+    assert (
+        resolve_model(intent="best", role="video", need="video_extend", catalog=video)
+        == "grok-imagine-video"
+    )
+    assert (
+        resolve_model(intent="cheapest", role="video", need="r2v", catalog=video)
+        == "grok-imagine-video"
+    )
+    assert (
+        resolve_model(intent="best", role="video", need="r2v", catalog=video)
+        == "grok-imagine-video-1.5"
+    )
+    assert (
+        resolve_model(intent="cheapest", role="video", need="1080p", catalog=video)
+        == "grok-imagine-video-1.5-lite"
+    )
+    assert (
+        resolve_model(intent="best", role="video", need="1080p", catalog=video)
+        == "grok-imagine-video-1.5"
+    )
+    assert (
+        contract_model_for_need(
+            "grok-imagine-video-1.5-lite", "video_extend", role="video"
+        )
+        == "grok-imagine-video"
+    )
 
 
 def test_need_filters_best_for_the_job() -> None:

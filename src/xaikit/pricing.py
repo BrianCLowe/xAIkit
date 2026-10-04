@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # Refresh: re-read those pages, update the `_DEFAULT_*` dicts below, set PRICE_TABLE_FETCHED.
 PRICE_TABLE_SOURCE_URL = "https://docs.x.ai/developers/pricing"
 PRICE_TABLE_MODELS_URL = "https://docs.x.ai/docs/models"
-PRICE_TABLE_FETCHED = "2026-09-23"
+PRICE_TABLE_FETCHED = "2026-10-04"
 # Daily watch commits this file on master. Installed kits fetch it only to
 # fill a price the response and the in-process catalog did not already have.
 PUBLIC_PRICES_URL = (
@@ -48,7 +48,20 @@ _DEFAULT_MODELS: dict[str, dict[str, float]] = {
 
 # Public Imagine video list rates (USD / second). Estimates, not a billing authority.
 # 480p is the per_second_usd default when resolution is omitted.
+# grok-imagine-video-1.5-lite is an exact key on purpose: price_for
+# prefix-matches, and "grok-imagine-video-1.5-lite" startswith
+# "grok-imagine-video-1.5" ($0.08 / $0.14 / $0.25) when this row is missing.
 _DEFAULT_VIDEO_MODELS: dict[str, dict[str, Any]] = {
+    "grok-imagine-video-1.5-lite": {
+        "input_per_million": 0.0,
+        "output_per_million": 0.0,
+        "per_second_usd": 0.02,
+        "per_second_usd_by_resolution": {
+            "480p": 0.02,
+            "720p": 0.03,
+            "1080p": 0.14,
+        },
+    },
     "grok-imagine-video-1.5": {
         "input_per_million": 0.0,
         "output_per_million": 0.0,

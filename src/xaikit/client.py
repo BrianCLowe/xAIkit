@@ -2857,9 +2857,10 @@ class XaiClient:
         Default ``wait=True`` polls until ``done``. Pass ``wait=False`` to return
         the start payload (``request_id``) and call :meth:`poll_video` yourself.
 
-        ``1080p`` is kept on ``grok-imagine-video-1.5`` text-to-video and
-        image-to-video; reference-to-video and older ``grok-imagine-video``
-        contract it to ``720p``.
+        ``1080p`` is kept on ``grok-imagine-video-1.5`` and
+        ``grok-imagine-video-1.5-lite`` text-to-video and image-to-video;
+        reference-to-video and older ``grok-imagine-video`` contract it to
+        ``720p``.
         """
         tag = self._require_purpose_if_metered(purpose)
         sink = require_video_into(into)
@@ -2936,8 +2937,8 @@ class XaiClient:
 
         ``into=`` is required — same durable receive path as :meth:`generate_video`.
 
-        ``1.5`` cannot extend. Omitted model or a known SKU missing
-        ``video_extend`` remaps to the job's ``best`` (quality).
+        ``1.5`` and ``1.5-lite`` cannot extend. Omitted model or a known SKU
+        missing ``video_extend`` remaps to the job's ``best`` (quality).
         """
         tag = self._require_purpose_if_metered(purpose)
         sink = require_video_into(into)
@@ -4003,7 +4004,7 @@ _VIDEO_1080P_SKU_MARK = "imagine-video-1.5"
 
 
 def _video_supports_1080p(model: str | None, *, is_r2v: bool = False) -> bool:
-    """True only for ``grok-imagine-video-1.5`` text-to-video / image-to-video."""
+    """True for Imagine Video 1.5 and 1.5 Lite text-to-video / image-to-video."""
     if is_r2v:
         return False
     slug = (model or "").strip().lower().replace("_", "-")
@@ -4018,9 +4019,9 @@ def _contract_video_resolution(
 ) -> str | None:
     """Allowlist then clamp ``1080p`` → ``720p`` when the SKU/mode rejects it.
 
-    Official docs: 1080p is ``grok-imagine-video-1.5`` T2V/I2V only; R2V is
-    capped at 720p; older ``grok-imagine-video`` has no 1080p. Unknown values
-    still raise via :func:`_optional_resolution` (do not invent 4k).
+    Official docs: 1080p is Imagine Video 1.5 (including ``-lite``) T2V/I2V
+    only; R2V is capped at 720p; older ``grok-imagine-video`` has no 1080p.
+    Unknown values still raise via :func:`_optional_resolution` (do not invent 4k).
     """
     raw = _optional_resolution(value)
     if raw is None:
