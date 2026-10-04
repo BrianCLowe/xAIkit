@@ -16,7 +16,7 @@
 
 **Active task:** — (Human verify extras closed via tester 2026-08-16). Model-watch Action is the inbox when public docs drift.  
 **Blocked by:** —  
-**Last session:** 2026-10-04 — Issue #69: `grok-imagine-video-1.5-lite` is an exact cheaper video row (`1080p` only). Video sort demotes `-lite` so `best` stays `grok-imagine-video-1.5`. Watch baseline includes the slug.
+**Last session:** 2026-10-04 — Issue #69: `grok-imagine-video-1.5-lite` is an exact cheaper video row (`1080p` only). Video sort compares “not lite” before the numeric suffix, so a dated lite id stays under `grok-imagine-video-1.5`. Watch baseline includes the slug. Package version is `0.1.3`.
 
 ---
 
