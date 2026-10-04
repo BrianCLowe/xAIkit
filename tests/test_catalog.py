@@ -381,7 +381,7 @@ def test_empty_role_pool_bootstraps_role_default() -> None:
 
 
 def test_video_lite_is_cheapest_and_not_the_flagship() -> None:
-    """1.5 Lite is the $0.02 band. A newer created stamp must not make it best."""
+    """1.5 Lite is the $0.02 band. A date in the id must not make it best."""
     video = [
         ModelInfo(id="grok-imagine-video", capabilities=["video"], created=1),
         ModelInfo(id="grok-imagine-video-1.5", capabilities=["video"], created=2),
@@ -390,6 +390,16 @@ def test_video_lite_is_cheapest_and_not_the_flagship() -> None:
             capabilities=["video"],
             created=99,
         ),
+        ModelInfo(
+            id="grok-imagine-video-1.5-lite-2026-10-04",
+            capabilities=["video"],
+            created=100,
+        ),
+        ModelInfo(
+            id="grok-imagine-video-1.5-2026-05-30-lite",
+            capabilities=["video"],
+            created=101,
+        ),
     ]
     assert (
         resolve_model_selection(intent="cheapest", role="video", catalog=video).model_id
@@ -397,7 +407,7 @@ def test_video_lite_is_cheapest_and_not_the_flagship() -> None:
     )
     assert (
         resolve_model_selection(intent="economy", role="video", catalog=video).model_id
-        == "grok-imagine-video-1.5-lite"
+        == "grok-imagine-video"
     )
     assert (
         resolve_model_selection(intent="best", role="video", catalog=video).model_id

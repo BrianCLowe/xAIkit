@@ -1089,10 +1089,11 @@ def _version_tuple(model: ModelInfo) -> tuple:
 
 
 def _imagine_video_sort_key(model: ModelInfo) -> tuple:
-    """Newest grok-imagine-video* id: numeric suffix, then not-lite, then created.
+    """Newest grok-imagine-video* id. ``-lite`` loses to every non-lite id.
 
-    ``-lite`` shares the 1.5 numbers but is the budget SKU. Demote it before
-    ``created`` so a newer stamp cannot make it ``best``.
+    The lite flag is first so a calendar suffix (``-lite-2026-10-04``) cannot
+    outrank ``grok-imagine-video-1.5``. Among lite ids, the numeric suffix
+    still orders them.
     """
     mid = (model.id or "").strip().lower().replace("_", "-")
     rest = mid
@@ -1105,7 +1106,7 @@ def _imagine_video_sort_key(model: ModelInfo) -> tuple:
     is_lite = 0 if _is_imagine_video_lite(mid) else 1
     is_latest = 1 if rest.endswith("latest") or "-latest-" in f"-{rest}-" else 0
     created = model.created or 0
-    return (tuple(nums) if nums else (0,), is_lite, is_latest, created, mid)
+    return (is_lite, tuple(nums) if nums else (0,), is_latest, created, mid)
 
 
 def _newest_key(model: ModelInfo, role: str) -> tuple:
