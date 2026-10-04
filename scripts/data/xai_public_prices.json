@@ -168,11 +168,6 @@
       "output_per_million": 0.0,
       "per_minute_usd": 0.08
     },
-    "grok-voice-transcribe-1.0": {
-      "input_per_million": 0.0,
-      "output_per_million": 0.0,
-      "per_minute_usd": 0.00333334
-    },
     "grok-voice-transcribe-2.0": {
       "input_per_million": 0.0,
       "output_per_million": 0.0,
