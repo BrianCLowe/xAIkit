@@ -1,6 +1,6 @@
 # xAIkit — Human TODO
 
-**Last Updated**: 2026-09-18  
+**Last Updated**: 2026-10-06  
 **Related**: [Master_Index.md](Master_Index.md) · [Tooling.md](Tooling.md) · [workflow/human-todo.md](templates/agent/workflow/human-todo.md) §13
 
 ---
@@ -19,6 +19,7 @@ Keep this list short — **one `- [ ]` list item per human action**.
 **Claim / reassign:** override only (*assign playtest to QA* / *I’ll take it*) — not the bulk path. One-shot *apply defaults to Open* fills leftover unassigned rows after enable **only if that `role_id` is Active on Team-Roster**; else leave `unassigned`.
 
 - [ ] **REST embed live** (`playtest`) — 2026-08-16 — Split from ApiCoverage / Usage extras. Team `GET /v1/embedding-models` is empty; `POST /v1/embeddings` with OpenAPI example `v1` (and `grok-embedding-small`) 404s. Inference key already has `api-key:model:*`. Not a management-key ACL. Re-run when the team has an embed SKU. Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) · also [UsageObservability-TODO.md](features/UsageObservability-TODO.md) · Blocks: none
+- [ ] **OAuth authorize URL that already has a query** (`decide`) — 2026-10-06 — `build_oauth_authorize_url` only strips a trailing `?`, then always adds `?client_id=...`. A caller URL that already has a query (`https://idp.example/authorize?audience=api`) becomes two question marks and a broken URL. The spec says the URL is caller-supplied and must send `response_type=code`, scope `openid`, and `client_id`. It does not say whether an existing query is kept, replaced, or rejected. Owner: [ConnectAuth.md](features/ConnectAuth.md) · Blocks: none
 
 ---
 
