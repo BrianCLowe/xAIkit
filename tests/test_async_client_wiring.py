@@ -477,6 +477,51 @@ def test_async_open_stt_monkeypatches_connect_and_meters(
     asyncio.run(_run())
 
 
+def test_async_stt_connect_failure_records_failed_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _run() -> None:
+        sink = InMemoryUsageSink()
+        meter = UsageMeter(sink=sink)
+        client = _client(usage_meter=meter)
+
+        async def _boom(*_a: Any, **_k: Any) -> Any:
+            raise OSError("offline")
+
+        monkeypatch.setattr("xaikit.async_client.connect_stt_websocket_async", _boom)
+        with pytest.raises(RuntimeError, match="STT session connect failed"):
+            await client.open_stt_session(purpose="demo.stt.fail")
+
+        ev = list(sink.iter_events())[0]
+        assert ev.success is False
+        assert ev.modality == "stt"
+        assert ev.purpose == "demo.stt.fail"
+
+    asyncio.run(_run())
+
+
+def test_async_stt_connect_401_skips_meter_then_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _run() -> None:
+        sink = InMemoryUsageSink()
+        client = _client(usage_meter=UsageMeter(sink=sink))
+
+        class _Unauthorized(Exception):
+            status_code = 401
+
+        async def _boom(*_a: Any, **_k: Any) -> Any:
+            raise _Unauthorized("HTTP 401")
+
+        monkeypatch.setattr("xaikit.async_client.connect_stt_websocket_async", _boom)
+        with pytest.raises(RuntimeError, match="unauthorized"):
+            await client.open_stt_session(purpose="demo.stt.401")
+
+        assert list(sink.iter_events()) == []
+
+    asyncio.run(_run())
+
+
 def test_purpose_required_when_metered() -> None:
     async def _run() -> None:
         meter = UsageMeter(sink=InMemoryUsageSink())

@@ -256,6 +256,23 @@ def test_connect_failure_records_failed_usage(monkeypatch: pytest.MonkeyPatch) -
     assert ev.purpose == "demo.stt.fail"
 
 
+def test_connect_401_skips_meter_then_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    sink = InMemoryUsageSink()
+    client = _client(usage_meter=UsageMeter(sink=sink))
+
+    class _Unauthorized(Exception):
+        status_code = 401
+
+    def _boom(*_a: Any, **_k: Any) -> Any:
+        raise _Unauthorized("HTTP 401")
+
+    monkeypatch.setattr("xaikit.client.connect_stt_websocket", _boom)
+    with pytest.raises(RuntimeError, match="unauthorized"):
+        client.open_stt_session(purpose="demo.stt.401")
+
+    assert list(sink.iter_events()) == []
+
+
 def test_events_yield_partial_then_done(monkeypatch: pytest.MonkeyPatch) -> None:
     incoming = [
         _created(),

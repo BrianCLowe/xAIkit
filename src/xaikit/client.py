@@ -3262,6 +3262,8 @@ class XaiClient:
                 close_timeout=_REALTIME_CLOSE_TIMEOUT,
             )
         except Exception as exc:
+            if _is_unauthorized_status(exc):
+                raise RuntimeError("xAI STT unauthorized — check API key") from exc
             self._record(
                 purpose=tag,
                 usage=None,
