@@ -44,6 +44,7 @@ Mint body is documented only: `{"expires_after": {"seconds": N}}`. Default `N=30
 - Non-positive / empty `expires_after` rejected before mint HTTP
 - Purpose required when a meter is attached
 - Failures record failed usage with `modality="realtime"`; transport errors are `RuntimeError`; meter/trace must not swallow the user-facing error
+- A connect 401 skips the meter, then raises `RuntimeError`
 - Session usage is recorded once per session (close or first failure), with wall-clock `duration` seconds for price estimates
 - Minting a client secret records purpose/success only (`modality="realtime"`, no duration, no tokens, no USD — not an STS audio-minute)
 - Contract tests mock the WebSocket and mint HTTP — no live mic in CI

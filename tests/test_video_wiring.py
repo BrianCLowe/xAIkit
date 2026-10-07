@@ -454,6 +454,87 @@ def test_video_http_error_records_failed_usage(monkeypatch: pytest.MonkeyPatch) 
     assert ev.purpose == "demo.video.fail"
 
 
+def test_wait_poll_401_skips_meter(monkeypatch: pytest.MonkeyPatch) -> None:
+    sink = InMemoryUsageSink()
+    client = _client(usage_meter=UsageMeter(sink=sink))
+    monkeypatch.setattr("xaikit.client.time.sleep", lambda *_a, **_k: None)
+    cap = _HttpCapture()
+    cap.install_post(
+        monkeypatch,
+        _json_response("POST", XAI_VIDEOS_URL, 200, {"request_id": "req-401"}),
+    )
+    status_url = XAI_VIDEO_STATUS_URL.format(request_id="req-401")
+    cap.install_gets(
+        monkeypatch,
+        [_json_response("GET", status_url, 401, {"error": "unauthorized"})],
+    )
+    with pytest.raises(RuntimeError, match="unauthorized") as raised:
+        client.generate_video(
+            "a cube",
+            purpose="demo.video.401",
+            into=[],
+            wait=True,
+            interval=0,
+            timeout=1,
+        )
+    assert raised.value.status_code == 401
+    assert list(sink.iter_events()) == []
+
+
+def test_async_wait_poll_401_skips_meter(monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+
+    from xaikit import AsyncXaiClient
+
+    class FakeAsyncClient:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        async def __aenter__(self) -> FakeAsyncClient:
+            return self
+
+        async def __aexit__(self, *args: Any) -> bool:
+            return False
+
+        async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+            if method == "POST":
+                return httpx.Response(
+                    200,
+                    json={"request_id": "req-401"},
+                    request=httpx.Request(method, url),
+                )
+            return httpx.Response(
+                401,
+                json={"error": "unauthorized"},
+                request=httpx.Request(method, url),
+            )
+
+    monkeypatch.setattr("xaikit.async_client.httpx.AsyncClient", FakeAsyncClient)
+
+    async def _run() -> None:
+        sink = InMemoryUsageSink()
+        client = AsyncXaiClient(
+            provider=MockChatProvider(),
+            model="grok-3-mini",
+            api_key="test-key",
+            usage_meter=UsageMeter(sink=sink),
+            retry_policy=default_retry_policy(max_attempts=1, backoff_seconds=0.0),
+        )
+        with pytest.raises(RuntimeError, match="unauthorized") as raised:
+            await client.generate_video(
+                "a cube",
+                purpose="demo.video.401",
+                into=[],
+                wait=True,
+                interval=0,
+                timeout=1,
+            )
+        assert raised.value.status_code == 401
+        assert list(sink.iter_events()) == []
+
+    asyncio.run(_run())
+
+
 def test_download_video_gets_url_and_returns_bytes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
