@@ -1,6 +1,6 @@
 # xAIkit — Human TODO
 
-**Last Updated**: 2026-10-06  
+**Last Updated**: 2026-10-08  
 **Related**: [Master_Index.md](Master_Index.md) · [Tooling.md](Tooling.md) · [workflow/human-todo.md](templates/agent/workflow/human-todo.md) §13
 
 ---
@@ -20,6 +20,7 @@ Keep this list short — **one `- [ ]` list item per human action**.
 
 - [ ] **REST embed live** (`playtest`) — 2026-08-16 — Split from ApiCoverage / Usage extras. Team `GET /v1/embedding-models` is empty; `POST /v1/embeddings` with OpenAPI example `v1` (and `grok-embedding-small`) 404s. Inference key already has `api-key:model:*`. Not a management-key ACL. Re-run when the team has an embed SKU. Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) · also [UsageObservability-TODO.md](features/UsageObservability-TODO.md) · Blocks: none
 - [ ] **OAuth authorize URL that already has a query** (`decide`) — 2026-10-06 — `build_oauth_authorize_url` only strips a trailing `?`, then always adds `?client_id=...`. A caller URL that already has a query (`https://idp.example/authorize?audience=api`) becomes two question marks and a broken URL. The spec says the URL is caller-supplied and must send `response_type=code`, scope `openid`, and `client_id`. It does not say whether an existing query is kept, replaced, or rejected. Owner: [ConnectAuth.md](features/ConnectAuth.md) · Blocks: none
+- [ ] **Image-token estimates** (`decide`) — 2026-10-08 — When a chat usage payload has both `prompt_tokens` and `prompt_image_tokens`, should the meter add the image-token rate on top of `prompt_tokens`, or treat image tokens as already inside `prompt_tokens` and only reprice that slice? The estimator adds them on top. Live chat never forwards the field, so neither happens today. Owner: [UsageObservability.md](features/UsageObservability.md) · Blocks: none
 
 ---
 
