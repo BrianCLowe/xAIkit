@@ -426,18 +426,61 @@ def _sdk_chat_kwargs(
     return kwargs
 
 
+def _sdk_cost_ticks(usage_obj: Any) -> int | None:
+    """Server ``cost_in_usd_ticks`` only when the proto field is set.
+
+    Unset optional ticks stay absent. Copying the proto default ``0`` would
+    price the call at $0 and skip the table.
+    """
+    has = getattr(usage_obj, "HasField", None)
+    if not callable(has):
+        return None
+    try:
+        present = bool(has("cost_in_usd_ticks"))
+    except (ValueError, KeyError):
+        return None
+    if not present:
+        return None
+    try:
+        return int(usage_obj.cost_in_usd_ticks)
+    except (TypeError, ValueError, AttributeError):
+        return None
+
+
+def _sdk_cached_prompt_text_tokens(usage_obj: Any) -> int | None:
+    """Non-zero ``cached_prompt_text_tokens``. Zero is the proto default."""
+    raw = getattr(usage_obj, "cached_prompt_text_tokens", None)
+    if raw is None:
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if value <= 0:
+        return None
+    return value
+
+
 def _usage_from_sdk(obj: Any) -> dict[str, Any] | None:
     usage_obj = getattr(obj, "usage", None)
     if not usage_obj:
         return None
     prompt = getattr(usage_obj, "prompt_tokens", None)
     completion = getattr(usage_obj, "completion_tokens", None)
-    if prompt is None and completion is None:
+    has_tokens = prompt is not None or completion is not None
+    ticks = _sdk_cost_ticks(usage_obj)
+    cached = _sdk_cached_prompt_text_tokens(usage_obj)
+    if not has_tokens and ticks is None and cached is None:
         return None
-    return {
-        "prompt_tokens": prompt,
-        "completion_tokens": completion,
-    }
+    out: dict[str, Any] = {}
+    if has_tokens:
+        out["prompt_tokens"] = prompt
+        out["completion_tokens"] = completion
+    if ticks is not None:
+        out["cost_in_usd_ticks"] = ticks
+    if cached is not None:
+        out["cached_prompt_text_tokens"] = cached
+    return out
 
 
 def _text_from_sdk(value: Any) -> str:

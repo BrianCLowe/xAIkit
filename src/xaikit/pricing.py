@@ -283,7 +283,9 @@ def _token_estimate_usd(
         output_rate = price.output_long_per_million
     if long and price.cached_input_long_per_million is not None:
         cached_rate = price.cached_input_long_per_million
-    cached = _usage_int(usage, "cached_tokens", "cached_prompt_tokens")
+    cached = _usage_int(
+        usage, "cached_tokens", "cached_prompt_tokens", "cached_prompt_text_tokens"
+    )
     image_tokens = _usage_int(usage, "prompt_image_tokens", "image_tokens")
     uncached = pt
     cached_cost = 0.0
