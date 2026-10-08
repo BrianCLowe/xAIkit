@@ -3072,6 +3072,8 @@ class XaiClient:
                 close_timeout=_REALTIME_CLOSE_TIMEOUT,
             )
         except Exception as exc:
+            if _is_unauthorized_status(exc):
+                raise RuntimeError("xAI realtime unauthorized — check API key") from exc
             self._record(
                 purpose=tag,
                 usage=None,
@@ -3508,13 +3510,14 @@ class XaiClient:
             try:
                 payload = self._get_video_status(request_id)
             except Exception as exc:
-                self._record_video_failed(
-                    tag=tag,
-                    parent_id=parent_id,
-                    labels=labels,
-                    error=_error_class(exc),
-                    video_model=video_model,
-                )
+                if not _is_unauthorized_status(exc):
+                    self._record_video_failed(
+                        tag=tag,
+                        parent_id=parent_id,
+                        labels=labels,
+                        error=_error_class(exc),
+                        video_model=video_model,
+                    )
                 raise
 
             status = str(payload.get("status") or "").strip().lower()
@@ -3589,7 +3592,9 @@ class XaiClient:
             logger.exception("xAI video poll request failed")
             raise RuntimeError(f"Video poll request failed: {exc}") from exc
         if response.status_code == 401:
-            raise RuntimeError("xAI video poll unauthorized — check API key")
+            err = RuntimeError("xAI video poll unauthorized — check API key")
+            err.status_code = 401  # type: ignore[attr-defined]
+            raise err
         if response.status_code >= 400:
             detail = response.text[:500] if response.text else response.reason_phrase
             logger.error("xAI video poll error %s: %s", response.status_code, detail)

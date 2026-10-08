@@ -522,6 +522,28 @@ def test_async_stt_connect_401_skips_meter_then_raises(
     asyncio.run(_run())
 
 
+def test_async_realtime_connect_401_skips_meter_then_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _run() -> None:
+        sink = InMemoryUsageSink()
+        client = _client(usage_meter=UsageMeter(sink=sink))
+
+        class _Unauthorized(Exception):
+            status_code = 401
+
+        async def _boom(*_a: Any, **_k: Any) -> Any:
+            raise _Unauthorized("HTTP 401")
+
+        monkeypatch.setattr("xaikit.async_client.connect_realtime_websocket_async", _boom)
+        with pytest.raises(RuntimeError, match="unauthorized"):
+            await client.open_realtime_session(purpose="demo.realtime.401")
+
+        assert list(sink.iter_events()) == []
+
+    asyncio.run(_run())
+
+
 def test_purpose_required_when_metered() -> None:
     async def _run() -> None:
         meter = UsageMeter(sink=InMemoryUsageSink())

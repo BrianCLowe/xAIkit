@@ -48,6 +48,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 - Wait loop: `pending` → keep going; `done` → return result; `failed` / `expired` → deliver receipt with `error` then `RuntimeError`. `poll_video` is a single GET and returns the same normalized dict (including pending and failed). Failed polls set `error` from the Imagine payload; they do not raise.
 - Purpose required when a meter is attached
 - Failures record failed usage with `modality="video"`; transport errors are `RuntimeError`
+- A 401 while polling during wait skips the meter, then raises `RuntimeError`
 - Offline contract tests assert URL/auth/JSON body without a live key
 - `1080p` is sent for `grok-imagine-video-1.5` and `grok-imagine-video-1.5-lite` T2V/I2V; R2V and older `grok-imagine-video` contract `1080p` → `720p` (do not 400). Unknown resolution still rejected. Extend never sends `aspect_ratio` / `resolution`
 - `extend_video` contracts known SKUs missing `video_extend` (1.5 / 1.5 Lite / omitted) to the job’s `best` (`grok-imagine-video`). Generate default stays 1.5. Unknown pins stay.
