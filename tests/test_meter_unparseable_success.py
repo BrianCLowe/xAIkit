@@ -60,6 +60,24 @@ def _async_client(sink: InMemoryUsageSink) -> AsyncXaiClient:
     )
 
 
+# JSON values that are not objects. None is encoded as JSON null, not omitted.
+_NON_OBJECT_BODIES = [
+    pytest.param([], id="list"),
+    pytest.param("clip", id="string"),
+    pytest.param(0, id="number"),
+    pytest.param(None, id="null"),
+]
+
+# Objects with no usable request_id. Whitespace is spaces and a tab.
+_MISSING_REQUEST_IDS = [
+    pytest.param({"status": "pending"}, id="absent"),
+    pytest.param({"request_id": ""}, id="empty"),
+    pytest.param({"request_id": None}, id="null"),
+    pytest.param({"request_id": " \t"}, id="whitespace"),
+    pytest.param({"request_id": 0}, id="zero"),
+]
+
+
 def _response(
     status_code: int,
     *,
@@ -76,6 +94,12 @@ def _response(
     else:
         kwargs["json"] = payload
     return httpx.Response(**kwargs)
+
+
+def _json_value_response(url: str, body: Any) -> httpx.Response:
+    if body is None:
+        return _response(200, url=url, content=b"null")
+    return _response(200, url=url, payload=body)
 
 
 def _install_post(monkeypatch: pytest.MonkeyPatch, response: httpx.Response) -> None:
@@ -337,193 +361,80 @@ def test_xk_ac_meter_1_async_video_non_json_records_one_failed_event(
     asyncio.run(_run())
 
 
-def test_xk_ac_meter_2_sync_video_json_array_records_one_failed_event(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("body", _NON_OBJECT_BODIES)
+def test_xk_ac_meter_2_sync_video_non_object(
+    monkeypatch: pytest.MonkeyPatch, body: Any
 ) -> None:
-    sibling_usd = _sync_http_failure_usd(monkeypatch, "video")
-    sink = InMemoryUsageSink()
-    client = _sync_client(sink)
-    _install_post(monkeypatch, _response(200, url=XAI_VIDEOS_URL, payload=[]))
-    with pytest.raises(RuntimeError, match=rf"^{_VIDEO_UNEXPECTED}$") as raised:
-        client.generate_video(
-            "a cube",
-            purpose="demo.video.array",
-            parent_id=_PARENT,
-            labels=_LABELS,
-            into=[],
-            wait=False,
-        )
-    assert str(raised.value) == _VIDEO_UNEXPECTED
-    assert raised.value.__cause__ is None
-    _one_failed(
-        sink,
-        modality="video",
-        raised=raised.value,
-        estimated_usd=sibling_usd,
-        purpose="demo.video.array",
-        model=DEFAULT_VIDEO_MODEL,
-    )
-
-
-def test_xk_ac_meter_2_async_video_json_array_records_one_failed_event(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def _run() -> None:
-        sibling_usd = await _async_http_failure_usd(monkeypatch, "video")
-        sink = InMemoryUsageSink()
-        client = _async_client(sink)
-        _install_async(monkeypatch, _response(200, url=XAI_VIDEOS_URL, payload=[]))
-        with pytest.raises(RuntimeError, match=rf"^{_VIDEO_UNEXPECTED}$") as raised:
-            await client.generate_video(
-                "a cube",
-                purpose="demo.video.array",
-                parent_id=_PARENT,
-                labels=_LABELS,
-                into=[],
-                wait=False,
-            )
-        assert str(raised.value) == _VIDEO_UNEXPECTED
-        assert raised.value.__cause__ is None
-        _one_failed(
-            sink,
-            modality="video",
-            raised=raised.value,
-            estimated_usd=sibling_usd,
-            purpose="demo.video.array",
-            model=DEFAULT_VIDEO_MODEL,
-        )
-
-    asyncio.run(_run())
-
-
-def test_xk_ac_meter_2_sync_video_object_missing_request_id_records_one_failed_event(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    sibling_usd = _sync_http_failure_usd(monkeypatch, "video")
-    sink = InMemoryUsageSink()
-    client = _sync_client(sink)
-    _install_post(
+    purpose = "demo.video.nonobject"
+    _assert_sync_unusable(
         monkeypatch,
-        _response(200, url=XAI_VIDEOS_URL, payload={"status": "pending"}),
-    )
-    with pytest.raises(RuntimeError, match=rf"^{_VIDEO_MISSING}$") as raised:
-        client.generate_video(
-            "a cube",
-            purpose="demo.video.noreqid",
-            parent_id=_PARENT,
-            labels=_LABELS,
-            into=[],
-            wait=False,
-        )
-    assert str(raised.value) == _VIDEO_MISSING
-    assert raised.value.__cause__ is None
-    _one_failed(
-        sink,
+        kind="video",
+        message=_VIDEO_UNEXPECTED,
         modality="video",
-        raised=raised.value,
-        estimated_usd=sibling_usd,
-        purpose="demo.video.noreqid",
         model=DEFAULT_VIDEO_MODEL,
+        purpose=purpose,
+        response=_json_value_response(XAI_VIDEOS_URL, body),
+        call=lambda client: _video_sync(client, purpose),
+        json_cause=False,
     )
 
 
-def test_xk_ac_meter_2_async_video_object_missing_request_id_records_one_failed_event(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("body", _NON_OBJECT_BODIES)
+def test_xk_ac_meter_2_async_video_non_object(
+    monkeypatch: pytest.MonkeyPatch, body: Any
 ) -> None:
-    async def _run() -> None:
-        sibling_usd = await _async_http_failure_usd(monkeypatch, "video")
-        sink = InMemoryUsageSink()
-        client = _async_client(sink)
-        _install_async(
+    purpose = "demo.video.nonobject"
+    asyncio.run(
+        _assert_async_unusable(
             monkeypatch,
-            _response(200, url=XAI_VIDEOS_URL, payload={"status": "pending"}),
-        )
-        with pytest.raises(RuntimeError, match=rf"^{_VIDEO_MISSING}$") as raised:
-            await client.generate_video(
-                "a cube",
-                purpose="demo.video.noreqid",
-                parent_id=_PARENT,
-                labels=_LABELS,
-                into=[],
-                wait=False,
-            )
-        assert str(raised.value) == _VIDEO_MISSING
-        assert raised.value.__cause__ is None
-        _one_failed(
-            sink,
+            kind="video",
+            message=_VIDEO_UNEXPECTED,
             modality="video",
-            raised=raised.value,
-            estimated_usd=sibling_usd,
-            purpose="demo.video.noreqid",
             model=DEFAULT_VIDEO_MODEL,
+            purpose=purpose,
+            response=_json_value_response(XAI_VIDEOS_URL, body),
+            call=lambda client: _video_async(client, purpose),
+            json_cause=False,
         )
+    )
 
-    asyncio.run(_run())
 
-
-def test_xk_ac_meter_2_sync_video_empty_request_id_records_one_failed_event(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("body", _MISSING_REQUEST_IDS)
+def test_xk_ac_meter_2_sync_video_missing_request_id(
+    monkeypatch: pytest.MonkeyPatch, body: dict[str, Any]
 ) -> None:
-    sibling_usd = _sync_http_failure_usd(monkeypatch, "video")
-    sink = InMemoryUsageSink()
-    client = _sync_client(sink)
-    _install_post(
+    purpose = "demo.video.missing"
+    _assert_sync_unusable(
         monkeypatch,
-        _response(200, url=XAI_VIDEOS_URL, payload={"request_id": ""}),
-    )
-    with pytest.raises(RuntimeError, match=rf"^{_VIDEO_MISSING}$") as raised:
-        client.generate_video(
-            "a cube",
-            purpose="demo.video.emptyreq",
-            parent_id=_PARENT,
-            labels=_LABELS,
-            into=[],
-            wait=False,
-        )
-    assert str(raised.value) == _VIDEO_MISSING
-    assert raised.value.__cause__ is None
-    _one_failed(
-        sink,
+        kind="video",
+        message=_VIDEO_MISSING,
         modality="video",
-        raised=raised.value,
-        estimated_usd=sibling_usd,
-        purpose="demo.video.emptyreq",
         model=DEFAULT_VIDEO_MODEL,
+        purpose=purpose,
+        response=_response(200, url=XAI_VIDEOS_URL, payload=body),
+        call=lambda client: _video_sync(client, purpose),
+        json_cause=False,
     )
 
 
-def test_xk_ac_meter_2_async_video_empty_request_id_records_one_failed_event(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("body", _MISSING_REQUEST_IDS)
+def test_xk_ac_meter_2_async_video_missing_request_id(
+    monkeypatch: pytest.MonkeyPatch, body: dict[str, Any]
 ) -> None:
-    async def _run() -> None:
-        sibling_usd = await _async_http_failure_usd(monkeypatch, "video")
-        sink = InMemoryUsageSink()
-        client = _async_client(sink)
-        _install_async(
+    purpose = "demo.video.missing"
+    asyncio.run(
+        _assert_async_unusable(
             monkeypatch,
-            _response(200, url=XAI_VIDEOS_URL, payload={"request_id": ""}),
-        )
-        with pytest.raises(RuntimeError, match=rf"^{_VIDEO_MISSING}$") as raised:
-            await client.generate_video(
-                "a cube",
-                purpose="demo.video.emptyreq",
-                parent_id=_PARENT,
-                labels=_LABELS,
-                into=[],
-                wait=False,
-            )
-        assert str(raised.value) == _VIDEO_MISSING
-        assert raised.value.__cause__ is None
-        _one_failed(
-            sink,
+            kind="video",
+            message=_VIDEO_MISSING,
             modality="video",
-            raised=raised.value,
-            estimated_usd=sibling_usd,
-            purpose="demo.video.emptyreq",
             model=DEFAULT_VIDEO_MODEL,
+            purpose=purpose,
+            response=_response(200, url=XAI_VIDEOS_URL, payload=body),
+            call=lambda client: _video_async(client, purpose),
+            json_cause=False,
         )
-
-    asyncio.run(_run())
+    )
 
 
 def test_xk_ac_meter_3_sync_imagine_non_json_records_one_failed_event(
@@ -653,6 +564,28 @@ async def _assert_async_unusable(
     )
 
 
+def _video_sync(client: XaiClient, purpose: str) -> None:
+    client.generate_video(
+        "a cube",
+        purpose=purpose,
+        parent_id=_PARENT,
+        labels=_LABELS,
+        into=[],
+        wait=False,
+    )
+
+
+async def _video_async(client: AsyncXaiClient, purpose: str) -> None:
+    await client.generate_video(
+        "a cube",
+        purpose=purpose,
+        parent_id=_PARENT,
+        labels=_LABELS,
+        into=[],
+        wait=False,
+    )
+
+
 def _extend_sync(client: XaiClient, purpose: str) -> None:
     client.extend_video(
         "a cube",
@@ -731,25 +664,29 @@ def test_xk_ac_meter_1_async_extend_video_non_json_records_one_failed_event(
     )
 
 
-def test_xk_ac_meter_2_sync_extend_video_json_array_records_one_failed_event(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("body", _NON_OBJECT_BODIES)
+def test_xk_ac_meter_2_sync_extend_non_object(
+    monkeypatch: pytest.MonkeyPatch, body: Any
 ) -> None:
+    purpose = "demo.extend.nonobject"
     _assert_sync_unusable(
         monkeypatch,
         kind="extend",
         message=_EXTEND_UNEXPECTED,
         modality="video",
         model=_EXTEND_MODEL,
-        purpose="demo.extend.array",
-        response=_response(200, url=XAI_VIDEO_EXTENSIONS_URL, payload=[]),
-        call=lambda client: _extend_sync(client, "demo.extend.array"),
+        purpose=purpose,
+        response=_json_value_response(XAI_VIDEO_EXTENSIONS_URL, body),
+        call=lambda client: _extend_sync(client, purpose),
         json_cause=False,
     )
 
 
-def test_xk_ac_meter_2_async_extend_video_json_array_records_one_failed_event(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("body", _NON_OBJECT_BODIES)
+def test_xk_ac_meter_2_async_extend_non_object(
+    monkeypatch: pytest.MonkeyPatch, body: Any
 ) -> None:
+    purpose = "demo.extend.nonobject"
     asyncio.run(
         _assert_async_unusable(
             monkeypatch,
@@ -757,33 +694,37 @@ def test_xk_ac_meter_2_async_extend_video_json_array_records_one_failed_event(
             message=_EXTEND_UNEXPECTED,
             modality="video",
             model=_EXTEND_MODEL,
-            purpose="demo.extend.array",
-            response=_response(200, url=XAI_VIDEO_EXTENSIONS_URL, payload=[]),
-            call=lambda client: _extend_async(client, "demo.extend.array"),
+            purpose=purpose,
+            response=_json_value_response(XAI_VIDEO_EXTENSIONS_URL, body),
+            call=lambda client: _extend_async(client, purpose),
             json_cause=False,
         )
     )
 
 
-def test_xk_ac_meter_2_sync_extend_video_missing_request_id_records_one_failed_event(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("body", _MISSING_REQUEST_IDS)
+def test_xk_ac_meter_2_sync_extend_missing_request_id(
+    monkeypatch: pytest.MonkeyPatch, body: dict[str, Any]
 ) -> None:
+    purpose = "demo.extend.missing"
     _assert_sync_unusable(
         monkeypatch,
         kind="extend",
         message=_EXTEND_MISSING,
         modality="video",
         model=_EXTEND_MODEL,
-        purpose="demo.extend.noreqid",
-        response=_response(200, url=XAI_VIDEO_EXTENSIONS_URL, payload={"status": "pending"}),
-        call=lambda client: _extend_sync(client, "demo.extend.noreqid"),
+        purpose=purpose,
+        response=_response(200, url=XAI_VIDEO_EXTENSIONS_URL, payload=body),
+        call=lambda client: _extend_sync(client, purpose),
         json_cause=False,
     )
 
 
-def test_xk_ac_meter_2_async_extend_video_missing_request_id_records_one_failed_event(
-    monkeypatch: pytest.MonkeyPatch,
+@pytest.mark.parametrize("body", _MISSING_REQUEST_IDS)
+def test_xk_ac_meter_2_async_extend_missing_request_id(
+    monkeypatch: pytest.MonkeyPatch, body: dict[str, Any]
 ) -> None:
+    purpose = "demo.extend.missing"
     asyncio.run(
         _assert_async_unusable(
             monkeypatch,
@@ -791,47 +732,9 @@ def test_xk_ac_meter_2_async_extend_video_missing_request_id_records_one_failed_
             message=_EXTEND_MISSING,
             modality="video",
             model=_EXTEND_MODEL,
-            purpose="demo.extend.noreqid",
-            response=_response(
-                200, url=XAI_VIDEO_EXTENSIONS_URL, payload={"status": "pending"}
-            ),
-            call=lambda client: _extend_async(client, "demo.extend.noreqid"),
-            json_cause=False,
-        )
-    )
-
-
-def test_xk_ac_meter_2_sync_extend_video_empty_request_id_records_one_failed_event(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _assert_sync_unusable(
-        monkeypatch,
-        kind="extend",
-        message=_EXTEND_MISSING,
-        modality="video",
-        model=_EXTEND_MODEL,
-        purpose="demo.extend.emptyreq",
-        response=_response(200, url=XAI_VIDEO_EXTENSIONS_URL, payload={"request_id": ""}),
-        call=lambda client: _extend_sync(client, "demo.extend.emptyreq"),
-        json_cause=False,
-    )
-
-
-def test_xk_ac_meter_2_async_extend_video_empty_request_id_records_one_failed_event(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    asyncio.run(
-        _assert_async_unusable(
-            monkeypatch,
-            kind="extend",
-            message=_EXTEND_MISSING,
-            modality="video",
-            model=_EXTEND_MODEL,
-            purpose="demo.extend.emptyreq",
-            response=_response(
-                200, url=XAI_VIDEO_EXTENSIONS_URL, payload={"request_id": ""}
-            ),
-            call=lambda client: _extend_async(client, "demo.extend.emptyreq"),
+            purpose=purpose,
+            response=_response(200, url=XAI_VIDEO_EXTENSIONS_URL, payload=body),
+            call=lambda client: _extend_async(client, purpose),
             json_cause=False,
         )
     )
@@ -869,6 +772,29 @@ def test_xk_ac_meter_3_async_edit_image_non_json_records_one_failed_event(
             json_cause=True,
         )
     )
+
+
+def test_xk_ac_meter_video_http_500_records_error_http500(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sink = InMemoryUsageSink()
+    client = _sync_client(sink)
+    _install_post(monkeypatch, _response(500, url=XAI_VIDEOS_URL, content=b"boom"))
+    with pytest.raises(RuntimeError, match=r"^Video generation failed \(500\): boom$"):
+        client.generate_video(
+            "a cube",
+            purpose="demo.video.http500",
+            parent_id=_PARENT,
+            labels=_LABELS,
+            into=[],
+            wait=False,
+        )
+    events = list(sink.iter_events())
+    assert len(events) == 1, f"expected 1 failed event, recorded {len(events)}"
+    ev = events[0]
+    assert ev.success is False
+    assert ev.modality == "video"
+    assert ev.error == "HTTP500"
 
 
 def test_xk_ac_meter_regression_sync_success_and_401_unchanged(
