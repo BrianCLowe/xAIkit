@@ -1821,8 +1821,9 @@ class AsyncXaiClient(XaiClient):
         try:
             payload = response.json()
         except json.JSONDecodeError as exc:
-            _fail(_error_class(exc))
-            raise RuntimeError("Imagine returned non-JSON response") from exc
+            message = "Imagine returned non-JSON response"
+            _fail(message)
+            raise RuntimeError(message) from exc
         url, b64, file_id = _parse_imagine_result(payload)
         self._record(
             purpose=tag,
@@ -2360,21 +2361,22 @@ class AsyncXaiClient(XaiClient):
         try:
             payload = response.json()
         except json.JSONDecodeError as exc:
+            message = f"{action} returned non-JSON response"
             self._record_video_failed(
                 tag=tag,
                 parent_id=parent_id,
                 labels=labels,
-                error=_error_class(exc),
+                error=message,
                 video_model=video_model,
             )
-            raise RuntimeError(f"{action} returned non-JSON response") from exc
+            raise RuntimeError(message) from exc
         if not isinstance(payload, dict):
             message = f"{action} returned unexpected payload"
             self._record_video_failed(
                 tag=tag,
                 parent_id=parent_id,
                 labels=labels,
-                error=_error_class(RuntimeError(message)),
+                error=message,
                 video_model=video_model,
             )
             raise RuntimeError(message)
@@ -2385,7 +2387,7 @@ class AsyncXaiClient(XaiClient):
                 tag=tag,
                 parent_id=parent_id,
                 labels=labels,
-                error=_error_class(RuntimeError(message)),
+                error=message,
                 video_model=video_model,
             )
             raise RuntimeError(message)

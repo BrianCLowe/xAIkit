@@ -2662,6 +2662,7 @@ class XaiClient:
         try:
             payload = response.json()
         except json.JSONDecodeError as exc:
+            message = "Imagine returned non-JSON response"
             self._record(
                 purpose=tag,
                 usage=None,
@@ -2669,11 +2670,11 @@ class XaiClient:
                 labels=labels,
                 success=False,
                 thought_level=None,
-                error=_error_class(exc),
+                error=message,
                 modality="imagine",
                 model=image_model,
             )
-            raise RuntimeError("Imagine returned non-JSON response") from exc
+            raise RuntimeError(message) from exc
 
         url, b64, file_id = _parse_imagine_result(payload)
         self._record(
@@ -3451,21 +3452,22 @@ class XaiClient:
         try:
             payload = response.json()
         except json.JSONDecodeError as exc:
+            message = f"{action} returned non-JSON response"
             self._record_video_failed(
                 tag=tag,
                 parent_id=parent_id,
                 labels=labels,
-                error=_error_class(exc),
+                error=message,
                 video_model=video_model,
             )
-            raise RuntimeError(f"{action} returned non-JSON response") from exc
+            raise RuntimeError(message) from exc
         if not isinstance(payload, dict):
             message = f"{action} returned unexpected payload"
             self._record_video_failed(
                 tag=tag,
                 parent_id=parent_id,
                 labels=labels,
-                error=_error_class(RuntimeError(message)),
+                error=message,
                 video_model=video_model,
             )
             raise RuntimeError(message)
@@ -3477,7 +3479,7 @@ class XaiClient:
                 tag=tag,
                 parent_id=parent_id,
                 labels=labels,
-                error=_error_class(RuntimeError(message)),
+                error=message,
                 video_model=video_model,
             )
             raise RuntimeError(message)
