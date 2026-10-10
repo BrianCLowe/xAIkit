@@ -1,6 +1,6 @@
 # VideoGeneration
 
-**Last Updated**: 2026-10-04  
+**Last Updated**: 2026-10-10  
 **Related Understanding**: —  
 
 ---
@@ -48,6 +48,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 - Wait loop: `pending` → keep going; `done` → return result; `failed` / `expired` → deliver receipt with `error` then `RuntimeError`. `poll_video` is a single GET and returns the same normalized dict (including pending and failed). Failed polls set `error` from the Imagine payload; they do not raise.
 - Purpose required when a meter is attached
 - Failures record failed usage with `modality="video"`; transport errors are `RuntimeError`
+- Video start and extend (sync and async) share this path: a 2xx body that is not JSON, is not an object, or has no `request_id` records exactly one failed usage event, then raises. The event `error` field is that raised text exactly (`Video generation returned non-JSON response`, `Video generation returned unexpected payload`, `Video generation response missing request_id`, or the same sentences with `Video extension`). A 401 on start records nothing
 - A 401 while polling during wait skips the meter, then raises `RuntimeError`
 - Offline contract tests assert URL/auth/JSON body without a live key
 - `1080p` is sent for `grok-imagine-video-1.5` and `grok-imagine-video-1.5-lite` T2V/I2V; R2V and older `grok-imagine-video` contract `1080p` → `720p` (do not 400). Unknown resolution still rejected. Extend never sends `aspect_ratio` / `resolution`
@@ -69,6 +70,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 | 2026-08-15 | `into=` stays video-only | Video is the expensive wait-after-accept. Do not require a sink on chat / image / unary TTS/STT / embed / files. Deferred chat, batch, and Responses already return an id; only add `into=` if those grow a kit-owned wait loop. |
 | 2026-08-15 | `poll_video` keeps `error` | Wait already raised `_video_error_message` and set `VideoReceipt.error`. `wait=False` + poll dropped it in `_normalize_video_payload`, so a failed hop looked like status-only. Same helper now puts `error` on the dict. |
 | 2026-10-04 | 1.5 Lite keeps 1080p on T2V/I2V and cannot extend | Public pricing: Text + Image → Video, with a 1080p rate. The 1080p allow mark is the `imagine-video-1.5` substring, so lite is included. Lite has no `video_extend`, so extend remaps it to quality the same way as 1.5. Generate default stays 1.5. |
+| 2026-10-10 | Unusable video start body records one failed event, then raises | A 2xx body that is not JSON, is not an object, or has no `request_id` is a failed start. The event `error` field is the raised message exactly. Extend uses the same path. 401 still skips the meter. Poll parse failures are unchanged. |
 
 ## Dependencies
 

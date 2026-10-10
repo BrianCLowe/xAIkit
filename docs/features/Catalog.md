@@ -1,6 +1,6 @@
 # Catalog
 
-**Last Updated**: 2026-10-04  
+**Last Updated**: 2026-10-10  
 **Related Understanding**: —  
 
 ---
@@ -45,7 +45,7 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 - **Feature map:** `feature_options(model=)` for settings knobs; `need=` on resolve so `best` is best **for the job**. 1.5 is the video flagship but cannot extend/edit — `need="video_extend"` picks quality. 1.5 Lite is the cheap text/image video SKU (`1080p` only). Video sort compares “not lite” before any numeric suffix, so a newer `created` stamp or a date in the id (`-lite-2026-10-04`) cannot make lite `best`. Chat extras (4.6+, flagship `grok-4.7`): web/X search, code execution, file attachments, collections search, image understanding, X video understanding, remote MCP. Newer SKUs may add tools; older may have fewer. Do not overload `ModelInfo.capabilities` (role tags).
 - `economy`: newest model in the price band **strictly below** flagship; overlaps `cheapest` when a cheaper band exists, overlaps `best` when there is only one band
 - `resolve_model` / `resolve_model_selection(..., role="image"|"video"|"voice")` use the same rules on that pool (default `role="chat"`)
-- Image/video/voice use list price (or public rates from `pricing.py`) when the SDK omits `input_per_million`. Image proto `image_price` is mapped when present
+- Image, video, and voice ranking price: the public list rate wins over `input_per_million` when one exists. `input_per_million` is used only when no public list rate exists. Image proto `image_price` is mapped when present. Chat still ranks on `input_per_million`
 
 ## Decisions
 
@@ -66,6 +66,7 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 | 2026-09-23 | Bootstrap `grok-4.7`; under-200k price $2 / $6 | Public models page (fetched 2026-09-23): chat and code default is Grok 4.7. Same under-200k list price as 4.6, so the row must be exact — prefix match would bill it as `grok-4` ($3 / $15). Reasoning stays `low` / `medium` / `high` / `xhigh` (already the 4.6+ family). Model page: Batch API not supported, so `need=batch` still remaps to `grok-4.3`. Fast is Cursor / Grok Build only, not a public SKU. Watch baseline also records docs-path `grok-4-7` (not an API id; same class as `grok-4-6`) and `grok-voice-transcribe-1.0` / `2.0` (STT at the existing $0.10/hr REST and $0.20/hr streaming rates; meter key stays `stt`). Cite: https://docs.x.ai/developers/models https://docs.x.ai/developers/grok-4-7 https://docs.x.ai/developers/models/grok-4.7 |
 | 2026-09-23 | Live unpinned resolve; integer major/minor sort | A new flagship on the model list is `best` within the one-hour catalog cache. No kit release for that. Chat sort is `(major, minor)` so `grok-4.10` ranks above `grok-4.7` and `grok-5` ranks above every `4.x`. `grok-4.20` is the historical exception (sort minor 2, older than `grok-4.3`). 4.6+ extras already cover later minors and major 5. Language token units from the list are `/10000` (`20000` → $2). |
 | 2026-10-04 | Imagine Video 1.5 Lite is an exact cheaper row, not the flagship | Public models blob (us-east-1): `grok-imagine-video-1.5-lite` is Text + Image → Video at $0.02 / $0.03 / $0.14 per second (480p / 720p / 1080p). It is not an alias of `grok-imagine-video-1.5` ($0.08 / $0.14 / $0.25). Prefix match would bill lite as full 1.5, so the bootstrap row is exact. Inputs omit Audio and Video, so extras are `1080p` only. Video sort compares “not lite” before the numeric suffix, so a date in the id cannot outrank 1.5. Models page still recommends Imagine Video 1.5. `BOOTSTRAP_MODEL` stays `grok-4.7`. Cite: https://docs.x.ai/developers/models https://docs.x.ai/developers/pricing |
+| 2026-10-10 | Non-chat ranking uses the public list rate over `input_per_million` when one exists | `cheapest` and `economy` already call `_ranking_price`, which returns the public rate first for image, video, and voice. The `cheapest_model` docstring and this spec now match that. Live image protos still omit `input_per_million`. |
 
 ## Dependencies
 

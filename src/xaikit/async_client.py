@@ -1821,7 +1821,9 @@ class AsyncXaiClient(XaiClient):
         try:
             payload = response.json()
         except json.JSONDecodeError as exc:
-            raise RuntimeError("Imagine returned non-JSON response") from exc
+            message = "Imagine returned non-JSON response"
+            _fail(message)
+            raise RuntimeError(message) from exc
         url, b64, file_id = _parse_imagine_result(payload)
         self._record(
             purpose=tag,
@@ -2359,12 +2361,36 @@ class AsyncXaiClient(XaiClient):
         try:
             payload = response.json()
         except json.JSONDecodeError as exc:
-            raise RuntimeError(f"{action} returned non-JSON response") from exc
+            message = f"{action} returned non-JSON response"
+            self._record_video_failed(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                error=message,
+                video_model=video_model,
+            )
+            raise RuntimeError(message) from exc
         if not isinstance(payload, dict):
-            raise RuntimeError(f"{action} returned unexpected payload")
+            message = f"{action} returned unexpected payload"
+            self._record_video_failed(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                error=message,
+                video_model=video_model,
+            )
+            raise RuntimeError(message)
         request_id = str(payload.get("request_id") or "").strip()
         if not request_id:
-            raise RuntimeError(f"{action} response missing request_id")
+            message = f"{action} response missing request_id"
+            self._record_video_failed(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                error=message,
+                video_model=video_model,
+            )
+            raise RuntimeError(message)
         started = _normalize_video_payload(
             {"request_id": request_id, "status": "pending", "model": video_model},
             request_id=request_id,
