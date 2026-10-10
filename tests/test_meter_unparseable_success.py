@@ -66,6 +66,7 @@ _NON_OBJECT_BODIES = [
     pytest.param("clip", id="string"),
     pytest.param(0, id="number"),
     pytest.param(None, id="null"),
+    pytest.param(True, id="bool"),
 ]
 
 # Objects with no usable request_id. Whitespace is spaces and a tab.
