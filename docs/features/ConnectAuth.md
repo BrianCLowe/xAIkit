@@ -47,10 +47,10 @@ Credential injection and OAuth helpers with **no User/Session types**. Apps pass
 
 ## Acceptance *(library stem)*
 
-- [ ] **credential-store** — A caller stores an API key in a dict or env store, and `XaiClient` resolves `api_key=` else `credential_store.get_api_key(subject)`. There is no User or Session type.
-- [ ] **oauth-exchange** — A caller with both a client id and a secret builds an authorize URL (`response_type=code`, default scope `openid`, required `client_id` and a caller-supplied `authorize_url`) and posts the code to the caller-supplied `token_url`. A failed exchange raises `RuntimeError`. If either id or secret is empty, OAuth is not configured.
-- [ ] **caller-supplied-urls** — A caller supplies `authorize_url` and `token_url`. The kit does not embed an xAI or any other portal hostname, and the consumer docs say the same.
-- [ ] **no-weekly-remaining** — A caller does not get a weekly Grok remaining balance from this kit: no unofficial billing scrape, no leftover-pool display, and no User type.
+- [x] **credential-store** — A caller stores an API key in a dict or env store, and `XaiClient` resolves `api_key=` else `credential_store.get_api_key(subject)`. There is no User or Session type.
+- [x] **oauth-exchange** — A caller with both a client id and a secret builds an authorize URL (`response_type=code`, default scope `openid`, required `client_id` and a caller-supplied `authorize_url`) and posts the code to the caller-supplied `token_url`. A failed exchange raises `RuntimeError`. If either id or secret is empty, OAuth is not configured.
+- [x] **caller-supplied-urls** — A caller supplies `authorize_url` and `token_url`. The kit does not embed an xAI or any other portal hostname, and the consumer docs say the same.
+- [x] **no-weekly-remaining** — A caller does not get a weekly Grok remaining balance from this kit: no unofficial billing scrape, no leftover-pool display, and no User type.
 
 ## Visual references
 
@@ -58,4 +58,4 @@ Credential injection and OAuth helpers with **no User/Session types**. Apps pass
 
 ## Current status
 
-- **Last reconciled with code**: 2026-08-13
+- **Last reconciled with code**: 2026-10-09
