@@ -1,6 +1,6 @@
 # MediaRest
 
-**Last Updated**: 2026-09-17  
+**Last Updated**: 2026-10-10  
 **Related Understanding**: —  
 
 ---
@@ -46,6 +46,7 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 - Image generate: JSON `{model, prompt, n}` with `n` clamped 1–4; per-call `model` overrides `XaiClient.image_model`. Optional knobs: `aspect_ratio` (Imagine list incl. `auto` / `19.5:9` / `20:9`), `resolution` (`1k` \| `2k`), `response_format` (`b64_json`), `quality` (`low` \| `medium`, **`grok-imagine-image-2.0` only**). Unknown `aspect_ratio` / `resolution` / `quality` are omitted (do not 400). `quality` is omitted on `grok-imagine-image` / `grok-imagine-image-quality` (default pin) even if the caller passed it. Cite: https://docs.x.ai/developers/model-capabilities/images/generation
 - Image edit: JSON `POST /v1/images/edits` (not OpenAI multipart) with model, prompt, `n` clamped 1–4; `aspect_ratio` / `response_format` omitted when unset. Unknown `aspect_ratio` omitted (same Imagine list as generate). One source (`image=` / `image_url=` / `image_file_id=`, or a 1-item `images=`) wires `image` (`url` + `type=image_url`, or `file_id`). Two or three sources via `images=` (URL / data URI / `{url|file_id}`, mixable) wire `images` (mutually exclusive with `image`). `>3` or single+`images=` rejected before HTTP. Prompt may refer to `<IMAGE_0>` / `<IMAGE_1>` / `<IMAGE_2>` (not rewritten). Default output aspect follows the first input; `aspect_ratio` overrides. Cite: https://docs.x.ai/developers/model-capabilities/images/multi-image-editing
 - Purpose required when metered; success/failure usage with modalities `stt` / `tts` / `imagine`. Streaming STT records once per session (close or first failure) with wall-clock `duration`, `modality="stt"`, `model="stt"`. Streaming TTS records once per session the same way with `modality="tts"`, `model="tts"`, `apply_price_table=False` (no invented USD; REST TTS has no price row). Voice roster listing uses the same `tts` modality with `apply_price_table=False` (listing is not billed audio). 401 skips the meter then raises
+- Image generation (sync and async): a 2xx body that is not JSON records one failed event with `modality="imagine"`, then raises `Imagine returned non-JSON response`. A 401 records nothing
 - 401 and ≥400 mapped to `RuntimeError`; empty audio/prompt/file/image rejected before HTTP
 - Generate/edit surface Imagine `file_output.file_id` (or top-level `file_id`) when present; `file_id` **inputs** need [ApiCoverage](ApiCoverage.md) Files (passthrough only here)
 
@@ -64,6 +65,7 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 | 2026-08-14 | Imagine generate knobs omit unknown; `quality` only on 2.0 | Official generate set is `resolution`/`quality`/`response_format` plus the Imagine aspect list. Do not 400 on unknown aspect/resolution; contract `quality` off non-2.0 SKUs (`grok-imagine-image`, `grok-imagine-image-quality`). Helpers: `imagine_generate_knobs` in catalog (same idea as `contract_thought_level`) |
 | 2026-08-14 | REST unary TTS knobs use streaming names; nest format on the wire | Official unary body uses `output_format`. Callers use the same `codec` / `sample_rate` / `bit_rate` / `speed` / … kwargs as `open_tts_session`. Reject invalid + >15k before HTTP. `with_timestamps=True` returns JSON bytes. Helper: `tts_rest_body` in `tts_stream` (same allowlists as streaming). |
 | 2026-08-14 | Multi-image edit: one source wires `image`; 2–3 wire `images` | Official `/v1/images/edits` is JSON `image` **or** `images` (max 3, mixable URL / data URI / `file_id`). Keep single-image kwargs backward compatible. Helper: `_imagine_edit_source_fields` reuses `_imagine_edit_image_ref`. Cite: https://docs.x.ai/developers/model-capabilities/images/multi-image-editing |
+| 2026-10-10 | Unusable image generation body records one failed event, then raises | A 2xx non-JSON body on generate or edit is a failed imagine call. Same `Imagine returned non-JSON response` text. 401 still skips the meter. |
 
 ## Dependencies
 

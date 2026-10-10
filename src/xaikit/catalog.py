@@ -1156,7 +1156,10 @@ def prefer_latest_model(
 
 
 def _public_ranking_price(model: ModelInfo, role: str) -> float | None:
-    """List/public rate for image/video/voice when SDK omitted ``input_per_million``."""
+    """Public list rate for image, video, and voice.
+
+    When one exists it wins over ``input_per_million`` for those roles.
+    """
     if role == ROLE_CHAT:
         return None
     from xaikit.pricing import default_price_table
@@ -1215,9 +1218,10 @@ def cheapest_model(
 ) -> str | None:
     """Lowest ranking-price model in the role pool.
 
-    Chat uses ``input_per_million``. Image/video/voice use that field when
-    set, otherwise public list rates. One price band → flagship. Multiple
-    bands → oldest / non-reasoning in the cheapest band.
+    Chat uses ``input_per_million``. For image, video, and voice, the public
+    list rate wins over ``input_per_million`` when one exists. One price band
+    picks the flagship. Multiple bands pick the oldest / non-reasoning model
+    in the cheapest band.
     """
     role_n = normalize_role(role)
     pool = models_for_role(catalog, role_n)

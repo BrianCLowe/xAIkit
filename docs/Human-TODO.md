@@ -1,6 +1,6 @@
 # xAIkit — Human TODO
 
-**Last Updated**: 2026-10-09  
+**Last Updated**: 2026-10-10  
 **Related**: [Master_Index.md](Master_Index.md) · [Tooling.md](Tooling.md) · [workflow/human-todo.md](templates/agent/workflow/human-todo.md) §13
 
 ---
@@ -21,13 +21,13 @@ Keep this list short — **one `- [ ]` list item per human action**.
 - [ ] **REST embed live** (`playtest`) — 2026-08-16 — Split from ApiCoverage / Usage extras. Team `GET /v1/embedding-models` is empty; `POST /v1/embeddings` with OpenAPI example `v1` (and `grok-embedding-small`) 404s. Inference key already has `api-key:model:*`. Not a management-key ACL. Re-run when the team has an embed SKU. Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) · also [UsageObservability-TODO.md](features/UsageObservability-TODO.md) · Blocks: none
 - [ ] **OAuth authorize URL that already has a query** (`decide`) — 2026-10-06 — `build_oauth_authorize_url` only strips a trailing `?`, then always adds `?client_id=...`. A caller URL that already has a query (`https://idp.example/authorize?audience=api`) becomes two question marks and a broken URL. The spec says the URL is caller-supplied and must send `response_type=code`, scope `openid`, and `client_id`. It does not say whether an existing query is kept, replaced, or rejected. Owner: [ConnectAuth.md](features/ConnectAuth.md) · Blocks: none
 - [ ] **Image-token estimates** (`decide`) — 2026-10-08 — When a chat usage payload has both `prompt_tokens` and `prompt_image_tokens`, should the meter add the image-token rate on top of `prompt_tokens`, or treat image tokens as already inside `prompt_tokens` and only reprice that slice? The estimator adds them on top. Live chat never forwards the field, so neither happens today. Owner: [UsageObservability.md](features/UsageObservability.md) · Blocks: none
-- [ ] **Image, video, and voice ranking price** (`decide`) — 2026-10-09 — When a non-chat catalog row has both `input_per_million` and a public list rate, which one should cheapest and economy use? The catalog spec and the `cheapest_model` docstring say use `input_per_million` when the SDK set it, and the public rate only when that field is omitted. Ranking uses the public rate whenever one exists. Live image protos leave `input_per_million` empty, so this shows up on injected or merged rows. Owner: [Catalog.md](features/Catalog.md) · Blocks: none
-- [ ] **Meter when a success body cannot be parsed** (`decide`) — 2026-10-09 — Video start raises `RuntimeError` and does not record when the HTTP body is not JSON, is not an object, or has no `request_id`. Image generation does the same on a non-JSON body. The video and media specs say failures record a usage event. Should those paths record a failed event and then raise? Owner: [VideoGeneration.md](features/VideoGeneration.md) · Blocks: none
 
 ---
 
 ## Done
 
+- [x] **Image, video, and voice ranking price** (`decide`) - 2026-10-10 - Public list rate wins over `input_per_million` for non-chat rows when a public rate exists. Ranking code already did this. `cheapest_model` and [Catalog.md](features/Catalog.md) now say so. Owner: [Catalog.md](features/Catalog.md)
+- [x] **Meter when a success body cannot be parsed** (`decide`) - 2026-10-10 - Video start records one failed usage event, then raises, when a 2xx body is not JSON, is not an object, or has no `request_id`. Image generation does the same for a 2xx non-JSON body (`modality="imagine"`). A 401 still skips the meter. Owner: [VideoGeneration.md](features/VideoGeneration.md)
 - [x] **MediaRest knobs remainder — live via tester** (`playtest`) — 2026-08-16 — `generate_image` on `grok-imagine-image-2.0` with `resolution=2k` + `quality=medium`; unary `synthesize_speech` (`wav` / 24 kHz / `speed` / normalize). Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md)
 - [x] **VideoGeneration extras — live via xAIkit tester** (`playtest`) — 2026-08-16 — `wait=False` + `poll_video`; 1080p contraction (1.5 T2V keep; R2V/older → 720p); speaking start with `reference_audios`; `extend_video` on a 720p Imagine clip (`video_file_id`, remapped to `grok-imagine-video`, poll done). Owner: [VideoGeneration-TODO.md](features/VideoGeneration-TODO.md)
 - [x] **MediaRest extras remainder — streaming + `get_tts_voice` via tester** (`playtest`) — 2026-08-16 — `open_stt_session` / `open_tts_session`; `get_tts_voice`. Knobs remainder closed separately (same date). Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md)

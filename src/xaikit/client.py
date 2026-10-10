@@ -2662,6 +2662,17 @@ class XaiClient:
         try:
             payload = response.json()
         except json.JSONDecodeError as exc:
+            self._record(
+                purpose=tag,
+                usage=None,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                thought_level=None,
+                error=_error_class(exc),
+                modality="imagine",
+                model=image_model,
+            )
             raise RuntimeError("Imagine returned non-JSON response") from exc
 
         url, b64, file_id = _parse_imagine_result(payload)
@@ -3440,13 +3451,36 @@ class XaiClient:
         try:
             payload = response.json()
         except json.JSONDecodeError as exc:
+            self._record_video_failed(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                error=_error_class(exc),
+                video_model=video_model,
+            )
             raise RuntimeError(f"{action} returned non-JSON response") from exc
         if not isinstance(payload, dict):
-            raise RuntimeError(f"{action} returned unexpected payload")
+            message = f"{action} returned unexpected payload"
+            self._record_video_failed(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                error=_error_class(RuntimeError(message)),
+                video_model=video_model,
+            )
+            raise RuntimeError(message)
 
         request_id = str(payload.get("request_id") or "").strip()
         if not request_id:
-            raise RuntimeError(f"{action} response missing request_id")
+            message = f"{action} response missing request_id"
+            self._record_video_failed(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                error=_error_class(RuntimeError(message)),
+                video_model=video_model,
+            )
+            raise RuntimeError(message)
 
         started = _normalize_video_payload(
             {"request_id": request_id, "status": "pending", "model": video_model},
