@@ -645,3 +645,78 @@ def test_async_inner_wait_cancel_records_no_event(
     events = _views(sink)
     assert [event["error"] for event in events] == []
     assert len(events) == 0
+
+
+def test_async_inner_wait_cancel_during_sleep_records_no_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sink = InMemoryUsageSink()
+    polls = {"n": 0}
+    in_sleep = asyncio.Event()
+    real_sleep = asyncio.sleep
+
+    async def _track_sleep(delay: float, *args: Any, **kwargs: Any) -> Any:
+        if delay > 0:
+            in_sleep.set()
+        return await real_sleep(delay, *args, **kwargs)
+
+    monkeypatch.setattr("xaikit.async_client.asyncio.sleep", _track_sleep)
+
+    class FakeAsyncClient:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        async def __aenter__(self) -> FakeAsyncClient:
+            return self
+
+        async def __aexit__(self, *args: Any) -> bool:
+            return False
+
+        async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+            if method == "POST":
+                return httpx.Response(
+                    200,
+                    json={"request_id": _RID},
+                    request=httpx.Request("POST", url),
+                )
+            polls["n"] += 1
+            return httpx.Response(
+                200,
+                json={"status": "pending"},
+                request=httpx.Request("GET", url),
+            )
+
+    monkeypatch.setattr("xaikit.async_client.httpx.AsyncClient", FakeAsyncClient)
+
+    async def _run() -> None:
+        client = _async_client(sink)
+        outer = asyncio.create_task(
+            _generate(
+                client,
+                [],
+                duration=8,
+                resolution="720p",
+                interval=0.5,
+                timeout=30,
+            )
+        )
+        for _ in range(50):
+            if in_sleep.is_set() and polls["n"] >= 1 and client._inflight_video_waits:
+                break
+            await asyncio.sleep(0.01)
+        assert polls["n"] >= 1
+        assert in_sleep.is_set()
+        assert len(client._inflight_video_waits) == 1
+        inner = next(iter(client._inflight_video_waits))
+        assert inner is not outer
+        assert not inner.done()
+        inner.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await inner
+        with pytest.raises(asyncio.CancelledError):
+            await outer
+
+    asyncio.run(_run())
+    events = _views(sink)
+    assert [event["error"] for event in events] == []
+    assert len(events) == 0
