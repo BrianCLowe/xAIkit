@@ -96,3 +96,29 @@ def test_shipped_ranked_image_rates_match_public_watch(model_id: str) -> None:
     shipped = default_price_table().price_for(model_id)
     assert shipped is not None
     assert shipped.per_call_usd == _watch_image_per_call(model_id)
+
+
+def _shipped_image_ids_with_watch_per_call() -> tuple[str, ...]:
+    payload = json.loads(
+        (Path(__file__).resolve().parents[1] / "scripts" / "data" / "xai_public_prices.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    watch_models = payload.get("models") or {}
+    ids: list[str] = []
+    for model_id, price in default_price_table().models.items():
+        if not str(model_id).startswith("grok-imagine-image"):
+            continue
+        if price.per_call_usd is None:
+            continue
+        row = watch_models.get(model_id)
+        if isinstance(row, dict) and row.get("per_call_usd") is not None:
+            ids.append(model_id)
+    return tuple(ids)
+
+
+@pytest.mark.parametrize("model_id", _shipped_image_ids_with_watch_per_call())
+def test_every_shipped_image_per_call_matches_watch_file(model_id: str) -> None:
+    assert "grok-imagine-image-pro" in _shipped_image_ids_with_watch_per_call()
+    shipped = default_price_table().models[model_id].per_call_usd
+    assert shipped == _watch_image_per_call(model_id)
