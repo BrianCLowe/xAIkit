@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
+
+import pytest
 
 from xaikit import (
     PRICE_TABLE_FETCHED,
@@ -67,3 +70,29 @@ def test_missing_modality_rates_do_not_invent_usd() -> None:
     assert latest is not None
     assert latest.input_per_million == 2.0
     assert latest.output_per_million == 6.0
+
+
+def test_grok_imagine_image_2_0_per_call_usd_is_public_rate() -> None:
+    price = default_price_table().price_for("grok-imagine-image-2.0")
+    assert price is not None
+    assert price.per_call_usd == 0.06
+
+
+def _watch_image_per_call(model_id: str) -> float:
+    watch = Path(__file__).resolve().parents[1] / "scripts" / "data" / "xai_public_prices.json"
+    payload = json.loads(watch.read_text(encoding="utf-8"))
+    return float(payload["models"][model_id]["per_call_usd"])
+
+
+@pytest.mark.parametrize(
+    "model_id",
+    (
+        "grok-imagine-image",
+        "grok-imagine-image-2.0",
+        "grok-imagine-image-quality",
+    ),
+)
+def test_shipped_ranked_image_rates_match_public_watch(model_id: str) -> None:
+    shipped = default_price_table().price_for(model_id)
+    assert shipped is not None
+    assert shipped.per_call_usd == _watch_image_per_call(model_id)
