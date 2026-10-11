@@ -290,6 +290,46 @@ def test_bundled_long_and_cached_rates_match_the_gap_file() -> None:
     assert compared > 0
 
 
+def test_missing_short_cached_rate_matches_empty_catalog() -> None:
+    usage = {
+        "prompt_tokens": 100000,
+        "completion_tokens": 0,
+        "cached_tokens": 40_000,
+    }
+    try:
+        inject_catalog(None)
+        clear_catalog_cache()
+        empty = _record("grok-4.7", usage)
+        inject_catalog([_partial("grok-4.7")])
+        list_models()
+        loaded = _record("grok-4.7", usage)
+    finally:
+        _reset()
+
+    assert empty == 0.14
+    assert loaded == 0.14
+    assert empty == loaded
+    assert loaded != 0.20
+
+
+def test_missing_long_output_rate_matches_empty_catalog() -> None:
+    usage = {"prompt_tokens": 200000, "completion_tokens": 10000}
+    try:
+        inject_catalog(None)
+        clear_catalog_cache()
+        empty = _record("grok-4.7", usage)
+        inject_catalog([_partial("grok-4.7")])
+        list_models()
+        loaded = _record("grok-4.7", usage)
+    finally:
+        _reset()
+
+    assert empty == 0.92
+    assert loaded == 0.92
+    assert empty == loaded
+    assert loaded != 0.86
+
+
 def test_unknown_model_stays_unset() -> None:
     try:
         inject_catalog(None)
