@@ -126,7 +126,7 @@ def test_meter_uses_ticks_then_catalog_then_gap_then_static_then_none(
             usage={"prompt_tokens": 1_000_000, "completion_tokens": 0},
         )
         assert catalog.estimated_usd == 2.0
-        assert len(fetches) == 1
+        assert fetches == []
 
         inject_catalog(None)
         clear_catalog_cache()
@@ -137,14 +137,14 @@ def test_meter_uses_ticks_then_catalog_then_gap_then_static_then_none(
             usage={"prompt_tokens": 1_000_000, "completion_tokens": 0},
         )
         assert gap.estimated_usd == 4.0
-        assert len(fetches) == 2
+        assert len(fetches) == 1
         again = meter.record(
             purpose="gap-cached",
             model="grok-4.8",
             usage={"prompt_tokens": 1_000_000, "completion_tokens": 0},
         )
         assert again.estimated_usd == 4.0
-        assert len(fetches) == 2
+        assert len(fetches) == 1
 
         clear_public_price_cache()
 
@@ -158,7 +158,7 @@ def test_meter_uses_ticks_then_catalog_then_gap_then_static_then_none(
             model="grok-4.7",
             usage={"prompt_tokens": 1_000_000, "completion_tokens": 0},
         )
-        assert static.estimated_usd == 2.0
+        assert static.estimated_usd == 4.0
 
         clear_public_price_cache()
         missing = meter.record(

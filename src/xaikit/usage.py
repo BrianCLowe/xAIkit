@@ -321,8 +321,7 @@ def _estimate_from_catalog(
             usage=usage,
         )
         if missing:
-            gap = public_price_table()
-            row = gap.price_for(model) if gap is not None else None
+            row = default_price_table().price_for(model)
             if row is not None:
                 updates: dict[str, float] = {}
                 for name in missing:
