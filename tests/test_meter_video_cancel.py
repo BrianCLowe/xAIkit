@@ -90,11 +90,17 @@ def _event(
     }
 
 
-def _cancelled_event(**overrides: Any) -> dict[str, Any]:
+# 8s at 720p on grok-imagine-video-1.5. 8 * 0.14.
+_GENERATE_CANCEL_USD = 1.12
+# 4s and no resolution on grok-imagine-video. Default per-second rate.
+_EXTEND_CANCEL_USD = 0.2
+
+
+def _cancelled_event(*, estimated_usd: float, **overrides: Any) -> dict[str, Any]:
     fields: dict[str, Any] = {
         "success": False,
         "error": "video_cancelled",
-        "estimated_usd": None,
+        "estimated_usd": estimated_usd,
     }
     fields.update(overrides)
     return _event(**fields)
@@ -334,12 +340,34 @@ def test_sync_cancel_before_poll_records_one_event(
     script.install_sync(monkeypatch)
     inbox = _CancelOnPending()
     with pytest.raises(RuntimeError, match=f"Video generation cancelled: request_id={_RID}"):
-        _generate(_sync_client(sink), inbox, duration=4, resolution="720p")
+        _generate(_sync_client(sink), inbox, duration=8, resolution="720p")
     assert len(script.posts) == 1
     assert script.gets == []
-    assert _views(sink) == [_cancelled_event()]
+    assert _views(sink) == [_cancelled_event(estimated_usd=_GENERATE_CANCEL_USD)]
     assert inbox.latest(_RID) is not None
     assert inbox.latest(_RID).status == "cancelled"
+
+
+def test_async_cancel_before_poll_records_one_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sink = InMemoryUsageSink()
+    script = _Script([])
+    script.install_async(monkeypatch)
+
+    async def _run() -> None:
+        inbox = _CancelOnPending()
+        with pytest.raises(
+            RuntimeError, match=f"Video generation cancelled: request_id={_RID}"
+        ):
+            await _generate(_async_client(sink), inbox, duration=8, resolution="720p")
+        assert inbox.latest(_RID) is not None
+        assert inbox.latest(_RID).status == "cancelled"
+
+    asyncio.run(_run())
+    assert len(script.posts) == 1
+    assert script.gets == []
+    assert _views(sink) == [_cancelled_event(estimated_usd=_GENERATE_CANCEL_USD)]
 
 
 def test_sync_double_cancel_records_one_event(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -348,9 +376,9 @@ def test_sync_double_cancel_records_one_event(monkeypatch: pytest.MonkeyPatch) -
     script.install_sync(monkeypatch)
     inbox = _CancelOnPending(repeats=2)
     with pytest.raises(RuntimeError, match="cancelled"):
-        _generate(_sync_client(sink), inbox)
+        _generate(_sync_client(sink), inbox, duration=8, resolution="720p")
     assert script.gets == []
-    assert _views(sink) == [_cancelled_event()]
+    assert _views(sink) == [_cancelled_event(estimated_usd=_GENERATE_CANCEL_USD)]
 
 
 def test_sync_extend_cancel_records_one_event(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -364,7 +392,33 @@ def test_sync_extend_cancel_records_one_event(monkeypatch: pytest.MonkeyPatch) -
     assert script.posts[0]["url"] == XAI_VIDEO_EXTENSIONS_URL
     assert script.posts[0]["json"]["model"] == _EXTEND_MODEL
     assert script.gets == []
-    assert _views(sink) == [_cancelled_event(model=_EXTEND_MODEL)]
+    assert _views(sink) == [
+        _cancelled_event(estimated_usd=_EXTEND_CANCEL_USD, model=_EXTEND_MODEL)
+    ]
+
+
+def test_async_extend_cancel_records_one_event(monkeypatch: pytest.MonkeyPatch) -> None:
+    sink = InMemoryUsageSink()
+    script = _Script([])
+    script.install_async(monkeypatch)
+
+    async def _run() -> None:
+        inbox = _CancelOnPending()
+        with pytest.raises(
+            RuntimeError, match=f"Video extension cancelled: request_id={_RID}"
+        ):
+            await _extend(_async_client(sink), inbox)
+        assert inbox.latest(_RID) is not None
+        assert inbox.latest(_RID).status == "cancelled"
+
+    asyncio.run(_run())
+    assert len(script.posts) == 1
+    assert script.posts[0]["url"] == XAI_VIDEO_EXTENSIONS_URL
+    assert script.posts[0]["json"]["model"] == _EXTEND_MODEL
+    assert script.gets == []
+    assert _views(sink) == [
+        _cancelled_event(estimated_usd=_EXTEND_CANCEL_USD, model=_EXTEND_MODEL)
+    ]
 
 
 def test_sync_cancel_after_done_keeps_done_event(
@@ -396,11 +450,11 @@ def test_async_cancel_after_pending_polls_records_one_event(
 
     async def _run() -> None:
         with pytest.raises(RuntimeError, match=f"Video generation cancelled: request_id={_RID}"):
-            await _generate(_async_client(sink), inbox, duration=4, resolution="720p")
+            await _generate(_async_client(sink), inbox, duration=8, resolution="720p")
 
     asyncio.run(_run())
     assert len(script.gets) == 3
-    assert _views(sink) == [_cancelled_event()]
+    assert _views(sink) == [_cancelled_event(estimated_usd=_GENERATE_CANCEL_USD)]
 
 
 def test_async_double_cancel_records_one_event(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -417,11 +471,11 @@ def test_async_double_cancel_records_one_event(monkeypatch: pytest.MonkeyPatch) 
 
     async def _run() -> None:
         with pytest.raises(RuntimeError, match="cancelled"):
-            await _generate(_async_client(sink), inbox)
+            await _generate(_async_client(sink), inbox, duration=8, resolution="720p")
 
     asyncio.run(_run())
     assert len(script.gets) == 3
-    assert _views(sink) == [_cancelled_event()]
+    assert _views(sink) == [_cancelled_event(estimated_usd=_GENERATE_CANCEL_USD)]
 
 
 def test_async_cancel_after_done_keeps_done_event(
@@ -491,3 +545,103 @@ def test_async_sibling_cancelled_error_records_one_terminal_event(
             labels={"request_id": "ok"},
         )
     ]
+
+
+@pytest.mark.parametrize("client_kind", ["sync", "async"])
+def test_cancel_estimated_usd_matches_failed_for_same_request(
+    monkeypatch: pytest.MonkeyPatch,
+    client_kind: str,
+) -> None:
+    same = {"duration": 8, "resolution": "720p"}
+    failed_sink = InMemoryUsageSink()
+    failed_script = _Script([_FAILED_BODY])
+    cancel_sink = InMemoryUsageSink()
+    cancel_script = _Script([])
+    if client_kind == "sync":
+        failed_script.install_sync(monkeypatch)
+        with pytest.raises(RuntimeError, match="failed"):
+            _generate(_sync_client(failed_sink), [], **same)
+        cancel_script.install_sync(monkeypatch)
+        with pytest.raises(RuntimeError, match="cancelled"):
+            _generate(_sync_client(cancel_sink), _CancelOnPending(), **same)
+    else:
+        failed_script.install_async(monkeypatch)
+
+        async def _fail() -> None:
+            with pytest.raises(RuntimeError, match="failed"):
+                await _generate(_async_client(failed_sink), [], **same)
+
+        asyncio.run(_fail())
+        cancel_script.install_async(monkeypatch)
+
+        async def _cancel() -> None:
+            with pytest.raises(RuntimeError, match="cancelled"):
+                await _generate(_async_client(cancel_sink), _CancelOnPending(), **same)
+
+        asyncio.run(_cancel())
+
+    failed_views = _views(failed_sink)
+    cancel_views = _views(cancel_sink)
+    assert failed_views == [_event(success=False, error="video_failed", estimated_usd=1.12)]
+    assert cancel_views == [
+        _cancelled_event(estimated_usd=failed_views[0]["estimated_usd"])
+    ]
+    assert cancel_views[0]["estimated_usd"] == failed_views[0]["estimated_usd"] == 1.12
+    assert cancel_script.gets == []
+
+
+def test_async_inner_wait_cancel_records_no_event(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sink = InMemoryUsageSink()
+    polling = asyncio.Event()
+
+    class FakeAsyncClient:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            pass
+
+        async def __aenter__(self) -> FakeAsyncClient:
+            return self
+
+        async def __aexit__(self, *args: Any) -> bool:
+            return False
+
+        async def request(self, method: str, url: str, **kwargs: Any) -> httpx.Response:
+            if method == "POST":
+                return httpx.Response(
+                    200,
+                    json={"request_id": _RID},
+                    request=httpx.Request("POST", url),
+                )
+            polling.set()
+            await asyncio.Event().wait()
+            return httpx.Response(
+                200,
+                json={"status": "pending"},
+                request=httpx.Request("GET", url),
+            )
+
+    monkeypatch.setattr("xaikit.async_client.httpx.AsyncClient", FakeAsyncClient)
+
+    async def _run() -> None:
+        client = _async_client(sink)
+        outer = asyncio.create_task(
+            _generate(client, [], duration=8, resolution="720p", timeout=30)
+        )
+        for _ in range(50):
+            if polling.is_set() and client._inflight_video_waits:
+                break
+            await asyncio.sleep(0.01)
+        assert len(client._inflight_video_waits) == 1
+        inner = next(iter(client._inflight_video_waits))
+        assert inner is not outer
+        inner.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await inner
+        with pytest.raises(asyncio.CancelledError):
+            await outer
+
+    asyncio.run(_run())
+    events = _views(sink)
+    assert [event["error"] for event in events] == []
+    assert len(events) == 0

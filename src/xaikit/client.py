@@ -3548,6 +3548,11 @@ class XaiClient:
                     labels=labels,
                     error="video_cancelled",
                     video_model=video_model,
+                    usage=_video_meter_usage(
+                        None,
+                        requested_duration=requested_duration,
+                        resolution=resolution,
+                    ),
                 )
                 raise RuntimeError(f"{action} cancelled: request_id={request_id}")
             try:

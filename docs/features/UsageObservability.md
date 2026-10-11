@@ -34,7 +34,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - Gap notes scrub secret-ish strings and cap length
 - Meter price order: response `cost_in_usd_ticks`, then in-process catalog token/per-image rates, then the public gap file (at most once per process per 24 hours, only when a rate is still missing; a failed fetch does not fail the call), then the shipped table (exact id, or a prefix whose remainder is empty or starts with `-`). When usage includes a cached prompt count (`cached_tokens`, `cached_prompt_tokens`, or `cached_prompt_text_tokens`) and the price row has a cached input rate, that slice is priced at the cached rate and the rest of `prompt_tokens` at the normal input rate. Unknown ids leave `estimated_usd` unset. No fetch on import. Overlay JSON via `load_price_table`; `save_price_table_template` writes the current defaults. Modalities without a public rate skip USD (`apply_price_table=False`) — do not invent.
 - Video start, video extend, image generation, and image edit record one failed event when a 2xx body cannot be used (video: not JSON, not an object, or missing `request_id`; image: not JSON), then raise. The event `error` field is the raised message text exactly. A 401 still skips the meter
-- A video wait stopped by `VideoInbox.cancel` records one failed event with `error` `video_cancelled`, `modality` `video`, and no usage payload. No USD estimate is attached, same as `video_timeout`. xAI may still bill the clip. `failed` and `expired` still attach usage from the poll payload. `asyncio.CancelledError` does not record a cancel event
+- **XK-AC-METER-4.** Cancelling a video wait records exactly one video usage event, for both sync and async clients. `VideoInbox.cancel` records `error` `video_cancelled` and `modality` `video`. Usage is the requested duration and resolution (`_video_meter_usage` with no poll payload), the same fields `failed` and `expired` use when the poll body has no duration. `estimated_usd` is the price computed from those fields. xAI may still bill the clip. A second cancel, or a cancel after a terminal state, adds no event. `extend_video` shares this wait. `asyncio.CancelledError` does not record a cancel event, including a direct cancel of the inflight wait task
 - Meter/trace failures must not break the user-facing call (logged). `UsageMeter.record` / sink `append` may raise; `XaiClient._record` catches and logs
 - `OpenTelemetryUsageSink` is export-only (optional extra `xaikit-py[otel]` / `opentelemetry-api`; lazy import). Default meter: `opentelemetry.metrics.get_meter("xaikit")`. Counters: `xaikit.usage.calls` (+1) and `xaikit.usage.tokens` (+`total_tokens` when known) with attributes `purpose`, `model`, `modality`, `success` — never prompts/secrets (`error` omitted). `iter_events()` raises `NotImplementedError`; inspect via `CompositeUsageSink(InMemoryUsageSink(), OpenTelemetryUsageSink())` (memory first)
 
@@ -59,7 +59,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 | 2026-08-13 | Price table records `source_url` + `fetched`; overlay JSON for operator refresh | Feedback: people will rely on estimates. Cite https://docs.x.ai/developers/pricing. Kit bump or `load_price_table`. Still estimates, not billing. |
 | 2026-09-23 | Gap file before the shipped table; no `default` prefix for unknown ids | Ticks, then catalog list rates, then `scripts/data/xai_public_prices.json` (daily watch, fetched at most once a day on a gap), then exact/safe prefix. `grok-4.8` must not bill as `grok-4`. Failure leaves USD unset and does not fail the call. |
 | 2026-10-10 | Unusable video start and image generation bodies record one failure | A 2xx body that cannot be used is a failed call. One event, `success` false. The event `error` field is the raised message exactly. 401 stays off the meter. |
-| 2026-10-11 | Video inbox cancel records `video_cancelled` with no usage payload | Same as timeout. xAI may still bill the clip, and the kit does not attach an estimate. |
+| 2026-10-11 | Video inbox cancel records `video_cancelled` with requested duration and resolution | XK-AC-METER-4. Cancelling a video wait records exactly one video usage event, for both sync and async clients. Usage is the requested duration and resolution, and `estimated_usd` is priced from those fields. xAI may still bill the clip. |
 
 ## Dependencies
 
@@ -73,6 +73,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - [x] Stream meters once on completion
 - [x] Gap scrub + jsonl CLI
 - [x] Video modality on meter when video ships
+- [x] XK-AC-METER-4. Cancelling a video wait records exactly one video usage event, for both sync and async clients. Usage is requested duration and resolution, and `estimated_usd` is priced from those fields.
 - [x] Realtime-voice modality when realtime ships
 - [x] Files modality when Files methods ship
 - [x] Embed modality when embed ships
@@ -89,4 +90,4 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 
 ## Current status
 
-- **Last reconciled with code**: 2026-10-11 (video inbox cancel records `video_cancelled`, no USD estimate)
+- **Last reconciled with code**: 2026-10-11 (XK-AC-METER-4: video inbox cancel records `video_cancelled` with requested duration and resolution)
