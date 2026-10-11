@@ -94,7 +94,7 @@ _DEFAULT_IMAGE_MODELS: dict[str, dict[str, Any]] = {
     "grok-imagine-image-2.0": {
         "input_per_million": 0.0,
         "output_per_million": 0.0,
-        "per_call_usd": 0.04,
+        "per_call_usd": 0.06,
     },
     "grok-imagine-image-quality": {
         "input_per_million": 0.0,
