@@ -3542,6 +3542,13 @@ class XaiClient:
         poll_interval = max(0.0, float(interval))
         while True:
             if video_sink_cancelled(into, request_id):
+                self._record_video_failed(
+                    tag=tag,
+                    parent_id=parent_id,
+                    labels=labels,
+                    error="video_cancelled",
+                    video_model=video_model,
+                )
                 raise RuntimeError(f"{action} cancelled: request_id={request_id}")
             try:
                 payload = self._get_video_status(request_id)

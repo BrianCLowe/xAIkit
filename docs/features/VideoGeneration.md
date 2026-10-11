@@ -1,6 +1,6 @@
 # VideoGeneration
 
-**Last Updated**: 2026-10-10  
+**Last Updated**: 2026-10-11  
 **Related Understanding**: —  
 
 ---
@@ -44,6 +44,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 - Do not send `image` and `reference_images` together (client `ValueError`; upstream would 400)
 - `file_id` is passthrough only — no Files upload in this stem
 - `into=` is required (`VideoInbox`, list, or callback the app keeps). Omitting it is a `TypeError` so a coding agent must write a receive path. The kit delivers `request_id` as soon as the POST is accepted, then the terminal result (`done` / `failed` / `expired`). A sibling `gather` / `TaskGroup` cancel stops the await, not delivery — async wait is shielded. `VideoInbox.cancel(request_id)` is the only abandon (stop listening; does not abort xAI-side generation). Process death without a persisted id is still unrecoverable.
+- `VideoInbox.cancel(request_id)` records one failed usage event, then raises `RuntimeError`. The event is `success` false, `error` `video_cancelled`, `modality` `video`, and the request model. Purpose, parent id, and labels are carried. No usage payload is attached, so there is no USD estimate, same as `video_timeout`. xAI may still generate and bill the accepted clip. A second `cancel` on the same id records nothing more. A cancel after the wait already recorded `done` leaves that success event as the only event. `asyncio.CancelledError` does not record. The shielded wait still records its later terminal state once.
 - Default `wait=True` polls until `done` (timeout ~10 minutes, interval 5s). `wait=False` returns the start payload including `request_id` (already delivered to `into`)
 - Wait loop: `pending` → keep going; `done` → return result; `failed` / `expired` → deliver receipt with `error` then `RuntimeError`. `poll_video` is a single GET and returns the same normalized dict (including pending and failed). Failed polls set `error` from the Imagine payload; they do not raise.
 - Purpose required when a meter is attached
@@ -71,6 +72,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 | 2026-08-15 | `poll_video` keeps `error` | Wait already raised `_video_error_message` and set `VideoReceipt.error`. `wait=False` + poll dropped it in `_normalize_video_payload`, so a failed hop looked like status-only. Same helper now puts `error` on the dict. |
 | 2026-10-04 | 1.5 Lite keeps 1080p on T2V/I2V and cannot extend | Public pricing: Text + Image → Video, with a 1080p rate. The 1080p allow mark is the `imagine-video-1.5` substring, so lite is included. Lite has no `video_extend`, so extend remaps it to quality the same way as 1.5. Generate default stays 1.5. |
 | 2026-10-10 | Unusable video start body records one failed event, then raises | A 2xx body that is not JSON, is not an object, or has no `request_id` is a failed start. The event `error` field is the raised message exactly. Extend uses the same path. 401 still skips the meter. Poll parse failures are unchanged. |
+| 2026-10-11 | Inbox cancel records one `video_cancelled` event and no usage payload | xAI may still generate and bill the accepted clip. The meter marks the wait cancelled the same way timeout, failed, and expired mark their states. No estimate is attached, same as timeout. `asyncio.CancelledError` does not record, so a shielded wait is not counted twice. |
 
 ## Dependencies
 
@@ -91,6 +93,7 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 - [x] 1080p contracted: `grok-imagine-video-1.5` and `grok-imagine-video-1.5-lite` T2V/I2V; R2V / older video → 720p
 - [x] `extend_video` contracts 1.5 / 1.5 Lite / omitted model to `grok-imagine-video` (generate stays on 1.5)
 - [x] Durable start: required `into=`; `request_id` delivered before wait; wait-cancel ≠ abandon unless `inbox.cancel`
+- [x] Inbox cancel records one `video_cancelled` usage event (sync and async) with no USD estimate
 - [x] `poll_video` / normalize keep Imagine `error` (wait and poll share the same text)
 
 ## Visual references
@@ -101,4 +104,4 @@ Return dict (same spirit as `generate_image`): `request_id`, `status`, `url`, `d
 
 - **Shipped** (library-only): generate / extend / poll / download + meter + default prices + `prefer_latest_video_model` + 1080p per-model/mode contraction + required `into=` / `VideoInbox` + extend-model contraction via `need=video_extend`
 - **Queued**: none on this stem (edits / Files stay elsewhere)
-- **Last reconciled with code**: 2026-10-04 (1.5 Lite keeps 1080p on T2V/I2V; extend remaps lite to quality)
+- **Last reconciled with code**: 2026-10-11 (inbox cancel records one `video_cancelled` event, no USD estimate)
