@@ -1,7 +1,7 @@
 """Model catalog + resolution for XaiKit.
 
 Resolve chain: pin → need-filter → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap.
-``role=`` selects the pool (``chat`` default, or ``image`` / ``video`` / ``voice``).
+``role=`` selects the pool (``chat`` default, or ``image`` / ``video`` / ``voice`` / ``speech-to-text``).
 No settings import; callers pass knobs / inject fixtures.
 """
 
@@ -37,12 +37,19 @@ ROLE_CHAT = "chat"
 ROLE_IMAGE = "image"
 ROLE_VIDEO = "video"
 ROLE_VOICE = "voice"
-KNOWN_ROLES = (ROLE_CHAT, ROLE_IMAGE, ROLE_VIDEO, ROLE_VOICE)
+ROLE_SPEECH_TO_TEXT = "speech-to-text"
+KNOWN_ROLES = (ROLE_CHAT, ROLE_IMAGE, ROLE_VIDEO, ROLE_VOICE, ROLE_SPEECH_TO_TEXT)
+# grok-voice-transcribe* is speech-to-text, not the realtime voice pool.
+_SPEECH_TO_TEXT_BOOTSTRAP = "grok-voice-transcribe-2.0"
+_NON_CHAT_SLUG_ROLES = frozenset(
+    {ROLE_IMAGE, ROLE_VIDEO, ROLE_VOICE, ROLE_SPEECH_TO_TEXT}
+)
 _ROLE_BOOTSTRAP = {
     ROLE_CHAT: BOOTSTRAP_MODEL,
     ROLE_IMAGE: DEFAULT_IMAGE_MODEL,
     ROLE_VIDEO: DEFAULT_VIDEO_MODEL,
     ROLE_VOICE: DEFAULT_VOICE_MODEL,
+    ROLE_SPEECH_TO_TEXT: _SPEECH_TO_TEXT_BOOTSTRAP,
 }
 # Canonical three; aliases normalize in. Overlap is allowed when the lineup is thin.
 # "economy" = cheaper-than-flagship rung, not "best performance-per-dollar".
@@ -312,7 +319,7 @@ def normalize_intent(intent: str | None) -> str | None:
 
 
 def normalize_role(role: str | None) -> str:
-    """Map ``role=`` to ``chat`` | ``image`` | ``video`` | ``voice`` (default chat)."""
+    """Map ``role=`` to chat, image, video, voice, or speech-to-text (default chat)."""
     if role is None:
         return ROLE_CHAT
     raw = str(role).strip().lower()
@@ -622,6 +629,9 @@ def _slug_role(*parts: str) -> str | None:
             continue
         if mid.startswith("grok-imagine-video") or "-imagine-video" in mid:
             return ROLE_VIDEO
+        # Transcribe ids leave role=voice. They resolve only as speech-to-text.
+        if mid.startswith("grok-voice-transcribe"):
+            return ROLE_SPEECH_TO_TEXT
         if mid.startswith("grok-voice"):
             return ROLE_VOICE
         if "imagine-image" in mid:
@@ -652,13 +662,13 @@ def model_info_from_language_proto(lm: Any) -> ModelInfo:
         version = str(version).strip() or None
 
     slug = _slug_role(name, *[str(a) for a in aliases if a])
-    caps: list[str] = [] if slug in {ROLE_IMAGE, ROLE_VIDEO, ROLE_VOICE} else ["chat"]
+    caps: list[str] = [] if slug in _NON_CHAT_SLUG_ROLES else ["chat"]
     out_mods = list(getattr(lm, "output_modalities", None) or [])
     in_mods = list(getattr(lm, "input_modalities", None) or [])
     for m in out_mods + in_mods:
         tag = _modality_name(m)
         if tag and tag not in ("invalid", "invalid_modality", "0"):
-            if slug in {ROLE_IMAGE, ROLE_VIDEO, ROLE_VOICE} and tag in {
+            if slug in _NON_CHAT_SLUG_ROLES and tag in {
                 "text",
                 "chat",
             }:
@@ -709,8 +719,8 @@ def model_info_from_language_proto(lm: Any) -> ModelInfo:
 def model_info_from_image_proto(im: Any) -> ModelInfo:
     """Map xAI SDK ImageGenerationModel proto (or duck-typed object) → ModelInfo.
 
-    Tags ``image`` (or ``video`` / ``voice`` when the slug says so). Stores
-    ``image_price`` as ``per_image_usd`` and does **not** copy it into
+    Tags ``image`` (or ``video`` / ``voice`` / ``speech-to-text`` when the slug says so).
+    Stores ``image_price`` as ``per_image_usd`` and does **not** copy it into
     ``input_per_million`` (incompatible units). Resolve ranks image/video/voice
     on public list rates.
     """
@@ -836,10 +846,10 @@ def _sdk_list_models(
 def fetch_models_from_sdk(api_key: str) -> list[ModelInfo]:
     """Live fetch language + image-generation models via xAI SDK.
 
-    Video/voice have no list APIs — those rows are tagged by slug when they
-    appear on either list. One list failing does not wipe the others. If
-    **every** list call fails, raise so ``list_models`` can fixture-fallback
-    instead of caching an empty SDK snapshot.
+    Video, voice, and speech-to-text have no list APIs. Those rows are tagged
+    by slug when they appear on either list. One list failing does not wipe
+    the others. If **every** list call fails, raise so ``list_models`` can
+    fixture-fallback instead of caching an empty SDK snapshot.
     """
     from xai_sdk import Client
 
@@ -1003,13 +1013,18 @@ def _model_matches_role(model: ModelInfo, role: str) -> bool:
     if role == ROLE_IMAGE:
         if slug == ROLE_IMAGE:
             return True
-        if slug in {ROLE_VIDEO, ROLE_VOICE}:
+        if slug in {ROLE_VIDEO, ROLE_VOICE, ROLE_SPEECH_TO_TEXT}:
             return False
         return ROLE_IMAGE in caps and not model.is_chat
     if role == ROLE_VIDEO:
         return slug == ROLE_VIDEO or ROLE_VIDEO in caps
     if role == ROLE_VOICE:
+        # A speech-to-text slug stays out of voice even if a modality tag says voice.
+        if slug == ROLE_SPEECH_TO_TEXT:
+            return False
         return slug == ROLE_VOICE or ROLE_VOICE in caps
+    if role == ROLE_SPEECH_TO_TEXT:
+        return slug == ROLE_SPEECH_TO_TEXT or ROLE_SPEECH_TO_TEXT in caps
     return False
 
 
@@ -1088,25 +1103,51 @@ def _version_tuple(model: ModelInfo) -> tuple:
     )
 
 
-def _imagine_video_sort_key(model: ModelInfo) -> tuple:
-    """Newest grok-imagine-video* id. ``-lite`` loses to every non-lite id.
+# Calendar snapshot in an Imagine video id, for example 2026-05-30.
+_VIDEO_DATED_SNAPSHOT = re.compile(r"\d{4}-\d{2}-\d{2}")
 
-    The lite flag is first so a calendar suffix (``-lite-2026-10-04``) cannot
-    outrank ``grok-imagine-video-1.5``. Among lite ids, the numeric suffix
-    still orders them.
+
+def _imagine_video_rest(model_id: str) -> str:
+    mid = (model_id or "").strip().lower().replace("_", "-")
+    prefix = "grok-imagine-video"
+    if mid.startswith(prefix):
+        return mid[len(prefix) :].lstrip("-")
+    return mid
+
+
+def _imagine_video_version_nums(rest: str) -> tuple[int, ...]:
+    """Version digits. Calendar dates, ``preview``, and ``lite`` are not a version."""
+    cleaned = _VIDEO_DATED_SNAPSHOT.sub("-", rest)
+    cleaned = re.sub(r"(?:^|-)preview(?:-|$)", "-", cleaned)
+    cleaned = re.sub(r"(?:^|-)lite(?:-|$)", "-", cleaned)
+    nums = [int(part) for part in re.split(r"[^0-9]+", cleaned) if part.isdigit()]
+    return tuple(nums) if nums else (0,)
+
+
+def _imagine_video_sort_key(model: ModelInfo) -> tuple:
+    """Newest grok-imagine-video* id.
+
+    ``-lite`` ranks below every non-lite id. The plain recommended id ranks
+    ahead of a dated snapshot and a ``-preview`` variant of the same version.
+    A created-date tie does not let ``-preview`` or a snapshot win on the id
+    string. Among lite ids, the version digits still order them.
     """
     mid = (model.id or "").strip().lower().replace("_", "-")
-    rest = mid
-    if rest.startswith("grok-imagine-video"):
-        rest = rest[len("grok-imagine-video") :].lstrip("-")
-    nums: list[int] = []
-    for part in re.split(r"[^0-9]+", rest):
-        if part.isdigit():
-            nums.append(int(part))
+    rest = _imagine_video_rest(mid)
     is_lite = 0 if _is_imagine_video_lite(mid) else 1
+    is_preview = bool(re.search(r"(?:^|-)preview(?:-|$)", rest))
+    is_snapshot = _VIDEO_DATED_SNAPSHOT.search(rest) is not None
+    is_plain = 0 if (is_preview or is_snapshot) else 1
     is_latest = 1 if rest.endswith("latest") or "-latest-" in f"-{rest}-" else 0
     created = model.created or 0
-    return (is_lite, tuple(nums) if nums else (0,), is_latest, created, mid)
+    return (
+        is_lite,
+        _imagine_video_version_nums(rest),
+        is_plain,
+        is_latest,
+        created,
+        mid,
+    )
 
 
 def _newest_key(model: ModelInfo, role: str) -> tuple:

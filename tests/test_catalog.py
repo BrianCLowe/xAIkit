@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+from xaikit import MockChatProvider, XaiClient
 from xaikit.catalog import (
     BOOTSTRAP_MODEL,
     DEFAULT_IMAGE_MODEL,
@@ -34,6 +37,17 @@ from xaikit.catalog import (
     save_catalog_snapshot,
 )
 from xaikit.pricing import default_price_table
+
+_WATCH_SLUGS_PATH = (
+    Path(__file__).resolve().parents[1] / "scripts" / "data" / "xai_models_watch.json"
+)
+_WATCH_VIDEO_IDS = (
+    "grok-imagine-video",
+    "grok-imagine-video-1.5",
+    "grok-imagine-video-1.5-2026-05-30",
+    "grok-imagine-video-1.5-lite",
+    "grok-imagine-video-1.5-preview",
+)
 
 
 def _lm(**kwargs: object) -> SimpleNamespace:
@@ -507,6 +521,122 @@ def test_video_lite_is_cheapest_and_not_the_flagship() -> None:
         )
         == "grok-imagine-video"
     )
+
+
+def _watch_video_ids() -> list[str]:
+    """Video ids from the committed watch file (the Imagine video block)."""
+    payload = json.loads(_WATCH_SLUGS_PATH.read_text(encoding="utf-8"))
+    slugs = [str(slug) for slug in payload["slugs"]]
+    found = [slug for slug in slugs if slug in _WATCH_VIDEO_IDS]
+    assert found == list(_WATCH_VIDEO_IDS)
+    return found
+
+
+def _video_catalog(
+    ids: list[str], created_for: Callable[[str], int]
+) -> list[ModelInfo]:
+    return [
+        ModelInfo(id=model_id, capabilities=["video"], created=created_for(model_id))
+        for model_id in ids
+    ]
+
+
+def test_xk_ac_rank_2_plain_video_beats_snapshot_and_preview() -> None:
+    """XK-AC-RANK-2: plain 1.5 beats the dated snapshot, preview, and lite."""
+    ids = _watch_video_ids()
+    plain = "grok-imagine-video-1.5"
+    snapshot = "grok-imagine-video-1.5-2026-05-30"
+    preview = "grok-imagine-video-1.5-preview"
+    lite = "grok-imagine-video-1.5-lite"
+
+    def _newer_variant(model_id: str) -> int:
+        if model_id in {snapshot, preview, lite}:
+            return 500
+        return 10
+
+    newer_variants = _video_catalog(ids, _newer_variant)
+    assert (
+        resolve_model_selection(intent="best", role="video", catalog=newer_variants).model_id
+        == plain
+    )
+    assert prefer_latest_video_model(newer_variants) == plain
+    assert resolve_model(intent="best", role="video", catalog=newer_variants) != snapshot
+    assert resolve_model(intent="best", role="video", catalog=newer_variants) != preview
+    assert resolve_model(intent="best", role="video", catalog=newer_variants) != lite
+
+    tied_created = 42
+
+    def _same_created(_model_id: str) -> int:
+        return tied_created
+
+    tied = _video_catalog(ids, _same_created)
+    assert {row.created for row in tied} == {tied_created}
+    assert (
+        resolve_model_selection(intent="best", role="video", catalog=tied).model_id == plain
+    )
+    assert prefer_latest_video_model(tied) == plain
+    assert resolve_model(intent="best", role="video", catalog=tied) not in {snapshot, preview, lite}
+
+
+def test_xk_ac_rank_3_transcribe_ids_leave_voice() -> None:
+    """XK-AC-RANK-3: transcribe ids are speech-to-text, never voice best."""
+    rows = [
+        model_info_from_language_proto(_lm(name="grok-voice-think-fast-1.0", created=1)),
+        model_info_from_language_proto(_lm(name="grok-voice-think-fast-2.0", created=2)),
+        model_info_from_language_proto(_lm(name="grok-voice-latest", created=3)),
+        model_info_from_language_proto(_lm(name="grok-voice-transcribe-1.0", created=40)),
+        model_info_from_language_proto(_lm(name="grok-voice-transcribe-2.0", created=50)),
+        model_info_from_language_proto(_lm(name="grok-voice-transcribe-9.0", created=90)),
+    ]
+    transcribe_ids = {
+        "grok-voice-transcribe-1.0",
+        "grok-voice-transcribe-2.0",
+        "grok-voice-transcribe-9.0",
+    }
+    voice_best = resolve_model_selection(intent="best", role="voice", catalog=rows)
+    assert voice_best.model_id == "grok-voice-latest"
+    assert voice_best.source == "intent:best"
+    assert not voice_best.model_id.startswith("grok-voice-transcribe")
+    assert resolve_model(role="voice", catalog=rows) == "grok-voice-latest"
+
+    voice_ids = {row.id for row in models_for_role(rows, "voice")}
+    assert voice_ids.isdisjoint(transcribe_ids)
+    speech_ids = {row.id for row in models_for_role(rows, "speech-to-text")}
+    assert speech_ids == transcribe_ids
+    assert {row.id for row in models_for_role(rows, "chat")}.isdisjoint(transcribe_ids)
+
+    speech_best = resolve_model_selection(intent="best", role="speech-to-text", catalog=rows)
+    assert speech_best.model_id == "grok-voice-transcribe-9.0"
+    assert speech_best.source == "intent:best"
+
+    for model_id in ("grok-voice-transcribe-1.0", "grok-voice-transcribe-2.0"):
+        solo = [
+            row
+            for row in rows
+            if row.id == model_id or not row.id.startswith("grok-voice-transcribe")
+        ]
+        selected = resolve_model_selection(
+            intent="best", role="speech-to-text", catalog=solo
+        )
+        assert selected.model_id == model_id
+        assert selected.source == "intent:best"
+        assert (
+            resolve_model_selection(intent="best", role="voice", catalog=solo).model_id
+            == "grok-voice-latest"
+        )
+
+    inject_catalog(rows)
+    try:
+        client = XaiClient(
+            provider=MockChatProvider(),
+            api_key="test-key",
+            model="grok-4.7",
+        )
+        assert client.voice_model == "grok-voice-latest"
+        assert not client.voice_model.startswith("grok-voice-transcribe")
+    finally:
+        inject_catalog(None)
+        clear_catalog_cache()
 
 
 def test_need_filters_best_for_the_job() -> None:
