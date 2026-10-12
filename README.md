@@ -121,7 +121,7 @@ Optional OpenTelemetry export (`pip install 'xaikit-py[otel]'`): `OpenTelemetryU
 
 ## Credentials and OAuth
 
-Pass `api_key=` or a `CredentialStore` (`EnvCredentialStore` / `DictCredentialStore`). The kit does **not** hardcode xAI portal URLs. OAuth helpers take **caller-supplied** `authorize_url` and `token_url`.
+Pass `api_key=` or a `CredentialStore` (`EnvCredentialStore` / `DictCredentialStore`). The kit does **not** hardcode xAI portal URLs. OAuth helpers take **caller-supplied** `authorize_url` and `token_url`. An `authorize_url` that already has a query keeps those parameters, with kit values winning on `client_id`, `redirect_uri`, `response_type`, `scope`, and `state`, and any fragment stays after the query.
 
 ```python
 from xaikit import (

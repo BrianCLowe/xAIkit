@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 
@@ -20,6 +20,12 @@ def oauth_is_configured(
     return bool((client_id or "").strip() and (client_secret or "").strip())
 
 
+# Names the kit always sets. A caller query value for any of these is dropped.
+_AUTHORIZE_KIT_NAMES = frozenset(
+    {"client_id", "redirect_uri", "response_type", "scope", "state"}
+)
+
+
 def build_oauth_authorize_url(
     *,
     client_id: str,
@@ -28,21 +34,34 @@ def build_oauth_authorize_url(
     authorize_url: str,
     scopes: str = "openid",
 ) -> str:
-    """Build the xAI (or compatible) authorization-code URL."""
+    """Build an authorization-code URL.
+
+    An existing query is kept. Caller parameters stay in their original order,
+    then kit parameters follow: client_id, redirect_uri, response_type, scope,
+    state. Kit values win for those five names, so each of those names appears once.
+    A fragment stays after the query.
+    """
     cid = (client_id or "").strip()
     if not cid:
         raise ValueError("client_id is required")
     base = (authorize_url or "").strip().rstrip("?")
     if not base:
         raise ValueError("authorize_url is required")
-    params = {
-        "client_id": cid,
-        "redirect_uri": (redirect_uri or "").strip(),
-        "response_type": "code",
-        "scope": (scopes or "openid").strip(),
-        "state": state,
-    }
-    return f"{base}?{urlencode(params)}"
+    parts = urlsplit(base)
+    caller_pairs = [
+        (name, value)
+        for name, value in parse_qsl(parts.query, keep_blank_values=True)
+        if name not in _AUTHORIZE_KIT_NAMES
+    ]
+    kit_pairs = [
+        ("client_id", cid),
+        ("redirect_uri", (redirect_uri or "").strip()),
+        ("response_type", "code"),
+        ("scope", (scopes or "openid").strip()),
+        ("state", state),
+    ]
+    query = urlencode(caller_pairs + kit_pairs)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, query, parts.fragment))
 
 
 def exchange_oauth_code(
