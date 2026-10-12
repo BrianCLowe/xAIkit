@@ -21,6 +21,7 @@ from xaikit.pricing import (
     LONG_CONTEXT_PROMPT_TOKENS,
     ModelPrice,
     PriceTable,
+    _image_count,
     _usage_int,
     default_price_table,
     public_price_table,
@@ -341,15 +342,7 @@ def _estimate_from_catalog(
             usage=usage,
         )
     if info.per_image_usd is not None:
-        count = 1
-        if usage:
-            raw = usage.get("image_count", usage.get("images"))
-            try:
-                if raw is not None:
-                    count = max(1, int(raw))
-            except (TypeError, ValueError):
-                count = 1
-        return round(float(info.per_image_usd) * count, 8)
+        return round(float(info.per_image_usd) * _image_count(usage), 8)
     return None
 
 
