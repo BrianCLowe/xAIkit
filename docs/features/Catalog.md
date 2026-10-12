@@ -15,7 +15,7 @@
 
 Living model catalog and resolve helpers. Callers pass knobs or inject fixtures — no app settings import.
 
-The same `cheapest` / `economy` / `best` intents run on a **role-filtered** pool (`chat` \| `image` \| `video` \| `voice`). SDK fetch unions language models with image-generation models so those roles are not empty; video/voice rows are tagged by slug when they appear.
+The same `cheapest` / `economy` / `best` intents run on a **role-filtered** pool (`chat` \| `image` \| `video` \| `voice` \| `speech-to-text`). SDK fetch unions language models with image-generation models so those roles are not empty; video, voice, and speech-to-text rows are tagged by slug when they appear. `grok-voice-transcribe*` is speech-to-text, not voice.
 
 ## Architecture / Contract
 
@@ -23,7 +23,7 @@ The same `cheapest` / `economy` / `best` intents run on a **role-filtered** pool
 - **Does not own**: billing UI, per-app task names (apps inject `set_task_assignment`)
 - **Public API**: `list_models` (`persist_path=`), `save_catalog_snapshot`, `inject_catalog`, `resolve_model` / `resolve_model_selection` (`role=`, `need=`), `normalize_thought_level`, `contract_thought_level`, `contract_model_for_need`, `normalize_intent`, `effort_options` (`model=`), `feature_options` (`model=`), `intent_options`, `BOOTSTRAP_MODEL`, `ModelInfo`, `ModelSelection`
 
-Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) → task hook → prefer_latest → bootstrap** (`grok-4.7` for chat; image/video/voice use that role’s default slug when the pool is empty). Offline with no key/fixture, `list_models` injects `grok-4.7` plus cheaper-band `grok-4.3`.
+Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) → task hook → prefer_latest → bootstrap** (`grok-4.7` for chat; image, video, voice, and speech-to-text use that role's default slug when the pool is empty). Speech-to-text empty-pool default is `grok-voice-transcribe-2.0`. Offline with no key/fixture, `list_models` injects `grok-4.7` plus cheaper-band `grok-4.3`.
 
 `normalize_thought_level`: canonical `low`\|`medium`\|`high`\|`xhigh` (4.6 set). `med`/`mid` → `medium`; `x-high`/`extra`/`max` → `xhigh`; empty/unknown → omit knob. `contract_thought_level(level, model)` clamps to what that family accepts (4.6+/multi-agent pass through; 4.5 `xhigh`→`high`; older reasoners also `medium`→`low`; `*-non-reasoning*` omits). `effort_options(model=)` returns that family's list (empty when none). `grok-4.20` is older than `grok-4.5` — do not treat numeric 20 as “4.6 and later”.
 
@@ -34,7 +34,7 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 ## Behavior (stable)
 
 - SDK fetch with fallback to empty/offline catalog when allowed
-- Fetch unions `list_language_models` + `list_image_generation_models` (best-effort: one list failing does not wipe the others). No video/voice list APIs — tag `grok-imagine-video*` / `grok-voice*` by slug; image-generation rows get capability `image` (or video/voice when the slug says so)
+- Fetch unions `list_language_models` + `list_image_generation_models` (best-effort: one list failing does not wipe the others). No video, voice, or speech-to-text list APIs. Tag `grok-imagine-video*` as video, `grok-voice-transcribe*` as speech-to-text, and other `grok-voice*` as voice. Image-generation rows get capability `image` (or video, voice, or speech-to-text when the slug says so)
 - In-process snapshot + TTL freshness. An unpinned `XaiClient` / `AsyncXaiClient` passes its API key into `list_models` and re-resolves chat (and unpinned image/video/voice defaults) when that cache expires (one hour). A pin on the client or the call stays fixed. `BOOTSTRAP_MODEL` is the empty-catalog fallback, not a live pin. Video and voice stay on the role default until a list row exists. Chat newest-sort is integer `(major, minor)`: `grok-5` above `grok-4.10` above `grok-4.7`. `grok-4.20` sorts as minor 2 so it stays older than `grok-4.3`
 - Opt-in disk persist: `list_models(..., persist_path=)` writes `{models: [...]}` after a successful SDK fetch (same shape `save_catalog_snapshot` writes). Writes go to a sibling temp file then `os.replace` so a failed write cannot truncate the last good snapshot. No default cwd/home path. Read order when no inject/test-fetch: fresh memory → SDK if key → persist file if present → `fixture_path` → bootstrap. Disk write errors are logged; the live list is still returned. `clear_catalog_cache` is memory-only (does not delete the file)
 - Test inject: `inject_catalog`, `set_test_fetch`, `clear_catalog_cache`
@@ -42,9 +42,10 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 - General **chat** intents skip coding SKUs (`grok-build-*`, `grok-code-*`, `*code-fast*` **id**) unless the catalog is coding-only. Do not match aliases (`grok-4.5` currently aliases `grok-build-latest`). Coding-SKU skip does **not** apply to image/video/voice
 - `cheapest`: lowest ranking price. **One price band** → same as `best` (newer is usually more efficient at the same list price). **Multiple bands** → oldest / non-reasoning in the cheapest band
 - `best`: newest flagship in the role pool (`prefer_latest`), or newest that satisfies `need=`
-- **Feature map:** `feature_options(model=)` for settings knobs; `need=` on resolve so `best` is best **for the job**. 1.5 is the video flagship but cannot extend/edit — `need="video_extend"` picks quality. 1.5 Lite is the cheap text/image video SKU (`1080p` only). Video sort compares “not lite” before any numeric suffix, so a newer `created` stamp or a date in the id (`-lite-2026-10-04`) cannot make lite `best`. Chat extras (4.6+, flagship `grok-4.7`): web/X search, code execution, file attachments, collections search, image understanding, X video understanding, remote MCP. Newer SKUs may add tools; older may have fewer. Do not overload `ModelInfo.capabilities` (role tags).
+- **Feature map:** `feature_options(model=)` for settings knobs; `need=` on resolve so `best` is best **for the job**. 1.5 is the video flagship but cannot extend/edit. `need="video_extend"` picks quality. 1.5 Lite is the cheap text/image video SKU (`1080p` only). Video sort ranks every non-lite id above `-lite`, then the version with calendar dates removed, then the plain id above a dated snapshot and a `-preview` of that same version, then created date. A created-date tie does not let `-preview` or a snapshot win on the id string. A newer `created` stamp or a date in the id (`-lite-2026-10-04`, `grok-imagine-video-1.5-2026-05-30`) cannot make lite, a snapshot, or `-preview` into `best` over plain `grok-imagine-video-1.5`. Chat extras (4.6+, flagship `grok-4.7`): web/X search, code execution, file attachments, collections search, image understanding, X video understanding, remote MCP. Newer SKUs may add tools; older may have fewer. Do not overload `ModelInfo.capabilities` (role tags).
 - `economy`: newest model in the price band **strictly below** flagship; overlaps `cheapest` when a cheaper band exists, overlaps `best` when there is only one band
-- `resolve_model` / `resolve_model_selection(..., role="image"|"video"|"voice")` use the same rules on that pool (default `role="chat"`)
+- `resolve_model` / `resolve_model_selection(..., role="image"|"video"|"voice"|"speech-to-text")` use the same rules on that pool (default `role="chat"`)
+- Speech-to-text ids (`grok-voice-transcribe-1.0`, `grok-voice-transcribe-2.0`, and any future `grok-voice-transcribe*`) are role `speech-to-text`, not `voice`. They resolve only on the speech-to-text path (`role="speech-to-text"`). Voice `best` and the default `voice_model` cannot be a transcribe id, including when the transcribe row has a newer `created` date
 - Image, video, and voice ranking price: the public list rate wins over `input_per_million` when one exists. `input_per_million` is used only when no public list rate exists. Image proto `image_price` is mapped when present. Chat still ranks on `input_per_million`
 - A list row may omit long and cached token rates. Usage metering copies each missing field the call needs from the shipped price table, looked up by the resolved catalog row id and then the request model string. A value set on the row wins. See [UsageObservability](UsageObservability.md) XK-AC-PRICE-1 and XK-AC-PRICE-2
 
@@ -72,6 +73,8 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 | 2026-10-11 | Shipped `grok-imagine-image-2.0` per-call rate is $0.06 | Ranking reads the shipped table, not the watch file. The watch file lists `grok-imagine-image` at $0.02, `grok-imagine-image-2.0` at $0.06, and `grok-imagine-image-quality` at $0.05. At $0.04, economy on the quality-newest lineup picked 2.0, the newest model strictly below the $0.05 flagship. At $0.06, 2.0 costs more than that flagship, so economy and cheapest both resolve to `grok-imagine-image`. When 2.0 is the newest row, it is the flagship, and economy resolves to `grok-imagine-image-quality`. `PRICE_TABLE_FETCHED` stays 2026-10-04. A 2.0 image call that misses catalog price and response ticks uses this row as the meter static fallback, so that estimate is $0.06. |
 | 2026-10-11 | `XK-AC-RANK-1` | Image economy and cheapest model resolve to `grok-imagine-image` on the shipped table and the repo test catalog, not `grok-imagine-image-2.0`. `cheapest_model` stays asserted as a no-change control. It already returned `grok-imagine-image` before the 2.0 rate change. Every shipped image model with `per_call_usd` that also has `per_call_usd` in the watch file matches that file, including `grok-imagine-image-pro`. |
 | 2026-10-12 | Shipped long and cached fill uses the resolved row id | An alias or a different case still matches the catalog row. Metering reads shipped long and cached rates with that row id first, then the request model string. Ranking still uses `input_per_million` for chat. |
+| 2026-10-12 | `XK-AC-RANK-2` | Video best and `prefer_latest_video_model` resolve to plain `grok-imagine-video-1.5` on the watch-file video ids. A dated snapshot and a `-preview` variant of the same version rank behind the plain id, including when created dates tie. The id string does not break that tie in favor of `-preview` or a snapshot. `-lite` stays below every non-lite id. |
+| 2026-10-12 | `XK-AC-RANK-3` | `grok-voice-transcribe-1.0`, `grok-voice-transcribe-2.0`, and any future `grok-voice-transcribe*` id are not role `voice`. A newer transcribe row cannot become voice best or the default `voice_model`. Those ids resolve only on the speech-to-text path (`role="speech-to-text"`). |
 
 ## Dependencies
 
@@ -86,9 +89,11 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 - [x] Catalog tests for inject / cheapest / best / unknown intent (gap)
 - [x] `non-reasoning` slugs are not tagged `reasoning`
 - [x] Three intents with overlap + coding-SKU skip
-- [x] Role-filtered catalog (image / video / voice) using the same intents
+- [x] Role-filtered catalog (image / video / voice / speech-to-text) using the same intents
 - [x] Opt-in `persist_path`: SDK write + offline reload of the same JSON; memory cache still wins when fresh; write failure does not fail `list_models`
 - [x] `feature_options(model=)` + `resolve_model(need=)` so `best` is best for the job (quality over 1.5 for extend)
+- [x] `XK-AC-RANK-2`: plain `grok-imagine-video-1.5` is video best and `prefer_latest_video_model` over the watch-file video ids, including a dated snapshot and `-preview` that share its created date. `-lite` stays below every non-lite id
+- [x] `XK-AC-RANK-3`: a newer `grok-voice-transcribe*` row is not voice best and not the default `voice_model`. `grok-voice-transcribe-1.0` and `grok-voice-transcribe-2.0` resolve only on the speech-to-text path
 
 ## Visual references
 
@@ -97,4 +102,4 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 ## Current status
 
 - **In progress**: none — High / Medium / Low drained. Feature map + `need=` shipped
-- **Last reconciled with code**: 2026-10-04 (`grok-imagine-video-1.5-lite` exact $0.02 / $0.03 / $0.14; extras `1080p` only; flagship stays `grok-imagine-video-1.5`)
+- **Last reconciled with code**: 2026-10-12 (plain `grok-imagine-video-1.5` ranks ahead of its dated snapshot and `-preview`; `grok-voice-transcribe*` is speech-to-text, not voice)
