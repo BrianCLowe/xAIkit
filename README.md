@@ -4,7 +4,7 @@
 
 # xAIkit
 
-**`0.1.3`.** Not an official xAI package. The API may still change. Problems or feedback: [open an issue](https://github.com/BrianCLowe/xAIkit/issues).
+**`0.2.0`.** Not an official xAI package. The API may still change. Problems or feedback: [open an issue](https://github.com/BrianCLowe/xAIkit/issues).
 
 **Unofficial** Python kit for the **xAI (Grok) API** — one typed client, living model catalog, usage metering, media, and realtime voice. Not a multi-provider SDK.
 
