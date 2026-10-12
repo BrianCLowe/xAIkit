@@ -16,6 +16,7 @@ from xaikit.catalog import (
     DEFAULT_VIDEO_MODEL,
     DEFAULT_VOICE_MODEL,
     ModelInfo,
+    best_model,
     catalog_source,
     cheapest_model,
     clear_catalog_cache,
@@ -686,6 +687,185 @@ def test_xk_ac_rank_3_voice_tagged_transcribe_stays_off_voice() -> None:
     finally:
         inject_catalog(None)
         clear_catalog_cache()
+
+
+def test_xk_ac_rank_4_stable_video_beats_newer_preview() -> None:
+    """XK-AC-RANK-4: stable 1.5 beats an in-test newer 2.0-preview.
+
+    The watch file has no grok-imagine-video-2.0-preview row. This test adds
+    that row itself. Lite stays out of best.
+    """
+    ids = _watch_video_ids()
+    plain = "grok-imagine-video-1.5"
+    preview_20 = "grok-imagine-video-2.0-preview"
+    assert preview_20 not in ids
+    lite_ids = [model_id for model_id in ids if "lite" in model_id]
+    assert lite_ids
+
+    def _created(model_id: str) -> int:
+        if model_id == preview_20:
+            return 900
+        return 10
+
+    catalog = _video_catalog([*ids, preview_20], _created)
+    preview_row = next(row for row in catalog if row.id == preview_20)
+    assert preview_row.created == 900
+    assert all((row.created or 0) < 900 for row in catalog if row.id != preview_20)
+
+    selected = resolve_model_selection(intent="best", role="video", catalog=catalog)
+    assert selected.model_id == plain
+    assert selected.source == "intent:best"
+    assert selected.model_id != preview_20
+    assert prefer_latest_video_model(catalog) == plain
+    assert best_model(catalog, role="video") == plain
+    assert resolve_model(intent="best", role="video", catalog=catalog) == plain
+    for lite in lite_ids:
+        assert selected.model_id != lite
+        assert prefer_latest_video_model(catalog) != lite
+
+
+def test_xk_ac_rank_5_stable_beats_newer_preview_in_every_role() -> None:
+    """XK-AC-RANK-5: a newer preview loses best to the stable model in every role.
+
+    Transcribe stays off voice even when it is stable and newer.
+    """
+    stable_created = 10
+    preview_created = 900
+    video_ids = _watch_video_ids()
+    preview_20 = "grok-imagine-video-2.0-preview"
+
+    def _video_created(model_id: str) -> int:
+        if model_id == preview_20:
+            return preview_created
+        return stable_created
+
+    catalogs = {
+        "chat": [
+            ModelInfo(id="grok-4.7", capabilities=["chat"], created=stable_created),
+            ModelInfo(
+                id="grok-5-preview",
+                capabilities=["chat"],
+                created=preview_created,
+            ),
+        ],
+        "image": [
+            ModelInfo(
+                id="grok-imagine-image",
+                capabilities=["image"],
+                created=stable_created,
+            ),
+            ModelInfo(
+                id="grok-imagine-image-2.0-preview",
+                capabilities=["image"],
+                created=preview_created,
+            ),
+        ],
+        "video": _video_catalog([*video_ids, preview_20], _video_created),
+        "voice": [
+            ModelInfo(
+                id="grok-voice-think-fast-1.0",
+                capabilities=["voice"],
+                created=stable_created,
+            ),
+            ModelInfo(
+                id="grok-voice-think-fast-9.0-preview",
+                capabilities=["voice"],
+                created=preview_created,
+            ),
+            ModelInfo(
+                id="grok-voice-transcribe-9.0",
+                capabilities=["speech-to-text", "voice"],
+                created=preview_created + 1,
+            ),
+        ],
+        "speech-to-text": [
+            ModelInfo(
+                id="grok-voice-transcribe-1.0",
+                capabilities=["speech-to-text"],
+                created=stable_created,
+            ),
+            ModelInfo(
+                id="grok-voice-transcribe-9.0-preview",
+                capabilities=["speech-to-text"],
+                created=preview_created,
+            ),
+        ],
+    }
+    expected = {
+        "chat": "grok-4.7",
+        "image": "grok-imagine-image",
+        "video": "grok-imagine-video-1.5",
+        "voice": "grok-voice-think-fast-1.0",
+        "speech-to-text": "grok-voice-transcribe-1.0",
+    }
+    assert set(catalogs) == set(expected)
+    for role, want in expected.items():
+        catalog = catalogs[role]
+        selected = resolve_model_selection(intent="best", role=role, catalog=catalog)
+        assert selected.model_id == want
+        assert selected.source == "intent:best"
+        assert best_model(catalog, role=role) == want
+        assert prefer_latest_model(catalog, role=role) == want
+        assert resolve_model(intent="best", role=role, catalog=catalog) == want
+
+    voice_rows = catalogs["voice"]
+    voice_ids = {row.id for row in models_for_role(voice_rows, "voice")}
+    assert "grok-voice-transcribe-9.0" not in voice_ids
+    assert all(not model_id.startswith("grok-voice-transcribe") for model_id in voice_ids)
+    speech_ids = {row.id for row in models_for_role(voice_rows, "speech-to-text")}
+    assert speech_ids == {"grok-voice-transcribe-9.0"}
+
+    segment = [
+        ModelInfo(id="grok-4.7", capabilities=["chat"], created=stable_created),
+        ModelInfo(id="grok-5-previewing", capabilities=["chat"], created=preview_created),
+    ]
+    assert (
+        resolve_model_selection(intent="best", role="chat", catalog=segment).model_id
+        == "grok-5-previewing"
+    )
+
+
+def test_xk_ac_rank_6_preview_only_pool_resolves_to_preview() -> None:
+    """XK-AC-RANK-6: a preview-only pool resolves to a preview, not a default."""
+    video = [
+        ModelInfo(
+            id="grok-imagine-video-1.5-preview",
+            capabilities=["video"],
+            created=20,
+        ),
+        ModelInfo(
+            id="grok-imagine-video-2.0-preview",
+            capabilities=["video"],
+            created=5,
+        ),
+    ]
+    image = [
+        ModelInfo(id="grok-imagine-image-preview", capabilities=["image"], created=10),
+        ModelInfo(
+            id="grok-imagine-image-2.0-preview",
+            capabilities=["image"],
+            created=50,
+        ),
+    ]
+    chat = [
+        ModelInfo(id="grok-4.7-preview", capabilities=["chat"], created=20),
+        ModelInfo(id="grok-5-preview", capabilities=["chat"], created=5),
+    ]
+    cases = (
+        ("video", video, "grok-imagine-video-2.0-preview", DEFAULT_VIDEO_MODEL),
+        ("image", image, "grok-imagine-image-2.0-preview", DEFAULT_IMAGE_MODEL),
+        ("chat", chat, "grok-5-preview", BOOTSTRAP_MODEL),
+    )
+    for role, catalog, want, fallback in cases:
+        assert want != fallback
+        selected = resolve_model_selection(intent="best", role=role, catalog=catalog)
+        assert selected.model_id == want
+        assert selected.source == "intent:best"
+        assert selected.model_id is not None
+        assert best_model(catalog, role=role) == want
+        assert prefer_latest_model(catalog, role=role) == want
+        assert resolve_model(intent="best", role=role, catalog=catalog) == want
+    assert prefer_latest_video_model(video) == "grok-imagine-video-2.0-preview"
 
 
 def test_need_filters_best_for_the_job() -> None:
