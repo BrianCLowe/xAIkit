@@ -1085,6 +1085,21 @@ def _chat_major_minor(model_id: str) -> tuple[int, int]:
     return (major, minor)
 
 
+# ``preview`` as its own id segment: ``preview``, ``-preview``, or ``preview-``.
+_PREVIEW_SEGMENT = re.compile(r"(?:^|-)preview(?:-|$)")
+
+
+def _is_preview_id(model_id: str) -> bool:
+    """True when ``preview`` is its own segment of the model id."""
+    mid = (model_id or "").strip().lower().replace("_", "-")
+    return _PREVIEW_SEGMENT.search(mid) is not None
+
+
+def _stable_rank(model_id: str) -> int:
+    """1 for a stable id, 0 for a ``-preview`` id. Higher sorts first."""
+    return 0 if _is_preview_id(model_id) else 1
+
+
 def _version_tuple(model: ModelInfo) -> tuple:
     mid = model.id.lower()
     is_latest_alias = mid.endswith("-latest") or mid.endswith("_latest")
@@ -1093,6 +1108,7 @@ def _version_tuple(model: ModelInfo) -> tuple:
     is_fast = "fast" in mid and "non-reasoning" not in mid
     created = model.created or 0
     return (
+        _stable_rank(mid),
         major,
         minor,
         1 if is_latest_alias else 0,
@@ -1127,21 +1143,25 @@ def _imagine_video_version_nums(rest: str) -> tuple[int, ...]:
 def _imagine_video_sort_key(model: ModelInfo) -> tuple:
     """Newest grok-imagine-video* id.
 
-    ``-lite`` ranks below every non-lite id. The plain recommended id ranks
-    ahead of a dated snapshot and a ``-preview`` variant of the same version.
-    A created-date tie does not let ``-preview`` or a snapshot win on the id
-    string. Among lite ids, the version digits still order them.
+    ``-lite`` ranks below every non-lite id. A stable id then ranks above any
+    ``-preview`` id, ahead of version, so ``grok-imagine-video-1.5`` beats
+    ``grok-imagine-video-2.0-preview``. The plain recommended id ranks ahead
+    of a dated snapshot of the same version. A created-date tie does not let
+    a snapshot win on the id string. Among lite ids, the version digits still
+    order them. A preview is chosen only when no stable non-lite id exists.
     """
     mid = (model.id or "").strip().lower().replace("_", "-")
     rest = _imagine_video_rest(mid)
     is_lite = 0 if _is_imagine_video_lite(mid) else 1
-    is_preview = bool(re.search(r"(?:^|-)preview(?:-|$)", rest))
+    is_stable = _stable_rank(mid)
+    is_preview = is_stable == 0
     is_snapshot = _VIDEO_DATED_SNAPSHOT.search(rest) is not None
     is_plain = 0 if (is_preview or is_snapshot) else 1
     is_latest = 1 if rest.endswith("latest") or "-latest-" in f"-{rest}-" else 0
     created = model.created or 0
     return (
         is_lite,
+        is_stable,
         _imagine_video_version_nums(rest),
         is_plain,
         is_latest,
@@ -1151,7 +1171,13 @@ def _imagine_video_sort_key(model: ModelInfo) -> tuple:
 
 
 def _newest_key(model: ModelInfo, role: str) -> tuple:
-    """Sort key for ``best`` / prefer-latest within a role pool."""
+    """Sort key for ``best`` / prefer-latest within a role pool.
+
+    A stable id ranks above any ``-preview`` id before version or created
+    date. Chat then uses integer major/minor. Video uses the Imagine video
+    key, which still ranks every non-lite id above ``-lite`` before that
+    stable flag. Other roles then use created date.
+    """
     if role == ROLE_CHAT:
         return _version_tuple(model)
     if role == ROLE_VIDEO:
@@ -1163,13 +1189,22 @@ def _newest_key(model: ModelInfo, role: str) -> tuple:
             nums.append(int(part))
     is_latest = 1 if mid.endswith("-latest") or "-latest-" in f"-{mid}-" else 0
     created = model.created or 0
-    return (created, is_latest, tuple(nums) if nums else (0,), mid)
+    return (
+        _stable_rank(mid),
+        created,
+        is_latest,
+        tuple(nums) if nums else (0,),
+        mid,
+    )
 
 
 def prefer_latest_video_model(catalog: Sequence[ModelInfo] | None = None) -> str:
     """Pick the newest ``grok-imagine-video*`` id from *catalog*.
 
-    Does not change chat resolve. Empty / missing catalog → ``DEFAULT_VIDEO_MODEL``.
+    A stable id beats any ``-preview`` id, ahead of version and created date.
+    ``-lite`` stays below every non-lite id. A preview is returned only when
+    no stable non-lite id is in the pool. Does not change chat resolve.
+    Empty / missing catalog returns ``DEFAULT_VIDEO_MODEL``.
     """
     rows = list(catalog) if catalog is not None else []
     videos = [
@@ -1187,7 +1222,14 @@ def prefer_latest_model(
     *,
     role: str | None = None,
 ) -> str | None:
-    """Pick newest flagship from the role pool (chat: coding SKUs skipped when others exist)."""
+    """Pick the stable flagship from the role pool.
+
+    A stable id beats any ``-preview`` id, regardless of version or created
+    date. Preview is returned only when those candidates have no stable model.
+    Video ranks every non-lite id above ``-lite`` before that comparison, so
+    lite stays out of best while any non-lite id exists. Chat skips coding
+    SKUs when other chat rows exist.
+    """
     role_n = normalize_role(role)
     pool = models_for_role(catalog, role_n)
     if not pool:
@@ -1283,7 +1325,12 @@ def best_model(
     *,
     role: str | None = None,
 ) -> str | None:
-    """Alias for prefer_latest (flagship / best quality heuristic)."""
+    """Alias for prefer_latest (flagship / best quality heuristic).
+
+    A stable id beats any ``-preview`` id, regardless of version or created
+    date. Preview is returned only when those candidates have no stable model.
+    Video ranks every non-lite id above ``-lite`` before that comparison.
+    """
     return prefer_latest_model(catalog, role=role)
 
 
