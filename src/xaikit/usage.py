@@ -442,6 +442,15 @@ class UsageMeter:
                 usage=usage,
             )
             if estimated_usd is None:
+                estimated_usd = self.price_table.estimate_usd(
+                    model,
+                    prompt_tokens=pt,
+                    completion_tokens=ct,
+                    duration_seconds=duration,
+                    resolution=resolution,
+                    usage=usage,
+                )
+            if estimated_usd is None:
                 gap = public_price_table()
                 if gap is not None:
                     estimated_usd = gap.estimate_usd(
@@ -452,15 +461,6 @@ class UsageMeter:
                         resolution=resolution,
                         usage=usage,
                     )
-            if estimated_usd is None:
-                estimated_usd = self.price_table.estimate_usd(
-                    model,
-                    prompt_tokens=pt,
-                    completion_tokens=ct,
-                    duration_seconds=duration,
-                    resolution=resolution,
-                    usage=usage,
-                )
 
         event = UsageEvent(
             timestamp=timestamp or _utc_now(),

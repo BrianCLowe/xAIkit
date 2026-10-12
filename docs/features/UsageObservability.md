@@ -1,6 +1,6 @@
 # UsageObservability
 
-**Last Updated**: 2026-10-12 *(catalog fill uses the resolved row id)*  
+**Last Updated**: 2026-10-12 *(gap fetch only when the shipped table cannot price the call)*  
 **Related Understanding**: —  
 
 ---
@@ -32,9 +32,9 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - TTS voice roster listing (`list_tts_voices` / `get_tts_voice`) uses the same `tts` modality; no USD (`apply_price_table=False`) — listing is not billed audio
 - Deferred chat get: 202 pending meters purpose/success **without** tokens (like `get_file`); 200 may record tokens from `usage`; still `modality="chat"`; no invented USD (`apply_price_table=False`). Create is purpose/success only. 401 skips the meter.
 - Gap notes scrub secret-ish strings and cap length
-- Meter price order: response `cost_in_usd_ticks`, then in-process catalog token and per-image rates, then the public gap file (at most once per process per 24 hours, only when a needed rate is still missing; a failed fetch does not fail the call), then the shipped table (exact id, or a prefix whose remainder is empty or starts with `-`). The shipped table bundles long and cached rates for every gap-file model that publishes them, so an empty catalog prices those tiers offline. A catalog row with input and output rates can still lack long or cached rates. The meter copies each missing field from the shipped table (`default_price_table().price_for`, exact id or a `-` prefix) only when the call needs that field. That lookup uses the resolved catalog row id, then the request model string when the row id is not on the shipped table. It does not fetch for this fill. A prompt of at least 200,000 tokens needs the long input and long output rates. A cached prompt count needs the cached input rate. Both together also need the long cached rate. A value already on the catalog row wins. The gap file is a refresh source for a rate the shipped table does not already have. When usage includes a cached prompt count (`cached_tokens`, `cached_prompt_tokens`, or `cached_prompt_text_tokens`) and the price row has a cached input rate, that slice is priced at the cached rate and the rest of `prompt_tokens` at the normal input rate. At 200,000 prompt tokens the long input, long output, and long cached rates apply when they are set. Unknown ids leave `estimated_usd` unset. No fetch on import. Overlay JSON via `load_price_table`; `save_price_table_template` writes the current defaults. Modalities without a public rate skip USD (`apply_price_table=False`). Do not invent a rate.
+- Meter price order: response `cost_in_usd_ticks`, then in-process catalog token and per-image rates, then the shipped table (exact id, or a prefix whose remainder is empty or starts with `-`). The public gap file is fetched only when both leave the price unset, at most once per process per 24 hours. Any exception from that fetch or from payload parsing is a failed refresh, so `UsageMeter.record` keeps the shipped price and does not raise. The shipped table bundles long and cached rates for every gap-file model that publishes them, so an empty catalog prices those tiers offline. A catalog row with input and output rates can still lack long or cached rates. The meter copies each missing field from the shipped table (`default_price_table().price_for`, exact id or a `-` prefix) only when the call needs that field. That lookup uses the resolved catalog row id, then the request model string when the row id is not on the shipped table. It does not fetch for this fill. A prompt of at least 200,000 tokens needs the long input and long output rates. A cached prompt count needs the cached input rate. Both together also need the long cached rate. A value already on the catalog row wins. The gap file is a refresh for an id or rate that neither the catalog nor the shipped table can price. When usage includes a cached prompt count (`cached_tokens`, `cached_prompt_tokens`, or `cached_prompt_text_tokens`) and the price row has a cached input rate, that slice is priced at the cached rate and the rest of `prompt_tokens` at the normal input rate. At 200,000 prompt tokens the long input, long output, and long cached rates apply when they are set. Unknown ids leave `estimated_usd` unset. No fetch on import. Overlay JSON via `load_price_table`; `save_price_table_template` writes the current defaults. Modalities without a public rate skip USD (`apply_price_table=False`). Do not invent a rate.
 - Video start, video extend, image generation, and image edit record one failed event when a 2xx body cannot be used (video: not JSON, not an object, or missing `request_id`; image: not JSON), then raise. The event `error` field is the raised message text exactly. A 401 still skips the meter
-- Meter/trace failures must not break the user-facing call (logged). `UsageMeter.record` / sink `append` may raise; `XaiClient._record` catches and logs
+- Meter/trace failures must not break the user-facing call (logged). `UsageMeter.record` / sink `append` may raise; `XaiClient._record` catches and logs. A public price fetch error does not raise from `record`
 - `OpenTelemetryUsageSink` is export-only (optional extra `xaikit-py[otel]` / `opentelemetry-api`; lazy import). Default meter: `opentelemetry.metrics.get_meter("xaikit")`. Counters: `xaikit.usage.calls` (+1) and `xaikit.usage.tokens` (+`total_tokens` when known) with attributes `purpose`, `model`, `modality`, `success` — never prompts/secrets (`error` omitted). `iter_events()` raises `NotImplementedError`; inspect via `CompositeUsageSink(InMemoryUsageSink(), OpenTelemetryUsageSink())` (memory first)
 
 ## Decisions
@@ -60,6 +60,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 | 2026-10-10 | Unusable video start and image generation bodies record one failure | A 2xx body that cannot be used is a failed call. One event, `success` false. The event `error` field is the raised message exactly. 401 stays off the meter. |
 | 2026-10-11 | Bundle long and cached rates on the shipped table; catalog fill reads that table | Ruling E. Every gap-file model with a long or cached rate has those fields on `default_price_table`. A partial catalog row copies each missing field the call needs from that table (`price_for`, exact or `-` prefix). The fill does not fetch. Ticks still win. A set catalog field still wins. The gap file stays a refresh source. |
 | 2026-10-12 | Catalog fill looks up the resolved row id | An alias or a different case still resolves to the catalog row. The shipped long and cached rates are read with that row id first, then the request model string if the row id is absent. Per-field fill, catalog values, and ticks are unchanged. |
+| 2026-10-12 | Fetch the gap file only when the catalog and the shipped table both leave USD unset | The shipped table is authoritative offline for long and cached rates. A price from ticks, the catalog, or the shipped table does not need the network. An id neither table can price still refreshes from the gap file. Any exception from the fetch or payload parse is caught at that call, and `record` does not raise. |
 
 ## Dependencies
 
@@ -84,6 +85,8 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - [x] Price table provenance (`source_url` / `fetched`) + overlay refresh path documented
 - [x] XK-AC-PRICE-1: after `list_models()`, `UsageMeter.record` for grok-4.7 at 200000 prompt tokens gives 0.8, the same as with an empty catalog after `clear_catalog_cache()`, not 0.4
 - [x] XK-AC-PRICE-2: 1M prompt tokens with 400k cached gives the same cost loaded or not loaded, and the exact figure equals the gap-file computation: 2.80, not 2.00
+- [x] XK-AC-PRICE-3: UsageMeter.record never raises because the public price fetch failed: on a fetch error it uses the bundled table and the recorded cost equals the bundled-table cost
+- [x] XK-AC-PRICE-4: a prompt that needs no long-context or cached fill does not attempt the network fetch at all; fetch calls counted with a fake
 
 ## Visual references
 
@@ -91,4 +94,4 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 
 ## Current status
 
-- **Last reconciled with code**: 2026-10-12 (catalog fill looks up the resolved row id, then the request model string)
+- **Last reconciled with code**: 2026-10-12 (gap fetch only when the catalog and the shipped table both leave USD unset; a fetch error does not raise from record)

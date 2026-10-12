@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 PRICE_TABLE_SOURCE_URL = "https://docs.x.ai/developers/pricing"
 PRICE_TABLE_MODELS_URL = "https://docs.x.ai/docs/models"
 PRICE_TABLE_FETCHED = "2026-10-04"
-# Daily watch commits this file on master. Installed kits fetch it only to
-# fill a price the response and the in-process catalog did not already have.
+# Daily watch commits this file on master. record() fetches it only when
+# the catalog and the shipped table both leave the price unset.
 PUBLIC_PRICES_URL = (
     "https://raw.githubusercontent.com/BrianCLowe/xAIkit/master/scripts/data/xai_public_prices.json"
 )
@@ -33,7 +33,8 @@ LONG_CONTEXT_PROMPT_TOKENS = 200_000
 # Chat token rates (USD / 1M). Estimates, not billing.
 # Long and cached fields are copied from scripts/data/xai_public_prices.json for
 # every model that file lists with those rates, so an empty catalog can price
-# them offline. The gap-file fetch remains the refresh path for anything else.
+# them offline. record() fetches the gap file only when the catalog and
+# this table both leave the price unset.
 # grok-3 / grok-3-mini kept for old event estimates (off the public table).
 # grok-4.7 is an exact key on purpose: price_for prefix-matches, and "grok-4.7"
 # startswith "grok-4" ($3 / $15) when this row is missing.
@@ -502,15 +503,20 @@ def public_price_table(
     """Gap file, at most once per process per 24 hours.
 
     A failed refresh keeps the previous table. A later failure cannot replace
-    a successful fetch that finished first.
+    a successful fetch that finished first. A raised fetch or payload error
+    is a failed refresh.
     """
     stamp = time.monotonic() if now is None else now
     with _public_prices.lock:
         fetched_at = _public_prices.fetched_at
         if fetched_at is not None and stamp - fetched_at < ttl_seconds:
             return _public_prices.table
-    payload = fetch_public_price_payload()
-    table = price_table_from_public_payload(payload)
+    try:
+        payload = fetch_public_price_payload()
+        table = price_table_from_public_payload(payload)
+    except Exception:
+        logger.warning("Public price gap fetch failed", exc_info=True)
+        table = None
     with _public_prices.lock:
         if table is None and _public_prices.table is not None:
             _public_prices.fetched_at = stamp
