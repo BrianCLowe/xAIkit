@@ -89,7 +89,7 @@ Purpose is required when a meter is attached to `XaiClient`. Traces and gaps are
 - [x] XK-AC-PRICE-1: after `list_models()`, `UsageMeter.record` for grok-4.7 at 200000 prompt tokens gives 0.8, the same as with an empty catalog after `clear_catalog_cache()`, not 0.4
 - [x] XK-AC-PRICE-2: 1M prompt tokens with 400k cached gives the same cost loaded or not loaded, and the exact figure equals the gap-file computation: 2.80, not 2.00
 - [x] XK-AC-PRICE-3: UsageMeter.record never raises because the public price fetch failed: on a fetch error it uses the bundled table and the recorded cost equals the bundled-table cost
-- [x] XK-AC-PRICE-4: a prompt that needs no long-context or cached fill does not attempt the network fetch at all; fetch calls counted with a fake
+- [x] XK-AC-PRICE-4: a model with bundled rates and no long or cached fill needed makes no fetch
 
 ## Visual references
 
