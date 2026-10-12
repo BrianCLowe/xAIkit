@@ -125,6 +125,18 @@ def test_normalize_api_key() -> None:
     assert normalize_api_key("   ") is None
     assert normalize_api_key(None) is None
     assert normalize_api_key("") is None
+    assert normalize_api_key("bearer fake-lower-key") == "fake-lower-key"
+    assert normalize_api_key("BEARER fake-upper-key") == "fake-upper-key"
+    assert normalize_api_key("BeArEr fake-mixed-key") == "fake-mixed-key"
+    assert normalize_api_key("Bearer   fake-multi-key") == "fake-multi-key"
+    assert normalize_api_key("Bearer\tfake-tab-key") == "fake-tab-key"
+    assert normalize_api_key("  Bearer fake-b-key ") == "fake-b-key"
+    assert normalize_api_key("Bearer") is None
+    assert normalize_api_key("bearer") is None
+    assert normalize_api_key("  BEARER  ") is None
+    assert normalize_api_key("Bearer   ") is None
+    assert normalize_api_key("BearerToken") == "BearerToken"
+    assert normalize_api_key("bearerToken") == "bearerToken"
 
 
 def test_exchange_oauth_code_posts_form_and_returns_payload(
@@ -303,6 +315,26 @@ def test_dict_store_set_and_clear() -> None:
         store.set_api_key("  ")
     store.clear("u1")
     assert store.get_api_key("u1") is None
+
+
+def test_env_store_omitted_key_reads_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("XAI_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="XAI_API_KEY") as missing:
+        EnvCredentialStore()
+    assert "api key" in str(missing.value).lower()
+    monkeypatch.setenv("XAI_API_KEY", "   ")
+    with pytest.raises(RuntimeError, match="XAI_API_KEY") as blank:
+        EnvCredentialStore()
+    assert "api key" in str(blank.value).lower()
+    monkeypatch.setenv("XAI_API_KEY", "  fake-env-key  ")
+    assert EnvCredentialStore().get_api_key() == "  fake-env-key  "
+    monkeypatch.setenv("XAIKIT_FAKE_APP_KEY", "fake-custom-env-key")
+    assert (
+        EnvCredentialStore(name="XAIKIT_FAKE_APP_KEY").get_api_key()
+        == "fake-custom-env-key"
+    )
 
 
 def test_env_store_ignores_subject_app_level_only() -> None:

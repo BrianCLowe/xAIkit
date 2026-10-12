@@ -46,6 +46,7 @@ from xaikit.collections import (
     normalize_collection_ids,
     search_to_dict,
 )
+from xaikit.connect import normalize_api_key
 from xaikit.credentials import CredentialStore
 from xaikit.provider import ChatProvider, SdkChatProvider
 from xaikit.realtime import (
@@ -210,12 +211,12 @@ class XaiClient:
             self._catalog_api_key = supplied or None
             self._client = None
         else:
-            key = (api_key or "").strip()
+            key = normalize_api_key(api_key)
             if not key and credential_store is not None:
-                key = (credential_store.get_api_key(subject) or "").strip()
+                key = normalize_api_key(credential_store.get_api_key(subject))
             if not key:
                 raise RuntimeError(
-                    "xAI credentials not configured. Pass api_key=, inject a "
+                    "xAI API key is not configured. Pass api_key=, inject a "
                     "CredentialStore, or use provider=MockChatProvider for offline."
                 )
             self.api_key = key
