@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import os
 from typing import Protocol, runtime_checkable
+
+_ENV_KEY_OMITTED = object()
+_DEFAULT_API_KEY_ENV = "XAI_API_KEY"
 
 
 @runtime_checkable
@@ -39,12 +43,35 @@ class DictCredentialStore:
 
 
 class EnvCredentialStore:
-    """Resolve from a pre-loaded env-style key string (caller reads os.environ)."""
+    """App-level key from a passed string, or from the environment at construction.
 
-    def __init__(self, api_key: str | None = None) -> None:
-        self._api_key = (api_key or "").strip() or None
+    Pass ``api_key`` to store that string and skip the environment. Blank
+    becomes no key. Omit ``api_key`` to read ``os.environ[name]`` once while
+    building the store. ``name`` defaults to ``XAI_API_KEY``. An unset or
+    whitespace-only variable raises ``RuntimeError`` immediately. The env
+    value is stored raw so ``XaiClient`` can normalize whitespace and a
+    leading Bearer prefix.
+    """
+
+    def __init__(
+        self,
+        api_key: str | None | object = _ENV_KEY_OMITTED,
+        *,
+        name: str = _DEFAULT_API_KEY_ENV,
+    ) -> None:
+        if api_key is _ENV_KEY_OMITTED:
+            raw = os.environ.get(name)
+            if raw is None or raw.strip() == "":
+                raise RuntimeError(
+                    "xAI API key is not configured. "
+                    f"Environment variable {name} is unset or empty."
+                )
+            self._api_key = raw
+            return
+        supplied = api_key if isinstance(api_key, str) else ""
+        self._api_key = supplied.strip() or None
 
     def get_api_key(self, subject: str | None = None) -> str | None:
-        # subject ignored — app-level env key only
+        # subject is ignored. This store is app-level only.
         _ = subject
         return self._api_key

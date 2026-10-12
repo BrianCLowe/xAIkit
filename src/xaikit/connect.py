@@ -101,6 +101,17 @@ def exchange_oauth_code(
 
 
 def normalize_api_key(api_key: str | None) -> str | None:
-    """Strip and return API key, or None if empty."""
-    cleaned = (api_key or "").strip()
+    """Trim whitespace and one leading Bearer prefix. None when empty.
+
+    A leading ``Bearer`` (any case) followed by whitespace is removed once,
+    then surrounding whitespace is trimmed again. A bare ``Bearer`` is empty.
+    ``BearerToken`` is unchanged.
+    """
+    if api_key is None:
+        return None
+    cleaned = api_key.strip()
+    if not cleaned or cleaned.lower() == "bearer":
+        return None
+    if len(cleaned) > 6 and cleaned[:6].lower() == "bearer" and cleaned[6].isspace():
+        cleaned = cleaned[6:].strip()
     return cleaned or None
