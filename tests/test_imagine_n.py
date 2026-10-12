@@ -328,6 +328,56 @@ def test_async_keeps_duplicate_urls_and_bills_each_returned_image(
     _assert_duplicate_urls_billed(out, sink)
 
 
+_MIXED_ITEMS: list[dict[str, str]] = [
+    {"url": "https://example.com/url-only.png"},
+    {"b64_json": "b64-only"},
+    {"file_id": "file-only"},
+    {"url": "https://example.com/url-and-file.png", "file_id": "file-with-url"},
+]
+
+
+def _expected_mixed_images() -> list[dict[str, str | None]]:
+    return [
+        {"url": "https://example.com/url-only.png", "b64_json": None, "file_id": None},
+        {"url": None, "b64_json": "b64-only", "file_id": None},
+        {"url": None, "b64_json": None, "file_id": "file-only"},
+        {
+            "url": "https://example.com/url-and-file.png",
+            "b64_json": None,
+            "file_id": "file-with-url",
+        },
+    ]
+
+
+def _assert_mixed_items(out: dict[str, Any], sink: InMemoryUsageSink) -> None:
+    images = _expected_mixed_images()
+    assert out["images"] == images
+    assert len(out["images"]) == 4
+    assert out["url"] == images[0]["url"]
+    assert out["b64_json"] == images[0]["b64_json"]
+    assert out["file_id"] == images[0]["file_id"]
+    assert _rate() == 0.02
+    events = list(sink.iter_events())
+    assert len(events) == 1
+    assert events[0].estimated_usd == 0.08
+
+
+def test_sync_n4_keeps_mixed_url_b64_and_file_id_items(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out, calls, sink = _generate_sync(monkeypatch, {"data": _MIXED_ITEMS}, n=4)
+    assert calls[0]["json"]["n"] == 4
+    _assert_mixed_items(out, sink)
+
+
+def test_async_n4_keeps_mixed_url_b64_and_file_id_items(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out, calls, sink = _generate_async(monkeypatch, {"data": _MIXED_ITEMS}, n=4)
+    assert calls[0]["json"]["n"] == 4
+    _assert_mixed_items(out, sink)
+
+
 def test_xk_ac_doc_2_readme_and_issue_config_say_0_2_0() -> None:
     readme = (_ROOT / "README.md").read_text(encoding="utf-8")
     config = (_ROOT / ".github/ISSUE_TEMPLATE/config.yml").read_text(encoding="utf-8")
