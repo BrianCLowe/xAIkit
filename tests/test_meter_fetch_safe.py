@@ -23,6 +23,15 @@ from xaikit.catalog import clear_catalog_cache, inject_catalog
 from xaikit.pricing import clear_public_price_cache
 
 _EXC_TYPES = (ConnectionError, RuntimeError, ValueError)
+_FETCH_ERRORS = (
+    OSError,
+    TimeoutError,
+    ValueError,
+    KeyError,
+    ConnectionError,
+    RuntimeError,
+    Exception,
+)
 
 
 def _reset() -> None:
@@ -127,7 +136,7 @@ def test_price_3_cached_long_prompt_fetch_error_records_bundled_cost(
     assert calls["n"] == 0
 
 
-@pytest.mark.parametrize("exc_type", _EXC_TYPES)
+@pytest.mark.parametrize("exc_type", _FETCH_ERRORS)
 def test_price_3_unknown_model_fetch_error_records_none(
     monkeypatch: pytest.MonkeyPatch,
     exc_type: type[BaseException],
@@ -136,11 +145,37 @@ def test_price_3_unknown_model_fetch_error_records_none(
     try:
         _reset()
         calls = _install(monkeypatch, _raising(exc_type))
-        cost = _cost("grok-9.9", usage)
+        sink = InMemoryUsageSink()
+        meter = UsageMeter(sink=sink)
+        event = meter.record(purpose="t", model="grok-9.9", usage=usage)
+        saved = list(sink.iter_events())
     finally:
         _reset()
 
-    assert cost is None
+    assert saved == [event]
+    assert event.estimated_usd is None
+    assert calls["n"] == 1
+
+
+def test_raised_fetch_is_cached_for_later_records(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    usage = {"prompt_tokens": 1000, "completion_tokens": 0}
+    try:
+        _reset()
+        calls = _install(monkeypatch, _raising(ConnectionError))
+        sink = InMemoryUsageSink()
+        meter = UsageMeter(sink=sink)
+        events = [
+            meter.record(purpose="t", model="grok-9.9", usage=usage)
+            for _ in range(3)
+        ]
+        saved = list(sink.iter_events())
+    finally:
+        _reset()
+
+    assert saved == events
+    assert [event.estimated_usd for event in events] == [None, None, None]
     assert calls["n"] == 1
 
 
@@ -266,4 +301,46 @@ def test_async_client_shares_the_meter_when_fetch_raises(
     assert cost == 0.8
     assert unknown_content == "ok"
     assert unknown_cost is None
+    assert calls["n"] == 1
+
+
+def test_async_raised_fetch_is_cached_for_later_records(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    usage = {"prompt_tokens": 1000, "completion_tokens": 0}
+    try:
+        _reset()
+        calls = _install(monkeypatch, _raising(ConnectionError))
+        sink = InMemoryUsageSink()
+        provider = MockChatProvider(replies="ok", default_usage=usage)
+        client = AsyncXaiClient(
+            provider=provider,
+            model="grok-9.9",
+            image_model="grok-imagine-image",
+            video_model="grok-imagine-video",
+            voice_model="grok-voice-think-fast-1.0",
+            usage_meter=UsageMeter(sink=sink),
+            retry_policy=default_retry_policy(max_attempts=1, backoff_seconds=0.0),
+        )
+        inject_catalog(None)
+        clear_catalog_cache()
+
+        async def _run() -> list[str]:
+            contents: list[str] = []
+            for _ in range(3):
+                resp = await client.chat(
+                    [{"role": "user", "content": "hi"}],
+                    purpose="t",
+                )
+                contents.append(resp.content)
+            return contents
+
+        contents = asyncio.run(_run())
+        saved = list(sink.iter_events())
+    finally:
+        _reset()
+
+    assert contents == ["ok", "ok", "ok"]
+    assert len(saved) == 3
+    assert [event.estimated_usd for event in saved] == [None, None, None]
     assert calls["n"] == 1
