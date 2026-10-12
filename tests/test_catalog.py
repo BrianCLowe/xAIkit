@@ -33,6 +33,7 @@ from xaikit.catalog import (
     resolve_model_selection,
     save_catalog_snapshot,
 )
+from xaikit.pricing import default_price_table
 
 
 def _lm(**kwargs: object) -> SimpleNamespace:
@@ -308,17 +309,30 @@ def test_coding_skip_does_not_apply_to_image_video_voice() -> None:
     assert voice_cheap.model_id == "grok-voice-think-fast-1.0"
 
 
-def test_unpriced_media_uses_public_rates() -> None:
-    cat = [
+def _quality_newest_image_catalog() -> list[ModelInfo]:
+    return [
         ModelInfo(id="grok-imagine-image", capabilities=["image"], created=1),
         ModelInfo(id="grok-imagine-image-2.0", capabilities=["image"], created=2),
         ModelInfo(id="grok-imagine-image-quality", capabilities=["image"], created=3),
     ]
+
+
+def _price_table_with_image_2_0(per_call_usd: float):
+    table = default_price_table()
+    models = dict(table.models)
+    models["grok-imagine-image-2.0"] = models["grok-imagine-image-2.0"].model_copy(
+        update={"per_call_usd": per_call_usd}
+    )
+    return table.model_copy(update={"models": models})
+
+
+def test_unpriced_media_uses_public_rates() -> None:
+    cat = _quality_newest_image_catalog()
     assert resolve_model_selection(intent="cheapest", role="image", catalog=cat).model_id == (
         "grok-imagine-image"
     )
     assert resolve_model_selection(intent="economy", role="image", catalog=cat).model_id == (
-        "grok-imagine-image-2.0"
+        "grok-imagine-image"
     )
     assert resolve_model_selection(intent="best", role="image", catalog=cat).model_id == (
         "grok-imagine-image-quality"
@@ -353,6 +367,59 @@ def test_unpriced_media_uses_public_rates() -> None:
     )
     assert resolve_model_selection(intent="best", role="voice", catalog=voice).model_id == (
         "grok-voice-think-fast-2.0"
+    )
+
+
+def test_stale_image_2_0_rate_makes_economy_pick_2_0(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stale = _price_table_with_image_2_0(0.04)
+    monkeypatch.setattr("xaikit.pricing.default_price_table", lambda: stale)
+    cat = _quality_newest_image_catalog()
+    assert (
+        economy_model(cat, role="image"),
+        cheapest_model(cat, role="image"),
+        resolve_model_selection(intent="economy", role="image", catalog=cat).model_id,
+        resolve_model_selection(intent="cheapest", role="image", catalog=cat).model_id,
+    ) == (
+        "grok-imagine-image-2.0",
+        "grok-imagine-image",
+        "grok-imagine-image-2.0",
+        "grok-imagine-image",
+    )
+
+
+def test_image_economy_and_cheapest_resolve_to_grok_imagine_image() -> None:
+    cat = _quality_newest_image_catalog()
+    assert (
+        economy_model(cat, role="image"),
+        cheapest_model(cat, role="image"),
+        resolve_model_selection(intent="economy", role="image", catalog=cat).model_id,
+        resolve_model_selection(intent="cheapest", role="image", catalog=cat).model_id,
+    ) == (
+        "grok-imagine-image",
+        "grok-imagine-image",
+        "grok-imagine-image",
+        "grok-imagine-image",
+    )
+
+
+def test_image_economy_when_2_0_is_newest_resolves_to_quality() -> None:
+    cat = [
+        ModelInfo(id="grok-imagine-image", capabilities=["image"], created=1),
+        ModelInfo(id="grok-imagine-image-quality", capabilities=["image"], created=2),
+        ModelInfo(id="grok-imagine-image-2.0", capabilities=["image"], created=3),
+    ]
+    assert (
+        economy_model(cat, role="image"),
+        cheapest_model(cat, role="image"),
+        resolve_model_selection(intent="economy", role="image", catalog=cat).model_id,
+        resolve_model_selection(intent="cheapest", role="image", catalog=cat).model_id,
+    ) == (
+        "grok-imagine-image-quality",
+        "grok-imagine-image",
+        "grok-imagine-image-quality",
+        "grok-imagine-image",
     )
 
 
