@@ -79,6 +79,8 @@ from xaikit.client import (
     _parse_deferred_create,
     _parse_embed_response,
     _parse_file_metadata,
+    _imagine_meter_usage,
+    _imagine_response,
     _parse_imagine_result,
     _parse_response_payload,
     _parse_tokenize_response,
@@ -1825,10 +1827,10 @@ class AsyncXaiClient(XaiClient):
             message = "Imagine returned non-JSON response"
             _fail(message)
             raise RuntimeError(message) from exc
-        url, b64, file_id = _parse_imagine_result(payload)
+        parsed = _parse_imagine_result(payload)
         self._record(
             purpose=tag,
-            usage=None,
+            usage=_imagine_meter_usage(parsed),
             parent_id=parent_id,
             labels=labels,
             success=True,
@@ -1836,12 +1838,7 @@ class AsyncXaiClient(XaiClient):
             modality="imagine",
             model=image_model,
         )
-        return {
-            "url": url,
-            "b64_json": b64,
-            "model": image_model,
-            "file_id": file_id,
-        }
+        return _imagine_response(parsed, image_model)
 
     async def generate_image(
         self,

@@ -54,7 +54,7 @@ uv add xaikit-py
 # or: pip install xaikit-py
 
 # From a git tag
-uv add "xaikit-py @ git+https://github.com/BrianCLowe/xAIkit@v0.1.3"
+uv add "xaikit-py @ git+https://github.com/BrianCLowe/xAIkit@v0.2.0"
 
 # Editable neighbor checkout
 uv add --editable ../xAIkit

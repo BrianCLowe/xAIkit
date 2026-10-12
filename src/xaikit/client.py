@@ -2677,10 +2677,10 @@ class XaiClient:
             )
             raise RuntimeError(message) from exc
 
-        url, b64, file_id = _parse_imagine_result(payload)
+        parsed = _parse_imagine_result(payload)
         self._record(
             purpose=tag,
-            usage=None,
+            usage=_imagine_meter_usage(parsed),
             parent_id=parent_id,
             labels=labels,
             success=True,
@@ -2688,12 +2688,7 @@ class XaiClient:
             modality="imagine",
             model=image_model,
         )
-        return {
-            "url": url,
-            "b64_json": b64,
-            "model": image_model,
-            "file_id": file_id,
-        }
+        return _imagine_response(parsed, image_model)
 
     def generate_image(
         self,
@@ -2713,6 +2708,9 @@ class XaiClient:
 
         ``quality`` is sent only for ``grok-imagine-image-2.0``. Unknown
         ``aspect_ratio`` / ``resolution`` are omitted (not rejected).
+        ``n`` is clamped from 1 to 4. ``url``, ``b64_json``, and ``file_id``
+        are the first returned image. ``images`` lists every returned image,
+        in order.
         """
         tag = self._require_purpose_if_metered(purpose)
         cleaned = (prompt or "").strip()
@@ -2768,7 +2766,9 @@ class XaiClient:
         Two or three sources via ``images=`` wire ``images``. Prompt may refer to
         ``<IMAGE_0>`` / ``<IMAGE_1>`` / ``<IMAGE_2>``; the kit does not rewrite it.
         Default output aspect follows the first input; ``aspect_ratio`` overrides
-        (unknown values omitted, same list as generate).
+        (unknown values omitted, same list as generate). The result uses the
+        same shape as ``generate_image`` (first image on the top-level fields,
+        every returned image on ``images``).
         """
         tag = self._require_purpose_if_metered(purpose)
         cleaned = (prompt or "").strip()
@@ -3933,21 +3933,56 @@ def _imagine_file_id(
     return None
 
 
-def _parse_imagine_result(payload: Any) -> tuple[str | None, str | None, str | None]:
+def _parse_imagine_item(
+    item: Any, payload: dict[str, Any] | None
+) -> dict[str, str | None]:
+    row = item if isinstance(item, dict) else {}
+    raw_url = row.get("url")
+    raw_b64 = row.get("b64_json")
+    return {
+        "url": str(raw_url) if raw_url else None,
+        "b64_json": str(raw_b64) if raw_b64 else None,
+        "file_id": _imagine_file_id(row, payload),
+    }
+
+
+def _parse_imagine_result(payload: Any) -> dict[str, Any]:
+    """Every ``data`` item, in order. Top-level fields stay the first item."""
     data = payload.get("data") if isinstance(payload, dict) else None
     if not isinstance(data, list) or not data:
         raise RuntimeError("Imagine response missing data")
-    first = data[0] if isinstance(data[0], dict) else {}
-    url = first.get("url")
-    b64 = first.get("b64_json")
-    file_id = _imagine_file_id(first, payload if isinstance(payload, dict) else None)
-    if not url and not b64 and not file_id:
+    body = payload if isinstance(payload, dict) else None
+    images = [
+        _parse_imagine_item(item, body if index == 0 else None)
+        for index, item in enumerate(data)
+    ]
+    if not any(
+        image["url"] or image["b64_json"] or image["file_id"] for image in images
+    ):
         raise RuntimeError("Imagine response missing url and b64_json")
-    return (
-        str(url) if url else None,
-        str(b64) if b64 else None,
-        file_id,
-    )
+    first = images[0]
+    return {
+        "url": first["url"],
+        "b64_json": first["b64_json"],
+        "file_id": first["file_id"],
+        "images": images,
+    }
+
+
+def _imagine_response(parsed: dict[str, Any], image_model: str) -> dict[str, Any]:
+    """Public imagine payload. First item stays on the top-level fields."""
+    return {
+        "url": parsed["url"],
+        "b64_json": parsed["b64_json"],
+        "model": image_model,
+        "file_id": parsed["file_id"],
+        "images": parsed["images"],
+    }
+
+
+def _imagine_meter_usage(parsed: dict[str, Any]) -> dict[str, int]:
+    """Bill images returned, not the n that was requested."""
+    return {"image_count": len(parsed["images"])}
 
 
 _IMAGINE_EDIT_MAX_SOURCES = 3

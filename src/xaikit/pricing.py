@@ -275,7 +275,7 @@ class PriceTable(BaseModel):
         resolution: str | None = None,
         usage: dict[str, Any] | None = None,
     ) -> float | None:
-        """Estimate USD from video duration, voice minutes, token counts, or per-call fallback."""
+        """Estimate USD from video duration, voice minutes, tokens, or per-image rate."""
         price = self.price_for(model)
         if price is None:
             return None
@@ -302,7 +302,9 @@ class PriceTable(BaseModel):
                 usage=usage,
             )
         if price.per_call_usd is not None:
-            return float(price.per_call_usd)
+            # Image rows store the per-image rate on per_call_usd.
+            # Count is images returned (default 1), not requested n.
+            return round(float(price.per_call_usd) * _image_count(usage), 8)
         return None
 
 
@@ -311,6 +313,19 @@ def _prefix_remainder_ok(model_id: str, prefix: str) -> bool:
         return False
     rest = model_id[len(prefix) :]
     return rest == "" or rest.startswith("-")
+
+
+def _image_count(usage: dict[str, Any] | None) -> int:
+    """Images to bill. Missing or unusable counts bill one image."""
+    if not usage:
+        return 1
+    raw = usage.get("image_count", usage.get("images"))
+    try:
+        if raw is None:
+            return 1
+        return max(1, int(raw))
+    except (TypeError, ValueError):
+        return 1
 
 
 def _usage_int(usage: dict[str, Any] | None, *keys: str) -> int | None:

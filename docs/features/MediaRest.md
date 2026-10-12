@@ -1,6 +1,6 @@
 # MediaRest
 
-**Last Updated**: 2026-10-10  
+**Last Updated**: 2026-10-12  
 **Related Understanding**: —  
 
 ---
@@ -29,8 +29,8 @@ REST modalities on `XaiClient` via `httpx` (not the chat provider): speech-to-te
   - `open_tts_session(...)` → `TtsSession` (context manager)
   - `TtsSession.send_text(delta)`, `text_done()`, `text_clear()`, `update_session(replace)`, `recv()`, `events()`, `close()`
   - `decode_tts_audio(event)` — base64 from `audio.delta`
-  - `generate_image(prompt, model, aspect_ratio, n, resolution, quality, response_format, purpose, …)` → `{url, b64_json, model, file_id}`
-  - `edit_image(prompt, image url|file_id | images sequence, …)` → same shape (`file_id` when upstream returns it)
+  - `generate_image(prompt, model, aspect_ratio, n, resolution, quality, response_format, purpose, ...)` → `{url, b64_json, model, file_id, images}` (first item on the top-level fields; `images` is every `data` item, in order)
+  - `edit_image(prompt, image url|file_id | images sequence, ...)` → same shape (`file_id` when upstream returns it)
 
 Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://api.x.ai/v1/stt`), `XAI_TTS_URL` (`https://api.x.ai/v1/tts`), `XAI_TTS_VOICES_URL` (`https://api.x.ai/v1/tts/voices`), `XAI_TTS_WS_URL` (`wss://api.x.ai/v1/tts`), `XAI_IMAGES_URL`, `XAI_IMAGE_EDITS_URL`, `DEFAULT_TTS_VOICE_ID` (`eve`), `DEFAULT_IMAGE_MODEL` (`grok-imagine-image-quality`). Tests monkeypatch `connect_stt_websocket` / `connect_tts_websocket` (no live socket). Roster tests mock `httpx.get`.
 
@@ -45,6 +45,7 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 - Query knobs on TTS open: `voice` (query `voice=`, default `eve`), `language` (required upstream; kit default `"en"`), `codec` (default `mp3`; `mp3` \| `wav` \| `pcm` \| `mulaw`/`ulaw` \| `alaw`), `sample_rate` (omit unless set; 8000, 16000, 22050, 24000, 44100, 48000), `bit_rate` (omit unless set; MP3), `speed` (omit unless set), `optimize_streaming_latency` (omit unless set), `text_normalization` / `with_timestamps` (omit unless set)
 - Image generate: JSON `{model, prompt, n}` with `n` clamped 1–4; per-call `model` overrides `XaiClient.image_model`. Optional knobs: `aspect_ratio` (Imagine list incl. `auto` / `19.5:9` / `20:9`), `resolution` (`1k` \| `2k`), `response_format` (`b64_json`), `quality` (`low` \| `medium`, **`grok-imagine-image-2.0` only**). Unknown `aspect_ratio` / `resolution` / `quality` are omitted (do not 400). `quality` is omitted on `grok-imagine-image` / `grok-imagine-image-quality` (default pin) even if the caller passed it. Cite: https://docs.x.ai/developers/model-capabilities/images/generation
 - Image edit: JSON `POST /v1/images/edits` (not OpenAI multipart) with model, prompt, `n` clamped 1–4; `aspect_ratio` / `response_format` omitted when unset. Unknown `aspect_ratio` omitted (same Imagine list as generate). One source (`image=` / `image_url=` / `image_file_id=`, or a 1-item `images=`) wires `image` (`url` + `type=image_url`, or `file_id`). Two or three sources via `images=` (URL / data URI / `{url|file_id}`, mixable) wire `images` (mutually exclusive with `image`). `>3` or single+`images=` rejected before HTTP. Prompt may refer to `<IMAGE_0>` / `<IMAGE_1>` / `<IMAGE_2>` (not rewritten). Default output aspect follows the first input; `aspect_ratio` overrides. Cite: https://docs.x.ai/developers/model-capabilities/images/multi-image-editing
+- Image results (generate and edit, sync and async): every `data` item is returned in order on `images` (`url`, `b64_json`, `file_id`). Top-level `url`, `b64_json`, and `file_id` stay the first item, so a one-image call keeps the previous shape. Meter cost is the per-image rate times the number of images returned, not the `n` requested.
 - Purpose required when metered; success/failure usage with modalities `stt` / `tts` / `imagine`. Streaming STT records once per session (close or first failure) with wall-clock `duration`, `modality="stt"`, `model="stt"`. Streaming TTS records once per session the same way with `modality="tts"`, `model="tts"`, `apply_price_table=False` (no invented USD; REST TTS has no price row). Voice roster listing uses the same `tts` modality with `apply_price_table=False` (listing is not billed audio). 401 skips the meter then raises
 - Image generation and edit (sync and async) share this path: a 2xx body that is not JSON records one failed event with `modality="imagine"`, then raises `Imagine returned non-JSON response`. The event `error` field is that same text. A 401 records nothing
 - 401 and ≥400 mapped to `RuntimeError`; empty audio/prompt/file/image rejected before HTTP
@@ -66,6 +67,7 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 | 2026-08-14 | REST unary TTS knobs use streaming names; nest format on the wire | Official unary body uses `output_format`. Callers use the same `codec` / `sample_rate` / `bit_rate` / `speed` / … kwargs as `open_tts_session`. Reject invalid + >15k before HTTP. `with_timestamps=True` returns JSON bytes. Helper: `tts_rest_body` in `tts_stream` (same allowlists as streaming). |
 | 2026-08-14 | Multi-image edit: one source wires `image`; 2–3 wire `images` | Official `/v1/images/edits` is JSON `image` **or** `images` (max 3, mixable URL / data URI / `file_id`). Keep single-image kwargs backward compatible. Helper: `_imagine_edit_source_fields` reuses `_imagine_edit_image_ref`. Cite: https://docs.x.ai/developers/model-capabilities/images/multi-image-editing |
 | 2026-10-10 | Unusable image generation body records one failed event, then raises | A 2xx non-JSON body on generate or edit is a failed imagine call. The event `error` field is `Imagine returned non-JSON response`, the same text that is raised. 401 still skips the meter. |
+| 2026-10-12 | Image calls return every `data` item; cost follows images returned | XK-AC-IMGN-1 / XK-AC-IMGN-2. First-item fields stay so a one-image call keeps the old shape. Count is images returned, not requested `n`. |
 
 ## Dependencies
 
@@ -86,6 +88,9 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 - [x] `generate_image` forwards `resolution` / `quality` / `response_format`; `quality` omitted on non-2.0 Imagine SKUs
 - [x] REST `synthesize_speech` forwards unary TTS knobs (`output_format`, `speed`, latency opt, normalize, timestamps, `replace`); >15k chars rejected before HTTP
 - [x] `edit_image` accepts up to 3 source images
+- [x] XK-AC-IMGN-1: sync `generate_image` with n=4 against a response `data` of 4 items returns all 4 urls in order, and the meter records cost equal to 4 times the per-image rate
+- [x] XK-AC-IMGN-2: async `generate_image` does the same for the same mock: 4 urls in order and cost equal to 4 times the per-image rate
+- [x] XK-AC-DOC-2: `README.md` git-install example and `.github/ISSUE_TEMPLATE/config.yml` say 0.2.0, and neither file contains `0.1.3`
 
 ## Visual references
 
@@ -95,4 +100,4 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 
 - **Shipped** (library-only): REST STT/TTS (unary knobs + 15k cap) / Imagine (generate knobs + per-SKU `quality` contraction + multi-image edit) + streaming STT/TTS + built-in TTS voice roster
 - **Queued**: none on this stem (human extras / knobs look-lists closed 2026-08-16)
-- **Last reconciled with code**: 2026-08-14 (multi-image edit)
+- **Last reconciled with code**: 2026-10-12 (image calls return every data item; cost is the per-image rate times images returned)
