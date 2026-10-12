@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -11,6 +12,7 @@ from typing import Any
 import pytest
 
 from xaikit import (
+    AsyncXaiClient,
     DictCredentialStore,
     EnvCredentialStore,
     XaiClient,
@@ -402,6 +404,37 @@ def test_empty_store_key_raises_before_network(
     assert loopback.requests == []
 
 
+def test_store_key_strips_only_one_bearer_prefix(
+    monkeypatch: pytest.MonkeyPatch, loopback: _Loopback
+) -> None:
+    store = DictCredentialStore({None: "Bearer Bearer fake-x"})
+    with _client(monkeypatch, loopback, credential_store=store) as client:
+        _embed(client)
+    _assert_auth(loopback, "Bearer Bearer fake-x")
+
+
+def test_explicit_bare_bearer_falls_through_to_store(
+    monkeypatch: pytest.MonkeyPatch, loopback: _Loopback
+) -> None:
+    store = DictCredentialStore({None: "fake-store-key"})
+    with _client(
+        monkeypatch, loopback, api_key="Bearer", credential_store=store
+    ) as client:
+        _embed(client)
+    _assert_auth(loopback, "Bearer fake-store-key")
+
+
+def test_explicit_bare_bearer_without_store_raises_before_network(
+    monkeypatch: pytest.MonkeyPatch, loopback: _Loopback
+) -> None:
+    monkeypatch.setattr("xaikit.client.XAI_EMBEDDINGS_URL", loopback.url)
+    with pytest.raises(RuntimeError) as excinfo:
+        with _client(monkeypatch, loopback, api_key="Bearer") as client:
+            _embed(client)
+    _assert_api_key_error(str(excinfo.value))
+    assert loopback.requests == []
+
+
 def test_positional_blank_env_store_does_not_read_environment(
     monkeypatch: pytest.MonkeyPatch, loopback: _Loopback
 ) -> None:
@@ -413,4 +446,142 @@ def test_positional_blank_env_store_does_not_read_environment(
             _embed(client)
     _assert_api_key_error(str(excinfo.value))
     assert "fake-env-key" not in str(excinfo.value)
+    assert loopback.requests == []
+
+
+def _run_async_embed(
+    monkeypatch: pytest.MonkeyPatch, loopback: _Loopback, **kwargs: Any
+) -> None:
+    monkeypatch.setattr("xaikit.async_client.XAI_EMBEDDINGS_URL", loopback.url)
+
+    async def _run() -> None:
+        client = AsyncXaiClient(
+            provider=None,
+            model="grok-3-mini",
+            image_model="grok-imagine-image",
+            video_model="grok-imagine-video",
+            voice_model="grok-voice-think-fast-1.0",
+            retry_policy=default_retry_policy(max_attempts=1),
+            **kwargs,
+        )
+        try:
+            await client.embed("hi", model="v1")
+        finally:
+            await client.aclose()
+
+    asyncio.run(_run())
+
+
+def test_async_dict_store_subject_sends_stored_key(
+    monkeypatch: pytest.MonkeyPatch, loopback: _Loopback
+) -> None:
+    store = DictCredentialStore(
+        {"user-a": "fake-user-a-key", None: "fake-default-key"}
+    )
+    _run_async_embed(monkeypatch, loopback, credential_store=store, subject="user-a")
+    _assert_auth(loopback, "Bearer fake-user-a-key")
+
+
+def test_async_explicit_api_key_overrides_store(
+    monkeypatch: pytest.MonkeyPatch, loopback: _Loopback
+) -> None:
+    store = DictCredentialStore(
+        {"user-a": "fake-user-a-key", None: "fake-default-key"}
+    )
+    _run_async_embed(
+        monkeypatch,
+        loopback,
+        api_key="fake-explicit-key",
+        credential_store=store,
+        subject="user-a",
+    )
+    _assert_auth(loopback, "Bearer fake-explicit-key")
+
+
+def test_async_explicit_api_key_bearer_prefix_beats_store(
+    monkeypatch: pytest.MonkeyPatch, loopback: _Loopback
+) -> None:
+    store = DictCredentialStore({None: "fake-stored-key"})
+    _run_async_embed(
+        monkeypatch,
+        loopback,
+        api_key="Bearer fake-explicit-key",
+        credential_store=store,
+    )
+    _assert_auth(loopback, "Bearer fake-explicit-key")
+
+
+@pytest.mark.parametrize(
+    ("stored", "authorization"),
+    [
+        ("bearer fake-lower-key", "Bearer fake-lower-key"),
+        ("BEARER fake-upper-key", "Bearer fake-upper-key"),
+        ("BeArEr fake-mixed-key", "Bearer fake-mixed-key"),
+        ("Bearer   fake-multi-key", "Bearer fake-multi-key"),
+        ("Bearer\tfake-tab-key", "Bearer fake-tab-key"),
+        ("Bearer \t fake-tab-space-key", "Bearer fake-tab-space-key"),
+        ("  Bearer fake-b-key ", "Bearer fake-b-key"),
+        ("BearerToken", "Bearer BearerToken"),
+        ("Bearer Bearer fake-x", "Bearer Bearer fake-x"),
+    ],
+)
+def test_async_dict_store_normalizes_bearer_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+    loopback: _Loopback,
+    stored: str,
+    authorization: str,
+) -> None:
+    store = DictCredentialStore({None: stored})
+    _run_async_embed(monkeypatch, loopback, credential_store=store, subject=None)
+    _assert_auth(loopback, authorization)
+
+
+def test_async_env_store_reads_xai_api_key_at_construction(
+    monkeypatch: pytest.MonkeyPatch, loopback: _Loopback
+) -> None:
+    monkeypatch.setenv("XAI_API_KEY", "fake-env-key")
+    store = EnvCredentialStore()
+    monkeypatch.setenv("XAI_API_KEY", "fake-changed-after-build")
+    _run_async_embed(monkeypatch, loopback, credential_store=store)
+    _assert_auth(loopback, "Bearer fake-env-key")
+
+
+def test_async_env_store_bearer_prefix_is_normalized(
+    monkeypatch: pytest.MonkeyPatch, loopback: _Loopback
+) -> None:
+    monkeypatch.setenv("XAI_API_KEY", "  BEARER \t fake-env-bearer  ")
+    store = EnvCredentialStore()
+    _run_async_embed(monkeypatch, loopback, credential_store=store)
+    _assert_auth(loopback, "Bearer fake-env-bearer")
+
+
+def test_async_explicit_bare_bearer_falls_through_to_store(
+    monkeypatch: pytest.MonkeyPatch, loopback: _Loopback
+) -> None:
+    store = DictCredentialStore({None: "fake-store-key"})
+    _run_async_embed(
+        monkeypatch, loopback, api_key="Bearer", credential_store=store
+    )
+    _assert_auth(loopback, "Bearer fake-store-key")
+
+
+def test_async_explicit_bare_bearer_without_store_raises_before_network(
+    monkeypatch: pytest.MonkeyPatch, loopback: _Loopback
+) -> None:
+    monkeypatch.setattr("xaikit.async_client.XAI_EMBEDDINGS_URL", loopback.url)
+    with pytest.raises(RuntimeError) as excinfo:
+        _run_async_embed(monkeypatch, loopback, api_key="Bearer")
+    _assert_api_key_error(str(excinfo.value))
+    assert loopback.requests == []
+
+
+@pytest.mark.parametrize("raw", ["Bearer", "bearer", "BEARER", "  Bearer  "])
+def test_async_bare_bearer_store_key_raises_before_network(
+    monkeypatch: pytest.MonkeyPatch, loopback: _Loopback, raw: str
+) -> None:
+    monkeypatch.setattr("xaikit.async_client.XAI_EMBEDDINGS_URL", loopback.url)
+    store = DictCredentialStore({None: raw})
+    with pytest.raises(RuntimeError) as excinfo:
+        _run_async_embed(monkeypatch, loopback, credential_store=store)
+    _assert_api_key_error(str(excinfo.value))
     assert loopback.requests == []
