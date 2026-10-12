@@ -724,6 +724,34 @@ def test_xk_ac_rank_4_stable_video_beats_newer_preview() -> None:
         assert prefer_latest_video_model(catalog) != lite
 
 
+def test_xk_ac_rank_4_stable_lite_loses_to_non_lite_preview() -> None:
+    """XK-AC-RANK-4: a newer stable lite id stays below every non-lite preview.
+
+    The pool has no stable non-lite id. Lite still loses to the preview.
+    """
+    older_preview = "grok-imagine-video-1.5-preview"
+    preview = "grok-imagine-video-2.0-preview"
+    lite = "grok-imagine-video-3.0-lite"
+    catalog = [
+        ModelInfo(id=older_preview, capabilities=["video"], created=10),
+        ModelInfo(id=preview, capabilities=["video"], created=20),
+        ModelInfo(id=lite, capabilities=["video"], created=900),
+    ]
+    assert {row.id for row in catalog} == {older_preview, preview, lite}
+    assert all(row.id == lite or row.id.endswith("-preview") for row in catalog)
+    lite_row = next(row for row in catalog if row.id == lite)
+    assert lite_row.created == 900
+    assert all((row.created or 0) < 900 for row in catalog if row.id != lite)
+
+    selected = resolve_model_selection(intent="best", role="video", catalog=catalog)
+    assert selected.model_id == preview
+    assert selected.source == "intent:best"
+    assert selected.model_id != lite
+    assert prefer_latest_video_model(catalog) == preview
+    assert best_model(catalog, role="video") == preview
+    assert resolve_model(intent="best", role="video", catalog=catalog) == preview
+
+
 def test_xk_ac_rank_5_stable_beats_newer_preview_in_every_role() -> None:
     """XK-AC-RANK-5: a newer preview loses best to the stable model in every role.
 
