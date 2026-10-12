@@ -113,7 +113,7 @@ def test_sdk_usage_ticks_and_cached_tokens_reach_the_meter(
         model="grok-4.7",
         usage=usage,
     )
-    # 10_000_000_000 ticks = $1. Table rate for 1M grok-4.7 input tokens is $2.
+    # 10_000_000_000 ticks = $1. The shipped long rate for 1M grok-4.7 input is $4.
     assert event.estimated_usd == 1.0
 
 
@@ -129,8 +129,8 @@ def test_unset_sdk_ticks_fall_through_to_price_table(
         model="grok-4.7",
         usage=usage,
     )
-    # grok-4.7 shipped row has no cached rate, so the full prompt bills at $2/M.
-    assert shipped.estimated_usd == 2.0
+    # 600k at the long input rate $4/M plus 400k at the long cached rate $1/M.
+    assert shipped.estimated_usd == 2.8
 
     cached_table = PriceTable(
         models={

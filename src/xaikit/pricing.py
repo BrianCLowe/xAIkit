@@ -30,15 +30,78 @@ _PUBLIC_PRICE_TTL_SECONDS = 24 * 60 * 60
 # Public chat long-context tier starts at 200k prompt tokens.
 LONG_CONTEXT_PROMPT_TOKENS = 200_000
 
-# Chat token rates: public under-200k list prices (USD / 1M). Estimates, not billing.
+# Chat token rates (USD / 1M). Estimates, not billing.
+# Long and cached fields are copied from scripts/data/xai_public_prices.json for
+# every model that file lists with those rates, so an empty catalog can price
+# them offline. The gap-file fetch remains the refresh path for anything else.
 # grok-3 / grok-3-mini kept for old event estimates (off the public table).
 # grok-4.7 is an exact key on purpose: price_for prefix-matches, and "grok-4.7"
 # startswith "grok-4" ($3 / $15) when this row is missing.
 _DEFAULT_MODELS: dict[str, dict[str, float]] = {
-    "grok-4.7": {"input_per_million": 2.0, "output_per_million": 6.0},
-    "grok-4.6": {"input_per_million": 2.0, "output_per_million": 6.0},
-    "grok-4.5": {"input_per_million": 2.0, "output_per_million": 6.0},
-    "grok-4.3": {"input_per_million": 1.25, "output_per_million": 2.5},
+    "grok-4.7": {
+        "input_per_million": 2.0,
+        "output_per_million": 6.0,
+        "cached_input_per_million": 0.5,
+        "input_long_per_million": 4.0,
+        "output_long_per_million": 12.0,
+        "cached_input_long_per_million": 1.0,
+    },
+    "grok-4.6": {
+        "input_per_million": 2.0,
+        "output_per_million": 6.0,
+        "cached_input_per_million": 0.5,
+        "input_long_per_million": 4.0,
+        "output_long_per_million": 12.0,
+        "cached_input_long_per_million": 1.0,
+    },
+    "grok-4.5": {
+        "input_per_million": 2.0,
+        "output_per_million": 6.0,
+        "cached_input_per_million": 0.3,
+        "input_long_per_million": 4.0,
+        "output_long_per_million": 12.0,
+        "cached_input_long_per_million": 0.6,
+    },
+    "grok-4.3": {
+        "input_per_million": 1.25,
+        "output_per_million": 2.5,
+        "cached_input_per_million": 0.2,
+        "input_long_per_million": 2.5,
+        "output_long_per_million": 5.0,
+        "cached_input_long_per_million": 0.4,
+    },
+    "grok-4.20-0309-non-reasoning": {
+        "input_per_million": 1.25,
+        "output_per_million": 2.5,
+        "cached_input_per_million": 0.2,
+        "input_long_per_million": 2.5,
+        "output_long_per_million": 5.0,
+        "cached_input_long_per_million": 0.4,
+    },
+    "grok-4.20-0309-reasoning": {
+        "input_per_million": 1.25,
+        "output_per_million": 2.5,
+        "cached_input_per_million": 0.2,
+        "input_long_per_million": 2.5,
+        "output_long_per_million": 5.0,
+        "cached_input_long_per_million": 0.4,
+    },
+    "grok-4.20-multi-agent-0309": {
+        "input_per_million": 1.25,
+        "output_per_million": 2.5,
+        "cached_input_per_million": 0.2,
+        "input_long_per_million": 2.5,
+        "output_long_per_million": 5.0,
+        "cached_input_long_per_million": 0.4,
+    },
+    "grok-build-0.1": {
+        "input_per_million": 1.0,
+        "output_per_million": 2.0,
+        "cached_input_per_million": 0.2,
+        "input_long_per_million": 2.0,
+        "output_long_per_million": 4.0,
+        "cached_input_long_per_million": 0.4,
+    },
     "grok-4": {"input_per_million": 3.0, "output_per_million": 15.0},
     "grok-3": {"input_per_million": 3.0, "output_per_million": 15.0},
     "grok-3-mini": {"input_per_million": 0.3, "output_per_million": 0.5},

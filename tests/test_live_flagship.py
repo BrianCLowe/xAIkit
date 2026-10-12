@@ -158,7 +158,7 @@ def test_meter_uses_ticks_then_catalog_then_gap_then_static_then_none(
             model="grok-4.7",
             usage={"prompt_tokens": 1_000_000, "completion_tokens": 0},
         )
-        assert static.estimated_usd == 2.0
+        assert static.estimated_usd == 4.0
 
         clear_public_price_cache()
         missing = meter.record(

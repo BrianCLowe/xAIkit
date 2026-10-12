@@ -17,7 +17,14 @@ from typing import Any, Protocol, runtime_checkable
 from pydantic import BaseModel, Field
 
 from xaikit.catalog import find_cached_model
-from xaikit.pricing import ModelPrice, PriceTable, default_price_table, public_price_table
+from xaikit.pricing import (
+    LONG_CONTEXT_PROMPT_TOKENS,
+    ModelPrice,
+    PriceTable,
+    _usage_int,
+    default_price_table,
+    public_price_table,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -248,6 +255,34 @@ def _parse_usage_dict(
     return pt_i, ct_i
 
 
+def _missing_long_or_cached_fields(
+    price: ModelPrice,
+    *,
+    prompt_tokens: int | None,
+    usage: dict[str, Any] | None,
+) -> list[str]:
+    pt = prompt_tokens if prompt_tokens is not None else 0
+    needs_long = pt >= LONG_CONTEXT_PROMPT_TOKENS
+    needs_cached = (
+        _usage_int(
+            usage,
+            "cached_tokens",
+            "cached_prompt_tokens",
+            "cached_prompt_text_tokens",
+        )
+        is not None
+    )
+    checks = (
+        (needs_long, "input_long_per_million"),
+        (needs_long, "output_long_per_million"),
+        (needs_cached, "cached_input_per_million"),
+        (needs_long and needs_cached, "cached_input_long_per_million"),
+    )
+    return [
+        name for needed, name in checks if needed and getattr(price, name) is None
+    ]
+
+
 def _estimate_from_catalog(
     model: str,
     *,
@@ -280,6 +315,24 @@ def _estimate_from_catalog(
             cached_input_long_per_million=info.cached_input_long_per_million,
             per_call_usd=info.per_image_usd,
         )
+        missing = _missing_long_or_cached_fields(
+            price,
+            prompt_tokens=prompt_tokens,
+            usage=usage,
+        )
+        if missing:
+            shipped = default_price_table()
+            row = shipped.price_for(info.id)
+            if row is None:
+                row = shipped.price_for(model)
+            if row is not None:
+                updates: dict[str, float] = {}
+                for name in missing:
+                    value = getattr(row, name)
+                    if value is not None:
+                        updates[name] = value
+                if updates:
+                    price = price.model_copy(update=updates)
         table = PriceTable(models={(model or "").strip() or info.id: price})
         return table.estimate_usd(
             model,
