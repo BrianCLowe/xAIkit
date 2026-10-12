@@ -321,7 +321,10 @@ def _estimate_from_catalog(
             usage=usage,
         )
         if missing:
-            row = default_price_table().price_for(model)
+            shipped = default_price_table()
+            row = shipped.price_for(info.id)
+            if row is None:
+                row = shipped.price_for(model)
             if row is not None:
                 updates: dict[str, float] = {}
                 for name in missing:

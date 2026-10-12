@@ -330,6 +330,27 @@ def test_missing_long_output_rate_matches_empty_catalog() -> None:
     assert loaded != 0.86
 
 
+def test_alias_and_different_case_use_the_resolved_catalog_row() -> None:
+    long_usage = _prompt_only(200000)
+    cached_usage = _prompt_only(1_000_000)
+    cached_usage["cached_tokens"] = 400_000
+    row = _partial("grok-4.7").model_copy(update={"aliases": ["grok-4-7"]})
+    try:
+        inject_catalog([row])
+        list_models()
+        seen: list[tuple[str, float | None, float | None]] = []
+        for model in ("grok-4-7", "GROK-4.7"):
+            seen.append((model, _record(model, long_usage), _record(model, cached_usage)))
+    finally:
+        _reset()
+
+    for _model, long_cost, cached_cost in seen:
+        assert long_cost == 0.8
+        assert long_cost != 0.4
+        assert cached_cost == 2.8
+        assert cached_cost != 2.0
+
+
 def test_unknown_model_stays_unset() -> None:
     try:
         inject_catalog(None)

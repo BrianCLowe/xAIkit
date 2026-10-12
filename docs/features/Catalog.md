@@ -1,6 +1,6 @@
 # Catalog
 
-**Last Updated**: 2026-10-11  
+**Last Updated**: 2026-10-12  
 **Related Understanding**: —  
 
 ---
@@ -46,7 +46,7 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 - `economy`: newest model in the price band **strictly below** flagship; overlaps `cheapest` when a cheaper band exists, overlaps `best` when there is only one band
 - `resolve_model` / `resolve_model_selection(..., role="image"|"video"|"voice")` use the same rules on that pool (default `role="chat"`)
 - Image, video, and voice ranking price: the public list rate wins over `input_per_million` when one exists. `input_per_million` is used only when no public list rate exists. Image proto `image_price` is mapped when present. Chat still ranks on `input_per_million`
-- A list row may omit long and cached token rates. Usage metering copies each missing field the call needs from the shipped price table. A value set on the row wins. See [UsageObservability](UsageObservability.md) XK-AC-PRICE-1 and XK-AC-PRICE-2
+- A list row may omit long and cached token rates. Usage metering copies each missing field the call needs from the shipped price table, looked up by the resolved catalog row id and then the request model string. A value set on the row wins. See [UsageObservability](UsageObservability.md) XK-AC-PRICE-1 and XK-AC-PRICE-2
 
 ## Decisions
 
@@ -71,6 +71,7 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 | 2026-10-11 | Partial list rows keep their own long and cached rates | XK-AC-PRICE-1 and XK-AC-PRICE-2. When a row omits one of those fields, the meter copies it from the shipped table for the call that needs it. A value already on the row wins. Ranking still uses `input_per_million` for chat. |
 | 2026-10-11 | Shipped `grok-imagine-image-2.0` per-call rate is $0.06 | Ranking reads the shipped table, not the watch file. The watch file lists `grok-imagine-image` at $0.02, `grok-imagine-image-2.0` at $0.06, and `grok-imagine-image-quality` at $0.05. At $0.04, economy on the quality-newest lineup picked 2.0, the newest model strictly below the $0.05 flagship. At $0.06, 2.0 costs more than that flagship, so economy and cheapest both resolve to `grok-imagine-image`. When 2.0 is the newest row, it is the flagship, and economy resolves to `grok-imagine-image-quality`. `PRICE_TABLE_FETCHED` stays 2026-10-04. A 2.0 image call that misses catalog price and response ticks uses this row as the meter static fallback, so that estimate is $0.06. |
 | 2026-10-11 | `XK-AC-RANK-1` | Image economy and cheapest model resolve to `grok-imagine-image` on the shipped table and the repo test catalog, not `grok-imagine-image-2.0`. `cheapest_model` stays asserted as a no-change control. It already returned `grok-imagine-image` before the 2.0 rate change. Every shipped image model with `per_call_usd` that also has `per_call_usd` in the watch file matches that file, including `grok-imagine-image-pro`. |
+| 2026-10-12 | Shipped long and cached fill uses the resolved row id | An alias or a different case still matches the catalog row. Metering reads shipped long and cached rates with that row id first, then the request model string. Ranking still uses `input_per_million` for chat. |
 
 ## Dependencies
 
