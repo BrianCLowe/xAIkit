@@ -209,6 +209,125 @@ def test_async_image_cost_uses_returned_count_not_requested_n(
     asyncio.run(_run())
 
 
+_UNSORTED_URLS = [
+    "https://example.com/z3.png",
+    "https://example.com/z1.png",
+    "https://example.com/z2.png",
+    "https://example.com/z0.png",
+]
+_NO_URL_ITEMS = [
+    {"b64_json": "b64-z3", "file_id": "file-z3"},
+    {"b64_json": "b64-z1", "file_id": "file-z1"},
+    {"b64_json": "b64-z2", "file_id": "file-z2"},
+    {"b64_json": "b64-z0", "file_id": "file-z0"},
+]
+_DUPLICATE_URLS = [
+    "https://example.com/dup.png",
+    "https://example.com/other.png",
+    "https://example.com/dup.png",
+]
+
+
+def _generate_sync(
+    monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any], *, n: int
+) -> tuple[dict[str, Any], list[dict[str, Any]], InMemoryUsageSink]:
+    _block_live_calls(monkeypatch)
+    calls = _install_sync(monkeypatch, payload)
+    sink = InMemoryUsageSink()
+    out = _sync_client(sink).generate_image("a red cube", n=n, purpose="demo.imagine")
+    return out, calls, sink
+
+
+def _generate_async(
+    monkeypatch: pytest.MonkeyPatch, payload: dict[str, Any], *, n: int
+) -> tuple[dict[str, Any], list[dict[str, Any]], InMemoryUsageSink]:
+    async def _run() -> tuple[dict[str, Any], list[dict[str, Any]], InMemoryUsageSink]:
+        _block_live_calls(monkeypatch)
+        calls = _install_async(monkeypatch, payload)
+        sink = InMemoryUsageSink()
+        out = await _async_client(sink).generate_image(
+            "a red cube", n=n, purpose="demo.imagine"
+        )
+        return out, calls, sink
+
+    return asyncio.run(_run())
+
+
+def test_sync_n4_keeps_unsorted_upstream_url_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out, calls, sink = _generate_sync(monkeypatch, _payload(_UNSORTED_URLS), n=4)
+    assert calls[0]["json"]["n"] == 4
+    _assert_images(out, _UNSORTED_URLS, sink=sink, requested_n=4, body=calls[0]["json"])
+
+
+def test_async_n4_keeps_unsorted_upstream_url_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out, calls, sink = _generate_async(monkeypatch, _payload(_UNSORTED_URLS), n=4)
+    assert calls[0]["json"]["n"] == 4
+    _assert_images(out, _UNSORTED_URLS, sink=sink, requested_n=4, body=calls[0]["json"])
+
+
+def _expected_no_url_images() -> list[dict[str, str | None]]:
+    return [
+        {
+            "url": None,
+            "b64_json": str(item["b64_json"]),
+            "file_id": str(item["file_id"]),
+        }
+        for item in _NO_URL_ITEMS
+    ]
+
+
+def _assert_no_url_items(out: dict[str, Any]) -> None:
+    images = _expected_no_url_images()
+    assert out["images"] == images
+    assert out["url"] == images[0]["url"]
+    assert out["b64_json"] == images[0]["b64_json"]
+    assert out["file_id"] == images[0]["file_id"]
+
+
+def test_sync_n4_lists_b64_and_file_id_items_in_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out, calls, _sink = _generate_sync(monkeypatch, {"data": _NO_URL_ITEMS}, n=4)
+    assert calls[0]["json"]["n"] == 4
+    _assert_no_url_items(out)
+
+
+def test_async_n4_lists_b64_and_file_id_items_in_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out, calls, _sink = _generate_async(monkeypatch, {"data": _NO_URL_ITEMS}, n=4)
+    assert calls[0]["json"]["n"] == 4
+    _assert_no_url_items(out)
+
+
+def _assert_duplicate_urls_billed(out: dict[str, Any], sink: InMemoryUsageSink) -> None:
+    assert [item["url"] for item in out["images"]] == _DUPLICATE_URLS
+    assert len(out["images"]) == 3
+    assert out["url"] == _DUPLICATE_URLS[0]
+    assert _rate() == 0.02
+    events = list(sink.iter_events())
+    assert len(events) == 1
+    assert events[0].estimated_usd == 0.06
+
+
+def test_sync_keeps_duplicate_urls_and_bills_each_returned_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out, _calls, sink = _generate_sync(monkeypatch, _payload(_DUPLICATE_URLS), n=3)
+    _assert_duplicate_urls_billed(out, sink)
+
+
+def test_async_keeps_duplicate_urls_and_bills_each_returned_image(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out, _calls, sink = _generate_async(monkeypatch, _payload(_DUPLICATE_URLS), n=3)
+    _assert_duplicate_urls_billed(out, sink)
+
+
 def test_xk_ac_doc_2_readme_and_issue_config_say_0_2_0() -> None:
     readme = (_ROOT / "README.md").read_text(encoding="utf-8")
     config = (_ROOT / ".github/ISSUE_TEMPLATE/config.yml").read_text(encoding="utf-8")
