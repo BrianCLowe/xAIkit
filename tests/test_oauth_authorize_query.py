@@ -162,6 +162,46 @@ def test_xk_ac_oauth_3_no_query_and_trailing_question_marks_match_legacy() -> No
         assert url.count("?") == 1
 
 
+def test_repeated_non_kit_names_keep_interleaved_order() -> None:
+    url = _authorize("https://idp.example/authorize?a=1&b=2&a=3")
+    assert url.count("?") == 1
+    _parts, pairs = _split_pairs(url)
+    assert pairs == [
+        ("a", "1"),
+        ("b", "2"),
+        ("a", "3"),
+        *_KIT_PAIRS,
+    ]
+
+
+def test_fragment_without_caller_query_stays_after_query() -> None:
+    url = _authorize("https://idp.example/authorize#frag")
+    assert url.count("?") == 1
+    parts, pairs = _split_pairs(url)
+    assert parts.fragment == "frag"
+    assert url.index("?") < url.index("#")
+    assert pairs == _KIT_PAIRS
+
+
+def test_empty_caller_values_are_kept() -> None:
+    url = _authorize("https://idp.example/authorize?x=&y=1")
+    assert url.count("?") == 1
+    _parts, pairs = _split_pairs(url)
+    assert pairs == [("x", ""), ("y", "1"), *_KIT_PAIRS]
+
+
+def test_case_variant_names_are_not_kit_names() -> None:
+    url = _authorize("https://idp.example/authorize?State=a&STATE=b&Scope=c")
+    assert url.count("?") == 1
+    _parts, pairs = _split_pairs(url)
+    assert pairs == [
+        ("State", "a"),
+        ("STATE", "b"),
+        ("Scope", "c"),
+        *_KIT_PAIRS,
+    ]
+
+
 def test_fragment_stays_after_merged_query() -> None:
     url = _authorize("https://idp.example/authorize?audience=api#frag")
     assert url.count("?") == 1
