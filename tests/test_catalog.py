@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from xaikit import MockChatProvider, XaiClient
+from xaikit import AsyncXaiClient, MockChatProvider, XaiClient
 from xaikit.catalog import (
     BOOTSTRAP_MODEL,
     DEFAULT_IMAGE_MODEL,
@@ -634,6 +634,55 @@ def test_xk_ac_rank_3_transcribe_ids_leave_voice() -> None:
         )
         assert client.voice_model == "grok-voice-latest"
         assert not client.voice_model.startswith("grok-voice-transcribe")
+    finally:
+        inject_catalog(None)
+        clear_catalog_cache()
+
+
+def test_xk_ac_rank_3_voice_tagged_transcribe_stays_off_voice() -> None:
+    """A newer transcribe row that already carries capability voice is not voice.
+
+    inject_catalog, a fixture, or an older snapshot can store that tag. The
+    converter is not what put it there.
+    """
+    transcribe = ModelInfo(
+        id="grok-voice-transcribe-2.0",
+        capabilities=["voice"],
+        created=90,
+    )
+    rows = [
+        ModelInfo(id="grok-voice-think-fast-1.0", capabilities=["voice"], created=1),
+        ModelInfo(id="grok-voice-latest", capabilities=["voice"], created=3),
+        transcribe,
+    ]
+    assert transcribe.created is not None
+    assert transcribe.created > 3
+    assert "voice" in transcribe.capabilities
+
+    voice_best = resolve_model_selection(intent="best", role="voice", catalog=rows)
+    assert voice_best.model_id == "grok-voice-latest"
+    assert voice_best.source == "intent:best"
+    assert not voice_best.model_id.startswith("grok-voice-transcribe")
+    resolved = resolve_model(role="voice", catalog=rows)
+    assert resolved == "grok-voice-latest"
+    assert not resolved.startswith("grok-voice-transcribe")
+
+    inject_catalog(rows)
+    try:
+        sync_client = XaiClient(
+            provider=MockChatProvider(),
+            api_key="test-key",
+            model="grok-4.7",
+        )
+        async_client = AsyncXaiClient(
+            provider=MockChatProvider(),
+            api_key="test-key",
+            model="grok-4.7",
+        )
+        assert sync_client.voice_model == "grok-voice-latest"
+        assert async_client.voice_model == "grok-voice-latest"
+        assert not sync_client.voice_model.startswith("grok-voice-transcribe")
+        assert not async_client.voice_model.startswith("grok-voice-transcribe")
     finally:
         inject_catalog(None)
         clear_catalog_cache()
