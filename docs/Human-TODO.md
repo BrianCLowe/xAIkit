@@ -1,6 +1,6 @@
 # xAIkit — Human TODO
 
-**Last Updated**: 2026-10-10  
+**Last Updated**: 2026-10-12  
 **Related**: [Master_Index.md](Master_Index.md) · [Tooling.md](Tooling.md) · [workflow/human-todo.md](templates/agent/workflow/human-todo.md) §13
 
 ---
@@ -19,13 +19,13 @@ Keep this list short — **one `- [ ]` list item per human action**.
 **Claim / reassign:** override only (*assign playtest to QA* / *I’ll take it*) — not the bulk path. One-shot *apply defaults to Open* fills leftover unassigned rows after enable **only if that `role_id` is Active on Team-Roster**; else leave `unassigned`.
 
 - [ ] **REST embed live** (`playtest`) — 2026-08-16 — Split from ApiCoverage / Usage extras. Team `GET /v1/embedding-models` is empty; `POST /v1/embeddings` with OpenAPI example `v1` (and `grok-embedding-small`) 404s. Inference key already has `api-key:model:*`. Not a management-key ACL. Re-run when the team has an embed SKU. Owner: [ApiCoverage-TODO.md](features/ApiCoverage-TODO.md) · also [UsageObservability-TODO.md](features/UsageObservability-TODO.md) · Blocks: none
-- [ ] **OAuth authorize URL that already has a query** (`decide`) — 2026-10-06 — `build_oauth_authorize_url` only strips a trailing `?`, then always adds `?client_id=...`. A caller URL that already has a query (`https://idp.example/authorize?audience=api`) becomes two question marks and a broken URL. The spec says the URL is caller-supplied and must send `response_type=code`, scope `openid`, and `client_id`. It does not say whether an existing query is kept, replaced, or rejected. Owner: [ConnectAuth.md](features/ConnectAuth.md) · Blocks: none
 - [ ] **Image-token estimates** (`decide`) — 2026-10-08 — When a chat usage payload has both `prompt_tokens` and `prompt_image_tokens`, should the meter add the image-token rate on top of `prompt_tokens`, or treat image tokens as already inside `prompt_tokens` and only reprice that slice? The estimator adds them on top. Live chat never forwards the field, so neither happens today. Owner: [UsageObservability.md](features/UsageObservability.md) · Blocks: none
 
 ---
 
 ## Done
 
+- [x] **OAuth authorize URL that already has a query** (`decide`) - 2026-10-11 - Keep an existing query and merge kit parameters into it. Kit values win for the same name. One question mark, and the fragment stays after the query. A URL with no query or only trailing question marks stays the same string as before. Owner: [ConnectAuth.md](features/ConnectAuth.md)
 - [x] **Image, video, and voice ranking price** (`decide`) - 2026-10-10 - Public list rate wins over `input_per_million` for non-chat rows when a public rate exists. Ranking code already did this. `cheapest_model` and [Catalog.md](features/Catalog.md) now say so. Owner: [Catalog.md](features/Catalog.md)
 - [x] **Meter when a success body cannot be parsed** (`decide`) - 2026-10-10 - Video start records one failed usage event, then raises, when a 2xx body is not JSON, is not an object, or has no `request_id`. Image generation does the same for a 2xx non-JSON body (`modality="imagine"`). The failed event error field is the same text as the raised error, exactly (`Video generation returned non-JSON response`, `Video generation returned unexpected payload`, `Video generation response missing request_id`, `Imagine returned non-JSON response`). A 401 still skips the meter. Owner: [VideoGeneration.md](features/VideoGeneration.md)
 - [x] **MediaRest knobs remainder — live via tester** (`playtest`) — 2026-08-16 — `generate_image` on `grok-imagine-image-2.0` with `resolution=2k` + `quality=medium`; unary `synthesize_speech` (`wav` / 24 kHz / `speed` / normalize). Owner: [MediaRest-TODO.md](features/MediaRest-TODO.md)
