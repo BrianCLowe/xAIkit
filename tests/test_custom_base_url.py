@@ -864,6 +864,242 @@ def test_u2_5_key_never_in_repr_logs_or_userinfo_errors(caplog: pytest.LogCaptur
     assert KEY not in caplog.text
 
 
+def test_injected_provider_wins_over_rest_chat(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An injected provider is the chat transport, including on a path-prefixed base."""
+    from xaikit.provider import MockChatProvider
+
+    capture = _Capture()
+    capture.install(monkeypatch)
+    provider = MockChatProvider("from-provider")
+
+    sync = make_client(
+        base_url="http://127.0.0.1:9/proxy/v1",
+        provider=provider,
+    )
+    reply = sync.chat([{"role": "user", "content": "hi"}])
+    assert reply.content == "from-provider"
+    assert provider.calls
+    assert provider.calls[-1]["kind"] == "complete"
+    assert capture.calls == []
+
+    async def _go() -> None:
+        async_provider = MockChatProvider("from-async-provider")
+        client = make_client(
+            AsyncXaiClient,
+            base_url="http://127.0.0.1:9/proxy/v1",
+            provider=async_provider,
+        )
+        got = await client.chat([{"role": "user", "content": "hi"}])
+        assert got.content == "from-async-provider"
+        assert async_provider.calls
+        assert capture.calls == []
+
+    asyncio.run(_go())
+
+
+def test_path_prefix_chat_stream_is_rest_sse(monkeypatch: pytest.MonkeyPatch) -> None:
+    """chat_stream on a path-prefixed base is SSE on POST <base>/chat/completions."""
+    lines = [
+        'data: {"choices":[{"delta":{"content":"Hi"},"finish_reason":null}]}',
+        'data: {"choices":[{"delta":{"content":"!"},"finish_reason":"stop"}],"usage":{"total_tokens":2}}',
+        "data: [DONE]",
+    ]
+
+    def _forbid_grpc(self, *args: Any, **kwargs: Any):  # type: ignore[no-untyped-def]
+        raise AssertionError("chat_stream used gRPC")
+
+    monkeypatch.setattr("xaikit.provider.SdkChatProvider.stream", _forbid_grpc)
+    monkeypatch.setattr("xaikit.provider.AsyncSdkChatProvider.stream", _forbid_grpc)
+
+    seen: list[dict[str, Any]] = []
+
+    class _SyncStream:
+        status_code = 200
+        reason_phrase = "OK"
+        text = ""
+
+        def __enter__(self) -> _SyncStream:
+            return self
+
+        def __exit__(self, *args: Any) -> None:
+            return None
+
+        def iter_lines(self):  # type: ignore[no-untyped-def]
+            yield from lines
+
+        def read(self) -> bytes:
+            return b""
+
+    def fake_stream(method: str, url: str, **kwargs: Any) -> _SyncStream:
+        seen.append({"method": method, "url": url, "json": kwargs.get("json"), "headers": kwargs.get("headers")})
+        return _SyncStream()
+
+    monkeypatch.setattr("xaikit.client.httpx.stream", fake_stream)
+    sync = make_client(base_url="http://127.0.0.1:9/proxy/v1")
+    chunks = list(sync.chat_stream([{"role": "user", "content": "hi"}]))
+    assert seen[-1]["method"] == "POST"
+    assert urlsplit(seen[-1]["url"]).path == "/proxy/v1/chat/completions"
+    assert seen[-1]["json"]["stream"] is True
+    assert seen[-1]["headers"]["Authorization"] == f"Bearer {KEY}"
+    assert "".join(chunk.delta for chunk in chunks) == "Hi!"
+    assert chunks[-1].accumulated == "Hi!"
+    assert chunks[-1].finish_reason == "stop"
+
+    class _AsyncStream:
+        status_code = 200
+        reason_phrase = "OK"
+
+        async def __aenter__(self) -> _AsyncStream:
+            return self
+
+        async def __aexit__(self, *args: Any) -> None:
+            return None
+
+        async def aiter_lines(self):  # type: ignore[no-untyped-def]
+            for line in lines:
+                yield line
+
+        async def aread(self) -> bytes:
+            return b""
+
+    class _AsyncHttp:
+        def __init__(self, *args: Any, **kwargs: Any) -> None:
+            return None
+
+        def stream(self, method: str, url: str, **kwargs: Any) -> _AsyncStream:
+            seen.append(
+                {"method": method, "url": url, "json": kwargs.get("json"), "headers": kwargs.get("headers")}
+            )
+            return _AsyncStream()
+
+        async def aclose(self) -> None:
+            return None
+
+    monkeypatch.setattr("xaikit.async_client.httpx.AsyncClient", _AsyncHttp)
+
+    async def _go() -> None:
+        client = make_client(AsyncXaiClient, base_url="http://127.0.0.1:9/proxy/v1")
+        got = [chunk async for chunk in client.chat_stream([{"role": "user", "content": "hi"}])]
+        assert "".join(chunk.delta for chunk in got) == "Hi!"
+        assert urlsplit(seen[-1]["url"]).path == "/proxy/v1/chat/completions"
+        assert seen[-1]["json"]["stream"] is True
+
+    asyncio.run(_go())
+
+
+def test_rest_chat_applies_kit_wire_adapters(monkeypatch: pytest.MonkeyPatch) -> None:
+    """REST chat sends function tools, named tool_choice, schema, and assistant tool_calls."""
+    from pydantic import BaseModel
+
+    class _Item(BaseModel):
+        name: str
+
+    capture = _Capture()
+    capture.install(monkeypatch)
+    client = make_client(base_url="http://127.0.0.1:9/proxy/v1")
+    _quiet(
+        client.chat,
+        [
+            {"role": "user", "content": "weather?"},
+            {
+                "role": "assistant",
+                "content": "",
+                "tool_calls": [
+                    {"id": "c1", "name": "get_weather", "arguments": {"city": "NYC"}},
+                ],
+            },
+            {"role": "tool", "content": "72F", "tool_call_id": "c1"},
+        ],
+        tools=[
+            {
+                "name": "get_weather",
+                "description": "Get the weather",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"city": {"type": "string"}},
+                    "required": ["city"],
+                },
+            }
+        ],
+        tool_choice={"name": "get_weather"},
+    )
+    body = capture.calls[-1][3]
+    assert isinstance(body, dict)
+    tool = body["tools"][0]
+    assert tool["type"] == "function"
+    assert tool["function"]["name"] == "get_weather"
+    assert tool["function"]["parameters"]["required"] == ["city"]
+    assert body["tool_choice"] == {"type": "function", "function": {"name": "get_weather"}}
+    assistant = body["messages"][1]
+    assert assistant["tool_calls"][0]["function"]["name"] == "get_weather"
+    assert json.loads(assistant["tool_calls"][0]["function"]["arguments"]) == {"city": "NYC"}
+    assert body["messages"][2]["role"] == "tool"
+    assert body["messages"][2]["tool_call_id"] == "c1"
+
+    capture.calls.clear()
+    _quiet(client.chat_json, "item", schema=_Item)
+    schema_body = capture.calls[-1][3]
+    fmt = schema_body["response_format"]
+    assert fmt["type"] == "json_schema"
+    assert fmt["json_schema"]["schema"]["properties"]["name"]["type"] == "string"
+
+
+def test_batch_and_collections_stay_on_sdk_default_hosts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Custom api_host is only the chat gRPC client. Batch and collections keep SDK defaults."""
+    opened: list[Any] = []
+
+    class Dummy:
+        def __init__(self, api_key: str, management_api_key: str | None = None, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+            opened.append(self)
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("xaikit.client.Client", Dummy)
+    monkeypatch.setattr("xaikit.async_client.AsyncClient", Dummy)
+
+    bare = make_client(base_url="http://127.0.0.1:9")
+    assert bare._provider._client.kwargs.get("api_host") == "127.0.0.1:9"
+    assert bare._provider._client.kwargs.get("use_insecure_channel") is True
+    assert "api_host" not in bare._client.kwargs
+    assert "use_insecure_channel" not in bare._client.kwargs
+    assert bare._client is not bare._provider._client
+
+    prefixed = make_client(base_url="http://127.0.0.1:9/proxy/v1")
+    assert "api_host" not in prefixed._client.kwargs
+    assert "use_insecure_channel" not in prefixed._client.kwargs
+
+    default = make_client()
+    assert default._client is default._provider._client
+    assert "api_host" not in default._client.kwargs
+
+    seen: list[Any] = []
+
+    def _rpc(operation: str, *, sdk_client: Any = None, **kwargs: Any) -> dict[str, str]:
+        seen.append(sdk_client)
+        return {"id": "b1", "name": "n"}
+
+    monkeypatch.setattr("xaikit.client.call_batch_rpc", _rpc)
+    monkeypatch.setattr("xaikit.client.call_collections_rpc", _rpc)
+    prefixed.create_batch("job")
+    prefixed.create_collection("notes")
+    assert seen
+    assert all(client is prefixed._client for client in seen)
+    assert all("api_host" not in client.kwargs for client in seen)
+
+    async def _go() -> None:
+        opened.clear()
+        client = make_client(AsyncXaiClient, base_url="https://example.com/v1")
+        assert client._provider._client.kwargs.get("api_host") == "example.com"
+        assert "api_host" not in client._client.kwargs
+        assert client._client is not client._provider._client
+        proxy = make_client(AsyncXaiClient, base_url="http://127.0.0.1:9/proxy/v1")
+        assert "api_host" not in proxy._client.kwargs
+
+    asyncio.run(_go())
+
+
 def test_m14_clients_do_not_share_a_resolved_base(monkeypatch: pytest.MonkeyPatch) -> None:
     capture = _Capture()
     capture.install(monkeypatch)

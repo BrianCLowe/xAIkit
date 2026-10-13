@@ -102,7 +102,12 @@ from xaikit.collections import (
     search_to_dict,
 )
 from xaikit.credentials import CredentialStore
-from xaikit.provider import AsyncChatProvider, AsyncSdkChatProvider, ChatProvider
+from xaikit.provider import (
+    AsyncChatProvider,
+    AsyncSdkChatProvider,
+    ChatProvider,
+    RestSseCursor,
+)
 from xaikit.realtime import (
     XAI_REALTIME_URL,
     AsyncRealtimeSession,
@@ -176,6 +181,8 @@ class AsyncXaiClient(XaiClient):
         base_url: str | None = None,
     ) -> None:
         self._apply_base_url(base_url)
+        self._injected_provider = provider is not None
+        self._chat_sdk = None
         level_in = thought_level if thought_level is not None else effort
         self._remember_role_pins(
             model=model,
@@ -205,8 +212,15 @@ class AsyncXaiClient(XaiClient):
                 )
             self.api_key = key
             management_api_key = (os.environ.get("XAI_MANAGEMENT_KEY") or "").strip() or None
-            self._client = self._open_async_sdk(key, management_api_key)
-            self._provider = AsyncSdkChatProvider(self._client)
+            # Batch and collections stay on the SDK default hosts. Chat gRPC
+            # gets its own client only when this base is a bare host or /v1.
+            self._client = self._open_async_sdk(key, management_api_key, chat_host=False)
+            if self._resolved.chat_over_rest or self._resolved.grpc_api_host is None:
+                chat_sdk = self._client
+            else:
+                chat_sdk = self._open_async_sdk(key, management_api_key, chat_host=True)
+            self._chat_sdk = chat_sdk
+            self._provider = AsyncSdkChatProvider(chat_sdk)
             self._catalog_api_key = key or None
 
         self._finish_role_resolution()
@@ -219,18 +233,32 @@ class AsyncXaiClient(XaiClient):
         self._owns_http = False
         self._inflight_video_waits: set[asyncio.Task[Any]] = set()
 
-    def _open_async_sdk(self, key: str, management_api_key: str | None) -> AsyncClient:
-        """Default path keeps the SDK's own host. Other bases pass host:port."""
-        if self._resolved.grpc_api_host is None:
+    def _open_async_sdk(
+        self,
+        key: str,
+        management_api_key: str | None,
+        *,
+        chat_host: bool,
+    ) -> AsyncClient:
+        """Default hosts for batch and collections. Chat may pass host:port.
+
+        ``chat_host`` is set only for gRPC chat on a bare host or ``/v1``.
+        A path-prefixed base does not move the shared client off the SDK defaults.
+        """
+        if (
+            chat_host
+            and not self._resolved.chat_over_rest
+            and self._resolved.grpc_api_host is not None
+        ):
             return AsyncClient(
                 api_key=key,
                 management_api_key=management_api_key,
+                api_host=self._resolved.grpc_api_host,
+                use_insecure_channel=self._resolved.grpc_insecure,
             )
         return AsyncClient(
             api_key=key,
             management_api_key=management_api_key,
-            api_host=self._resolved.grpc_api_host,
-            use_insecure_channel=self._resolved.grpc_insecure,
         )
 
     async def __aenter__(self) -> AsyncXaiClient:
@@ -247,8 +275,11 @@ class AsyncXaiClient(XaiClient):
             await self._http.aclose()
             self._http = None
             self._owns_http = False
-        sdk = self._client
-        if sdk is not None:
+        closed: set[int] = set()
+        for sdk in (getattr(self, "_chat_sdk", None), self._client):
+            if sdk is None or id(sdk) in closed:
+                continue
+            closed.add(id(sdk))
             closer = getattr(sdk, "close", None)
             if callable(closer):
                 result = closer()
@@ -378,6 +409,81 @@ class AsyncXaiClient(XaiClient):
         )
         return self._rest_chat_parse(response)
 
+    async def _rest_chat_stream(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        temperature: float,
+        max_tokens: int | None,
+        thought_level: str | None,
+        system_prompt: str | None,
+        tools: list[dict[str, Any]] | None,
+        tool_choice: str | dict[str, Any] | None,
+        parallel_tool_calls: bool | None,
+        response_format: Any,
+        service_tier: str | None,
+    ):
+        """SSE chat on ``POST <base>/chat/completions`` with ``stream`` true."""
+        url, headers, body = self._rest_chat_request(
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            thought_level=thought_level,
+            system_prompt=system_prompt,
+            tools=tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            response_format=response_format,
+            service_tier=service_tier,
+            stream=True,
+        )
+        owns = self._http is None
+        http = self._http if self._http is not None else httpx.AsyncClient(
+            timeout=_DEFERRED_CHAT_TIMEOUT
+        )
+        stream_cm = http.stream(
+            "POST",
+            url,
+            headers=headers,
+            json=body,
+            timeout=_DEFERRED_CHAT_TIMEOUT,
+        )
+        try:
+            response = await stream_cm.__aenter__()
+        except httpx.HTTPError as exc:
+            if owns:
+                await http.aclose()
+            raise RuntimeError(f"xAI chat request failed: {exc}") from exc
+        status = int(getattr(response, "status_code", 200) or 200)
+        if status == 401 or status >= 400:
+            try:
+                await response.aread()
+            except Exception:
+                pass
+            detail = (getattr(response, "text", "") or getattr(response, "reason_phrase", "") or "")[:500]
+            await stream_cm.__aexit__(None, None, None)
+            if owns:
+                await http.aclose()
+            if status == 401:
+                raise RuntimeError("xAI chat unauthorized. Check the API key.")
+            raise RuntimeError(f"xAI chat failed ({status}): {detail}")
+
+        async def _chunks():
+            cursor = RestSseCursor()
+            try:
+                async for line in response.aiter_lines():
+                    piece = cursor.push(line)
+                    if piece is not None:
+                        yield piece
+                    if cursor.done:
+                        break
+            finally:
+                await stream_cm.__aexit__(None, None, None)
+                if owns:
+                    await http.aclose()
+
+        return _chunks()
+
     async def _complete(
         self,
         messages: list[dict[str, Any]],
@@ -393,7 +499,7 @@ class AsyncXaiClient(XaiClient):
         service_tier: str | None = None,
     ):
         async def _call():
-            if self._resolved.chat_over_rest:
+            if self._chat_uses_rest():
                 return await self._rest_chat_complete(
                     messages,
                     temperature=temperature,
@@ -441,6 +547,19 @@ class AsyncXaiClient(XaiClient):
         service_tier: str | None = None,
     ):
         async def _call():
+            if self._chat_uses_rest():
+                return await self._rest_chat_stream(
+                    messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    thought_level=thought_level,
+                    system_prompt=system_prompt,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    parallel_tool_calls=parallel_tool_calls,
+                    response_format=response_format,
+                    service_tier=service_tier,
+                )
             return self._provider_stream(
                 messages=messages,
                 model=self.model,

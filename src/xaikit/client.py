@@ -70,8 +70,10 @@ from xaikit.credentials import CredentialStore
 from xaikit.provider import (
     ChatProvider,
     ProviderResponse,
+    RestSseCursor,
     SdkChatProvider,
     _normalize_tool_calls,
+    rest_chat_body,
 )
 from xaikit.realtime import (
     DEFAULT_REALTIME_VOICE,
@@ -203,6 +205,8 @@ class XaiClient:
     ) -> None:
         # effort is an alias for thought_level → reasoning_effort on the wire
         self._apply_base_url(base_url)
+        self._injected_provider = provider is not None
+        self._chat_sdk = None
         level_in = thought_level if thought_level is not None else effort
         self._remember_role_pins(
             model=model,
@@ -235,8 +239,15 @@ class XaiClient:
             # XAI_MANAGEMENT_KEY through if present — do not store a second key
             # on this client. Search uses the regular API channel.
             management_api_key = (os.environ.get("XAI_MANAGEMENT_KEY") or "").strip() or None
-            self._client = self._open_sync_sdk(key, management_api_key)
-            self._provider = SdkChatProvider(self._client)
+            # Batch and collections stay on the SDK default hosts. Chat gRPC
+            # gets its own client only when this base is a bare host or /v1.
+            self._client = self._open_sync_sdk(key, management_api_key, chat_host=False)
+            if self._resolved.chat_over_rest or self._resolved.grpc_api_host is None:
+                chat_sdk = self._client
+            else:
+                chat_sdk = self._open_sync_sdk(key, management_api_key, chat_host=True)
+            self._chat_sdk = chat_sdk
+            self._provider = SdkChatProvider(chat_sdk)
             self._catalog_api_key = key or None
 
         self._finish_role_resolution()
@@ -258,18 +269,36 @@ class XaiClient:
     def _endpoint(self, url: str) -> str:
         return rebase_url(url, self._resolved)
 
-    def _open_sync_sdk(self, key: str, management_api_key: str | None) -> Client:
-        """Default path keeps the SDK's own host. Other bases pass host:port."""
-        if self._resolved.grpc_api_host is None:
+    def _chat_uses_rest(self) -> bool:
+        """Path-prefix chat uses REST unless the caller injected a provider."""
+        return bool(self._resolved.chat_over_rest) and not self._injected_provider
+
+    def _open_sync_sdk(
+        self,
+        key: str,
+        management_api_key: str | None,
+        *,
+        chat_host: bool,
+    ) -> Client:
+        """Default hosts for batch and collections. Chat may pass host:port.
+
+        ``chat_host`` is set only for gRPC chat on a bare host or ``/v1``.
+        A path-prefixed base does not move the shared client off the SDK defaults.
+        """
+        if (
+            chat_host
+            and not self._resolved.chat_over_rest
+            and self._resolved.grpc_api_host is not None
+        ):
             return Client(
                 api_key=key,
                 management_api_key=management_api_key,
+                api_host=self._resolved.grpc_api_host,
+                use_insecure_channel=self._resolved.grpc_insecure,
             )
         return Client(
             api_key=key,
             management_api_key=management_api_key,
-            api_host=self._resolved.grpc_api_host,
-            use_insecure_channel=self._resolved.grpc_insecure,
         )
 
     def _remember_role_pins(
@@ -432,30 +461,23 @@ class XaiClient:
         parallel_tool_calls: bool | None,
         response_format: Any,
         service_tier: str | None,
+        stream: bool = False,
     ) -> tuple[str, dict[str, str], dict[str, Any]]:
         """REST chat body used when the base path is not empty and not ``/v1``."""
-        rest_messages = list(messages)
-        if system_prompt:
-            rest_messages.insert(0, {"role": "system", "content": system_prompt})
-        body: dict[str, Any] = {
-            "model": self.model,
-            "messages": rest_messages,
-            "temperature": temperature,
-        }
-        if max_tokens is not None:
-            body["max_tokens"] = max_tokens
-        if thought_level:
-            body["reasoning_effort"] = thought_level
-        if tools:
-            body["tools"] = tools
-        if tool_choice is not None:
-            body["tool_choice"] = tool_choice
-        if parallel_tool_calls is not None:
-            body["parallel_tool_calls"] = parallel_tool_calls
-        if response_format is not None:
-            body["response_format"] = response_format
-        if service_tier is not None:
-            body["service_tier"] = service_tier
+        body = rest_chat_body(
+            messages,
+            model=self.model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            thought_level=thought_level,
+            system_prompt=system_prompt,
+            tools=tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            response_format=response_format,
+            service_tier=service_tier,
+            stream=stream,
+        )
         headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
@@ -541,6 +563,71 @@ class XaiClient:
             raise RuntimeError(f"xAI chat request failed: {exc}") from exc
         return self._rest_chat_parse(response)
 
+    def _rest_chat_stream(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        temperature: float,
+        max_tokens: int | None,
+        thought_level: str | None,
+        system_prompt: str | None,
+        tools: list[dict[str, Any]] | None,
+        tool_choice: str | dict[str, Any] | None,
+        parallel_tool_calls: bool | None,
+        response_format: Any,
+        service_tier: str | None,
+    ) -> Iterator[Any]:
+        """SSE chat on ``POST <base>/chat/completions`` with ``stream`` true."""
+        url, headers, body = self._rest_chat_request(
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            thought_level=thought_level,
+            system_prompt=system_prompt,
+            tools=tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            response_format=response_format,
+            service_tier=service_tier,
+            stream=True,
+        )
+        try:
+            stream_cm = httpx.stream(
+                "POST",
+                url,
+                headers=headers,
+                json=body,
+                timeout=_DEFERRED_CHAT_TIMEOUT,
+            )
+            response = stream_cm.__enter__()
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"xAI chat request failed: {exc}") from exc
+        status = int(getattr(response, "status_code", 200) or 200)
+        if status == 401 or status >= 400:
+            try:
+                response.read()
+            except Exception:
+                pass
+            detail = (getattr(response, "text", "") or getattr(response, "reason_phrase", "") or "")[:500]
+            stream_cm.__exit__(None, None, None)
+            if status == 401:
+                raise RuntimeError("xAI chat unauthorized. Check the API key.")
+            raise RuntimeError(f"xAI chat failed ({status}): {detail}")
+
+        def _chunks() -> Iterator[Any]:
+            cursor = RestSseCursor()
+            try:
+                for line in response.iter_lines():
+                    piece = cursor.push(line)
+                    if piece is not None:
+                        yield piece
+                    if cursor.done:
+                        break
+            finally:
+                stream_cm.__exit__(None, None, None)
+
+        return _chunks()
+
     def _complete(
         self,
         messages: list[dict[str, Any]],
@@ -556,7 +643,7 @@ class XaiClient:
         service_tier: str | None = None,
     ):
         def _call():
-            if self._resolved.chat_over_rest:
+            if self._chat_uses_rest():
                 return self._rest_chat_complete(
                     messages,
                     temperature=temperature,
@@ -604,6 +691,19 @@ class XaiClient:
         service_tier: str | None = None,
     ):
         def _call():
+            if self._chat_uses_rest():
+                return self._rest_chat_stream(
+                    messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    thought_level=thought_level,
+                    system_prompt=system_prompt,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    parallel_tool_calls=parallel_tool_calls,
+                    response_format=response_format,
+                    service_tier=service_tier,
+                )
             return self._provider.stream(
                 messages,
                 model=self.model,

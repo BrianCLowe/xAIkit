@@ -426,6 +426,323 @@ def _sdk_chat_kwargs(
     return kwargs
 
 
+def _rest_tool_from_sdk(tool: Any) -> dict[str, Any]:
+    """Project an SDK tool proto onto an OpenAI function tool."""
+    fn = getattr(tool, "function", None)
+    name = str(getattr(fn, "name", "") or "")
+    description = str(getattr(fn, "description", "") or "")
+    raw_params = getattr(fn, "parameters", None)
+    if isinstance(raw_params, str) and raw_params.strip():
+        try:
+            parameters = json.loads(raw_params)
+        except json.JSONDecodeError:
+            parameters = {"type": "object", "properties": {}}
+    elif isinstance(raw_params, dict):
+        parameters = raw_params
+    else:
+        parameters = {"type": "object", "properties": {}}
+    if not isinstance(parameters, dict):
+        parameters = {"type": "object", "properties": {}}
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": parameters,
+        },
+    }
+
+
+def _rest_tool_choice_from_sdk(choice: Any) -> Any:
+    """Project SDK tool choice onto the REST wire form."""
+    if isinstance(choice, str):
+        return choice
+    name = getattr(choice, "function_name", None)
+    if name:
+        return {"type": "function", "function": {"name": str(name)}}
+    return choice
+
+
+def _rest_response_format_from_sdk(value: Any) -> Any:
+    """Project SDK response_format onto the REST JSON object."""
+    if isinstance(value, str):
+        return {"type": value}
+    if isinstance(value, type) and issubclass(value, BaseModel):
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": value.__name__ or "response",
+                "schema": value.model_json_schema(),
+            },
+        }
+    format_type = getattr(value, "format_type", None)
+    schema_text = getattr(value, "schema", None)
+    if format_type is None or not isinstance(schema_text, str):
+        if isinstance(value, dict):
+            return value
+        return value
+    from xai_sdk.proto import chat_pb2
+
+    if format_type == chat_pb2.FORMAT_TYPE_JSON_OBJECT:
+        return {"type": "json_object"}
+    if format_type == chat_pb2.FORMAT_TYPE_TEXT:
+        return {"type": "text"}
+    if format_type == chat_pb2.FORMAT_TYPE_JSON_SCHEMA:
+        try:
+            schema = json.loads(schema_text) if schema_text else {}
+        except json.JSONDecodeError:
+            schema = {}
+        if not isinstance(schema, dict):
+            schema = {}
+        return {
+            "type": "json_schema",
+            "json_schema": {"name": "response", "schema": schema},
+        }
+    return value
+
+
+def _rest_content_kind(part: Any) -> str:
+    which = part.WhichOneof("content") if hasattr(part, "WhichOneof") else None
+    if which:
+        return str(which)
+    image = getattr(part, "image_url", None)
+    if image is not None and (getattr(image, "image_url", None) or getattr(image, "file_id", None)):
+        return "image_url"
+    file_part = getattr(part, "file", None)
+    if file_part is not None and (
+        file_part.file_id or file_part.url or file_part.filename or file_part.data
+    ):
+        return "file"
+    return "text"
+
+
+def _rest_detail(image: Any) -> str | None:
+    try:
+        enum = image.DESCRIPTOR.fields_by_name["detail"].enum_type
+        raw = enum.values_by_number.get(int(image.detail))
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return None
+    if raw is None:
+        return None
+    token = str(raw.name).removeprefix("DETAIL_").lower()
+    if token in {"auto", "low", "high"}:
+        return token
+    return None
+
+
+def _rest_content_part(part: Any) -> dict[str, Any]:
+    kind = _rest_content_kind(part)
+    if kind == "image_url":
+        image = part.image_url
+        payload: dict[str, Any] = {"url": image.image_url}
+        detail = _rest_detail(image)
+        if detail:
+            payload["detail"] = detail
+        if getattr(image, "file_id", None):
+            payload["file_id"] = image.file_id
+        return {"type": "image_url", "image_url": payload}
+    if kind == "file":
+        file_part = part.file
+        payload = {}
+        if file_part.file_id:
+            payload["file_id"] = file_part.file_id
+        if file_part.url:
+            payload["url"] = file_part.url
+        if file_part.filename:
+            payload["filename"] = file_part.filename
+        if file_part.mime_type:
+            payload["mime_type"] = file_part.mime_type
+        return {"type": "file", "file": payload}
+    return {"type": "text", "text": part.text or ""}
+
+
+def _rest_message_from_sdk(message: Any) -> dict[str, Any]:
+    from xai_sdk.proto import chat_pb2
+
+    roles = {
+        chat_pb2.ROLE_SYSTEM: "system",
+        chat_pb2.ROLE_USER: "user",
+        chat_pb2.ROLE_ASSISTANT: "assistant",
+        chat_pb2.ROLE_TOOL: "tool",
+        chat_pb2.ROLE_DEVELOPER: "developer",
+    }
+    role = roles.get(message.role, "user")
+    parts = list(message.content)
+    if parts and all(_rest_content_kind(part) == "text" for part in parts):
+        content: Any = "".join(part.text or "" for part in parts)
+    elif parts:
+        content = [_rest_content_part(part) for part in parts]
+    else:
+        content = ""
+    out: dict[str, Any] = {"role": role, "content": content}
+    if message.tool_calls:
+        calls = []
+        for tc in message.tool_calls:
+            calls.append(
+                {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
+            )
+        out["tool_calls"] = calls
+        if content == "":
+            out["content"] = None
+    if role == "tool":
+        out["tool_call_id"] = message.tool_call_id or ""
+        if getattr(message, "name", None):
+            out["name"] = message.name
+    return out
+
+
+def rest_chat_body(
+    messages: list[dict[str, Any]],
+    *,
+    model: str,
+    temperature: float,
+    max_tokens: int | None,
+    thought_level: str | None,
+    system_prompt: str | None,
+    tools: list[Any] | None,
+    tool_choice: str | dict[str, Any] | None,
+    parallel_tool_calls: bool | None,
+    response_format: Any,
+    service_tier: str | None,
+    stream: bool = False,
+) -> dict[str, Any]:
+    """Build a REST chat body from the same adapters the SDK path uses."""
+    kwargs = _sdk_chat_kwargs(
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        thought_level=thought_level,
+        tools=tools,
+        tool_choice=tool_choice,
+        parallel_tool_calls=parallel_tool_calls,
+        response_format=response_format,
+        service_tier=service_tier,
+    )
+    sdk_messages = _build_sdk_messages(messages, system_prompt=system_prompt)
+    body: dict[str, Any] = {
+        "model": kwargs["model"],
+        "messages": [_rest_message_from_sdk(message) for message in sdk_messages],
+        "temperature": kwargs["temperature"],
+    }
+    if "max_tokens" in kwargs:
+        body["max_tokens"] = kwargs["max_tokens"]
+    if "reasoning_effort" in kwargs:
+        body["reasoning_effort"] = kwargs["reasoning_effort"]
+    if "tools" in kwargs:
+        body["tools"] = [_rest_tool_from_sdk(tool) for tool in kwargs["tools"]]
+    if "tool_choice" in kwargs:
+        body["tool_choice"] = _rest_tool_choice_from_sdk(kwargs["tool_choice"])
+    if "parallel_tool_calls" in kwargs:
+        body["parallel_tool_calls"] = kwargs["parallel_tool_calls"]
+    if "response_format" in kwargs:
+        body["response_format"] = _rest_response_format_from_sdk(kwargs["response_format"])
+    if "service_tier" in kwargs:
+        body["service_tier"] = kwargs["service_tier"]
+    if stream:
+        body["stream"] = True
+    return body
+
+
+def _merge_rest_tool_deltas(acc: list[dict[str, Any]], deltas: Any) -> None:
+    if not isinstance(deltas, list):
+        return
+    for item in deltas:
+        if not isinstance(item, dict):
+            continue
+        try:
+            index = int(item.get("index") or 0)
+        except (TypeError, ValueError):
+            index = 0
+        if index < 0:
+            index = 0
+        while len(acc) <= index:
+            acc.append({"id": "", "name": "", "arguments": ""})
+        slot = acc[index]
+        if item.get("id"):
+            slot["id"] = str(item["id"])
+        fn = item.get("function") if isinstance(item.get("function"), dict) else {}
+        if item.get("name"):
+            slot["name"] = str(item["name"])
+        if fn.get("name"):
+            slot["name"] = str(fn["name"])
+        args = fn.get("arguments")
+        if args is None:
+            args = item.get("arguments")
+        if isinstance(args, str) and args:
+            slot["arguments"] = str(slot.get("arguments") or "") + args
+        elif isinstance(args, (dict, list)):
+            slot["arguments"] = args
+
+
+class RestSseCursor:
+    """Turn OpenAI-style SSE lines into provider stream chunks."""
+
+    def __init__(self) -> None:
+        self.accumulated = ""
+        self.tools: list[dict[str, Any]] = []
+        self.done = False
+
+    def push(self, line: str | bytes) -> ProviderStreamChunk | None:
+        if self.done:
+            return None
+        if isinstance(line, bytes):
+            text = line.decode("utf-8", errors="replace")
+        else:
+            text = str(line)
+        text = text.strip()
+        if not text or text.startswith(":"):
+            return None
+        if not text.lower().startswith("data:"):
+            return None
+        data = text.split(":", 1)[1].strip()
+        if data == "[DONE]":
+            self.done = True
+            return None
+        try:
+            payload = json.loads(data)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Chat stream returned non-JSON data") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError("Chat stream returned unexpected payload")
+        error = payload.get("error")
+        if error:
+            message = error.get("message") if isinstance(error, dict) else str(error)
+            raise RuntimeError(f"xAI chat failed: {message}")
+        choices = payload.get("choices")
+        choice = choices[0] if isinstance(choices, list) and choices else {}
+        if not isinstance(choice, dict):
+            choice = {}
+        delta = choice.get("delta") if isinstance(choice.get("delta"), dict) else {}
+        content = delta.get("content")
+        if not isinstance(content, str):
+            content = "" if content is None else str(content)
+        self.accumulated += content
+        reasoning = delta.get("reasoning_content")
+        reasoning_s = reasoning if isinstance(reasoning, str) and reasoning else None
+        _merge_rest_tool_deltas(self.tools, delta.get("tool_calls"))
+        usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else None
+        finish = choice.get("finish_reason")
+        if not choices and usage is None and not delta:
+            return None
+        return ProviderStreamChunk(
+            delta=content,
+            accumulated=self.accumulated,
+            usage=usage,
+            finish_reason=str(finish) if finish else None,
+            reasoning_delta=reasoning_s,
+            raw=payload,
+            tool_call_delta=_normalize_tool_calls(delta.get("tool_calls")),
+            tool_calls=_normalize_tool_calls(self.tools) if self.tools else None,
+        )
+
+
 def _sdk_cost_ticks(usage_obj: Any) -> int | None:
     """Server ``cost_in_usd_ticks`` only when the proto field is set.
 

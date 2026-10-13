@@ -158,7 +158,7 @@ This is **not** grok.com / SuperGrok login. A Grok subscription’s **weekly usa
 
 REST calls use that base. The speech-to-text, text-to-speech, and realtime websockets use it too: `https` becomes `wss` and `http` becomes `ws`, with the same host, port, and path. One trailing slash is removed. The path is used as written, so a base without `/v1` does not gain one. Any host is accepted. A scheme other than http or https, a missing host, a query, a fragment, or a username and password raises `ValueError`.
 
-Chat whose base path is empty or `/v1` stays on gRPC at that host and port (`http` uses an insecure channel). Any other path sends chat as REST `POST <base>/chat/completions`. A non-default base loads the model list with `GET <base>/models`. Collections, batch, OAuth connect, and the usage meter price fetch do not follow `base_url`.
+Chat whose base path is empty or `/v1` stays on gRPC at that host and port (`http` uses an insecure channel). Any other path sends `chat` and `chat_stream` as REST `POST <base>/chat/completions` (`chat_stream` sets `stream` to true). An injected `provider` is used instead of that REST call. A non-default base loads the model list with `GET <base>/models`. Collections and batch stay on the SDK default hosts, including when chat uses a custom gRPC host. OAuth connect and the usage meter price fetch do not follow `base_url`.
 
 ```python
 import os
