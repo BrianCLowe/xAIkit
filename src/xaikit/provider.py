@@ -598,6 +598,9 @@ def _rest_content_value(content: Any) -> Any:
     if content is None:
         return ""
     items = content if isinstance(content, list) else [content]
+    # SDK uses ``parts or [""]``. An empty list is an empty string, not [].
+    if not items:
+        return ""
     parts = [_rest_part_from_norm(_normalize_kit_part(item)) for item in items]
     if parts and all(set(part) == {"type", "text"} for part in parts):
         return "".join(str(part.get("text") or "") for part in parts)

@@ -1045,6 +1045,31 @@ def test_rest_chat_applies_kit_wire_adapters(monkeypatch: pytest.MonkeyPatch) ->
     assert fmt["json_schema"]["schema"]["properties"]["name"]["type"] == "string"
 
 
+def test_rest_empty_content_list_matches_sdk(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Empty part lists become "" . Assistant tool calls with empty content send null."""
+    capture = _Capture()
+    capture.install(monkeypatch)
+    client = make_client(base_url="http://127.0.0.1:9/proxy/v1")
+    _quiet(
+        client.chat,
+        [
+            {"role": "user", "content": []},
+            {
+                "role": "assistant",
+                "content": [],
+                "tool_calls": [
+                    {"id": "c1", "name": "get_weather", "arguments": {"city": "NYC"}},
+                ],
+            },
+            {"role": "tool", "content": "72F", "tool_call_id": "c1"},
+        ],
+    )
+    messages = capture.calls[-1][3]["messages"]
+    assert messages[0]["content"] == ""
+    assert messages[1]["content"] is None
+    assert messages[1]["tool_calls"][0]["function"]["name"] == "get_weather"
+
+
 def test_batch_and_collections_stay_on_sdk_default_hosts(monkeypatch: pytest.MonkeyPatch) -> None:
     """Custom api_host is only the chat gRPC client. Batch and collections keep SDK defaults."""
     opened: list[Any] = []
