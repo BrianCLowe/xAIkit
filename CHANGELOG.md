@@ -2,12 +2,13 @@
 
 All notable changes to xaikit-py. Newest entry on top.
 
-## Unreleased
+## 0.3.1 (2026-10-13)
 
 ### Added
 
-- Non-default `base_url` hosts restrict best and economy to that host's `GET /v1/models` list (fetched once per client, roles from the static catalog). An unpinned role with no listed model raises `RoleUnavailableOnHost` before the request. A failed model list warns and uses the static catalog, still on the configured host. The default host is unchanged.
-- The usage meter applies the documented 10% US endpoint token premium on `us.api.x.ai` to input, cached input, output, and image input tokens. The rate is one hardcoded host table. Server `cost_in_usd_ticks` stay unchanged. Other hosts and per-unit fees stay at the base price.
+- `XaiClient` and `AsyncXaiClient` take `base_url`, with `XAI_BASE_URL` as a fallback and `https://api.x.ai/v1` as the default. REST calls and the stt, tts, and realtime websockets use that base. Chat on an empty path or `/v1` stays on gRPC; any other path uses REST `/chat/completions`. Invalid URLs raise `ValueError` without echoing credentials. Collections, batch, OAuth connect, and the usage meter price fetch do not follow `base_url`. (#93)
+- Non-default `base_url` hosts restrict best and economy to that host's `GET /v1/models` list (fetched once per client, roles from the static catalog). An unpinned role with no listed model raises `RoleUnavailableOnHost` before the request. A failed model list warns and uses the static catalog, still on the configured host. The default host is unchanged. (#94)
+- The usage meter applies the documented 10% US endpoint token premium on `us.api.x.ai` to input, cached input, output, and image input tokens. The rate is one hardcoded host table. Server `cost_in_usd_ticks` stay unchanged. Other hosts and per-unit fees stay at the base price. (#95)
 
 ## 0.3.0
 
