@@ -295,11 +295,7 @@ def _is_chat_4_6_or_later(slug: str) -> bool:
         return False
     if re.search(r"grok-4[.-]20(?!\d)", slug):
         return False
-    matched = re.search(r"grok-(\d+)(?:[.-](\d+))?", slug)
-    if not matched:
-        return False
-    major = int(matched.group(1))
-    minor = int(matched.group(2) or 0)
+    major, minor = _chat_major_minor(slug)
     return major > 4 or (major == 4 and minor >= 6)
 
 
@@ -1072,9 +1068,11 @@ def _chat_major_minor(model_id: str) -> tuple[int, int]:
 
     ``grok-4.10`` is ``(4, 10)`` (above 4.9). ``grok-5`` / ``grok-5.0`` is
     ``(5, 0)`` (above every 4.x). ``grok-4.20`` sorts as minor 2 so it stays
-    older than ``grok-4.3``.
+    older than ``grok-4.3``. Dashed and compact snapshot dates are removed
+    first, so ``grok-4-20260530`` and ``grok-4-2026-05-30`` stay ``(4, 0)``
+    and a ``grok-5`` snapshot stays ``(5, 0)``.
     """
-    mid = (model_id or "").lower().replace("_", "-")
+    mid = _strip_snapshot_dates(model_id)
     matched = _CHAT_VERSION.search(mid)
     if not matched:
         return (0, 0)
@@ -1107,24 +1105,104 @@ def _version_tuple(model: ModelInfo) -> tuple:
     is_mini = "mini" in mid
     is_fast = "fast" in mid and "non-reasoning" not in mid
     created = model.created or 0
+    # After major/minor, so a newer dated-only family still beats an older
+    # plain id. Before created, so a snapshot of this version does not.
+    is_plain = 0 if _is_snapshot_id(mid) else 1
     return (
         _stable_rank(mid),
         major,
         minor,
+        is_plain,
         1 if is_latest_alias else 0,
         0 if is_mini else 1,
         0 if is_fast else 1,
+        _snapshot_date_key(mid),
         created,
         mid,
     )
 
 
-# Calendar snapshot in an Imagine video id, for example 2026-05-30.
-_VIDEO_DATED_SNAPSHOT = re.compile(r"\d{4}-\d{2}-\d{2}")
+# Snapshot markers in every role: dashed YYYY-MM-DD and compact YYYYMMDD.
+# Compact counts only for a plausible calendar date. Four-digit suffixes
+# such as 0309 and 0825 are not markers.
+_DASHED_SNAPSHOT_DATE = re.compile(r"(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)")
+_COMPACT_SNAPSHOT_DATE = re.compile(r"(?<!\d)(\d{8})(?!\d)")
+
+
+def _norm_model_id(model_id: str) -> str:
+    return (model_id or "").strip().lower().replace("_", "-")
+
+
+def _ymd_in_range(year: int, month: int, day: int) -> bool:
+    return 2000 <= year <= 2099 and 1 <= month <= 12 and 1 <= day <= 31
+
+
+def _snapshot_dates(model_id: str) -> tuple[tuple[int, int, int], ...]:
+    """Calendar dates embedded in an id. Empty when the id is not a snapshot."""
+    mid = _norm_model_id(model_id)
+    found: list[tuple[int, int, int]] = []
+    for match in _DASHED_SNAPSHOT_DATE.finditer(mid):
+        year, month, day = (int(match.group(index)) for index in (1, 2, 3))
+        if _ymd_in_range(year, month, day):
+            found.append((year, month, day))
+    for match in _COMPACT_SNAPSHOT_DATE.finditer(mid):
+        raw = match.group(1)
+        year, month, day = int(raw[0:4]), int(raw[4:6]), int(raw[6:8])
+        if _ymd_in_range(year, month, day):
+            found.append((year, month, day))
+    return tuple(found)
+
+
+def _is_snapshot_id(model_id: str) -> bool:
+    return bool(_snapshot_dates(model_id))
+
+
+def _snapshot_date_key(model_id: str) -> tuple[int, int, int]:
+    """Newest calendar date in the id, or ``(0, 0, 0)`` when there is none."""
+    dates = _snapshot_dates(model_id)
+    if not dates:
+        return (0, 0, 0)
+    return max(dates)
+
+
+def _strip_snapshot_dates(model_id: str) -> str:
+    """Remove snapshot dates so they are not version digits."""
+    mid = _norm_model_id(model_id)
+
+    def _dashed(match: re.Match[str]) -> str:
+        year, month, day = (int(match.group(index)) for index in (1, 2, 3))
+        if _ymd_in_range(year, month, day):
+            return "-"
+        return match.group(0)
+
+    def _compact(match: re.Match[str]) -> str:
+        raw = match.group(1)
+        year, month, day = int(raw[0:4]), int(raw[4:6]), int(raw[6:8])
+        if _ymd_in_range(year, month, day):
+            return "-"
+        return match.group(0)
+
+    stripped = _DASHED_SNAPSHOT_DATE.sub(_dashed, mid)
+    return _COMPACT_SNAPSHOT_DATE.sub(_compact, stripped)
+
+
+def _snapshot_family(model_id: str) -> str:
+    """Family is the id with snapshot dates and a trailing ``-latest`` removed."""
+    stripped = _strip_snapshot_dates(model_id)
+    stripped = re.sub(r"-{2,}", "-", stripped).strip("-")
+    if stripped.endswith("-latest"):
+        stripped = stripped[: -len("-latest")].strip("-")
+    return stripped
+
+
+def _version_digits(model_id: str) -> tuple[int, ...]:
+    cleaned = _strip_snapshot_dates(model_id)
+    nums = [int(part) for part in re.split(r"[^0-9]+", cleaned) if part.isdigit()]
+    return tuple(nums) if nums else (0,)
 
 
 def _imagine_video_rest(model_id: str) -> str:
-    mid = (model_id or "").strip().lower().replace("_", "-")
+    mid = _norm_model_id(model_id)
     prefix = "grok-imagine-video"
     if mid.startswith(prefix):
         return mid[len(prefix) :].lstrip("-")
@@ -1132,8 +1210,8 @@ def _imagine_video_rest(model_id: str) -> str:
 
 
 def _imagine_video_version_nums(rest: str) -> tuple[int, ...]:
-    """Version digits. Calendar dates, ``preview``, and ``lite`` are not a version."""
-    cleaned = _VIDEO_DATED_SNAPSHOT.sub("-", rest)
+    """Version digits. Snapshot dates, ``preview``, and ``lite`` are not a version."""
+    cleaned = _strip_snapshot_dates(rest)
     cleaned = re.sub(r"(?:^|-)preview(?:-|$)", "-", cleaned)
     cleaned = re.sub(r"(?:^|-)lite(?:-|$)", "-", cleaned)
     nums = [int(part) for part in re.split(r"[^0-9]+", cleaned) if part.isdigit()]
@@ -1145,17 +1223,21 @@ def _imagine_video_sort_key(model: ModelInfo) -> tuple:
 
     ``-lite`` ranks below every non-lite id. A stable id then ranks above any
     ``-preview`` id, ahead of version, so ``grok-imagine-video-1.5`` beats
-    ``grok-imagine-video-2.0-preview``. The plain recommended id ranks ahead
-    of a dated snapshot of the same version. A created-date tie does not let
-    a snapshot win on the id string. Among lite ids, the version digits still
-    order them. A preview is chosen only when no stable non-lite id exists.
+    ``grok-imagine-video-2.0-preview``. Dashed and compact snapshot dates are
+    removed before the version compare, then the plain id ranks ahead of a
+    snapshot of that same version. The plain flag stays after version so a
+    newer family that only has dated ids still beats an older plain id.
+    Among dated ids of one version, the newest calendar date wins, and
+    ``created`` breaks only an equal-date tie. Among lite ids, the version
+    digits still order them. A preview is chosen only when no stable non-lite
+    id exists.
     """
-    mid = (model.id or "").strip().lower().replace("_", "-")
+    mid = _norm_model_id(model.id)
     rest = _imagine_video_rest(mid)
     is_lite = 0 if _is_imagine_video_lite(mid) else 1
     is_stable = _stable_rank(mid)
     is_preview = is_stable == 0
-    is_snapshot = _VIDEO_DATED_SNAPSHOT.search(rest) is not None
+    is_snapshot = _is_snapshot_id(mid)
     is_plain = 0 if (is_preview or is_snapshot) else 1
     is_latest = 1 if rest.endswith("latest") or "-latest-" in f"-{rest}-" else 0
     created = model.created or 0
@@ -1165,56 +1247,96 @@ def _imagine_video_sort_key(model: ModelInfo) -> tuple:
         _imagine_video_version_nums(rest),
         is_plain,
         is_latest,
+        _snapshot_date_key(mid),
         created,
         mid,
     )
+
+
+def _generic_rank_key(model: ModelInfo, role: str) -> tuple:
+    """Created, then ``-latest``, for image, voice, and speech-to-text.
+
+    Image names are product families, not numeric versions, so the id string
+    breaks a created tie (``grok-imagine-image-quality`` above
+    ``grok-imagine-image-2.0``). Voice and speech-to-text still use version
+    digits with snapshot dates removed.
+    """
+    mid = _norm_model_id(model.id)
+    is_latest = 1 if mid.endswith("-latest") or "-latest-" in f"-{mid}-" else 0
+    created = model.created or 0
+    stable = _stable_rank(mid)
+    if role == ROLE_IMAGE:
+        return (stable, created, is_latest, mid)
+    return (stable, created, is_latest, _version_digits(mid), mid)
 
 
 def _newest_key(model: ModelInfo, role: str) -> tuple:
     """Sort key for ``best`` / prefer-latest within a role pool.
 
     A stable id ranks above any ``-preview`` id before version or created
-    date. Chat then uses integer major/minor. Video uses the Imagine video
-    key, which still ranks every non-lite id above ``-lite`` before that
-    stable flag. Other roles then use created date.
+    date. Chat then uses integer major/minor, and a snapshot of that version
+    ranks behind the plain id. Video uses the Imagine video key, which still
+    ranks every non-lite id above ``-lite`` before that stable flag. Other
+    roles then use created date. Snapshot dates are not version digits.
     """
     if role == ROLE_CHAT:
         return _version_tuple(model)
     if role == ROLE_VIDEO:
         return _imagine_video_sort_key(model)
-    mid = (model.id or "").strip().lower().replace("_", "-")
-    nums: list[int] = []
-    for part in re.split(r"[^0-9]+", mid):
-        if part.isdigit():
-            nums.append(int(part))
-    is_latest = 1 if mid.endswith("-latest") or "-latest-" in f"-{mid}-" else 0
-    created = model.created or 0
-    return (
-        _stable_rank(mid),
-        created,
-        is_latest,
-        tuple(nums) if nums else (0,),
-        mid,
-    )
+    return _generic_rank_key(model, role)
+
+
+def _dated_only_rank(model: ModelInfo) -> tuple:
+    """Newest calendar date, then created, then id. Created does not pick the date."""
+    return (_snapshot_date_key(model.id), model.created or 0, _norm_model_id(model.id))
+
+
+def _family_representatives(pool: Sequence[ModelInfo], role: str) -> list[ModelInfo]:
+    """One row per family. A snapshot loses to plain or ``-latest`` in that family only.
+
+    A dated id stays in the pool when its family has no plain or ``-latest``
+    id, so a newer dated-only family can still beat an older plain id.
+    """
+    groups: dict[str, list[ModelInfo]] = {}
+    for model in pool:
+        groups.setdefault(_snapshot_family(model.id), []).append(model)
+    chosen: list[ModelInfo] = []
+    for members in groups.values():
+        plain = [model for model in members if not _is_snapshot_id(model.id)]
+        if plain:
+            chosen.append(max(plain, key=lambda model: _newest_key(model, role)))
+        else:
+            chosen.append(max(members, key=_dated_only_rank))
+    return chosen
+
+
+def _pick_latest(pool: Sequence[ModelInfo], role: str) -> ModelInfo:
+    """Highest row for ``role``. Generic roles drop dominated snapshots first."""
+    rows = list(pool)
+    if role in (ROLE_CHAT, ROLE_VIDEO):
+        return max(rows, key=lambda model: _newest_key(model, role))
+    return max(_family_representatives(rows, role), key=lambda model: _newest_key(model, role))
 
 
 def prefer_latest_video_model(catalog: Sequence[ModelInfo] | None = None) -> str:
     """Pick the newest ``grok-imagine-video*`` id from *catalog*.
 
-    A stable id beats any ``-preview`` id, ahead of version and created date.
-    ``-lite`` stays below every non-lite id. A preview is returned only when
-    no stable non-lite id is in the pool. Does not change chat resolve.
+    Uses the same video key as ``best``. A stable id beats any ``-preview``
+    id, ahead of version and created date. ``-lite`` stays below every
+    non-lite id. A compact or dashed snapshot of a version ranks behind the
+    plain id of that version. A preview is returned only when no stable
+    non-lite id is in the pool. Does not change chat resolve.
     Empty / missing catalog returns ``DEFAULT_VIDEO_MODEL``.
     """
     rows = list(catalog) if catalog is not None else []
     videos = [
         m
         for m in rows
-        if (m.id or "").strip().lower().replace("_", "-").startswith("grok-imagine-video")
+        if _norm_model_id(m.id).startswith("grok-imagine-video")
     ]
     if not videos:
         return DEFAULT_VIDEO_MODEL
-    return max(videos, key=_imagine_video_sort_key).id
+    return _pick_latest(videos, ROLE_VIDEO).id
 
 
 def prefer_latest_model(
@@ -1227,15 +1349,15 @@ def prefer_latest_model(
     A stable id beats any ``-preview`` id, regardless of version or created
     date. Preview is returned only when those candidates have no stable model.
     Video ranks every non-lite id above ``-lite`` before that comparison, so
-    lite stays out of best while any non-lite id exists. Chat skips coding
-    SKUs when other chat rows exist.
+    lite stays out of best while any non-lite id exists. A snapshot ranks
+    behind the plain id or ``-latest`` alias of the same family. Chat skips
+    coding SKUs when other chat rows exist.
     """
     role_n = normalize_role(role)
     pool = models_for_role(catalog, role_n)
     if not pool:
         return None
-    best = max(pool, key=lambda m: _newest_key(m, role_n))
-    return best.id
+    return _pick_latest(pool, role_n).id
 
 
 def _public_ranking_price(model: ModelInfo, role: str) -> float | None:
@@ -1330,6 +1452,9 @@ def best_model(
     A stable id beats any ``-preview`` id, regardless of version or created
     date. Preview is returned only when those candidates have no stable model.
     Video ranks every non-lite id above ``-lite`` before that comparison.
+    A snapshot ranks behind the plain id or ``-latest`` alias of the same
+    family. The date is not a version number, including the minor of an
+    undotted id such as ``grok-4`` or ``grok-5``.
     """
     return prefer_latest_model(catalog, role=role)
 
@@ -1344,7 +1469,8 @@ def economy_model(
     This is the mid / economy rung, not a performance-per-dollar optimum
     (that ratio can belong to ``best``). Overlaps ``cheapest`` when that
     band is a single price, and overlaps ``best`` when nothing is cheaper
-    than the flagship.
+    than the flagship. The same snapshot rule as ``best`` applies inside
+    the cheaper band: a dated id does not beat the plain id of its family.
     """
     role_n = normalize_role(role)
     pool = models_for_role(catalog, role_n)
