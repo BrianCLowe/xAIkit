@@ -46,6 +46,7 @@ from xaikit.connect import (
     oauth_is_configured,
 )
 from xaikit.credentials import CredentialStore, DictCredentialStore, EnvCredentialStore
+from xaikit.errors import RoleUnavailableOnHost, XaiKitError
 from xaikit.gaps import (
     CompositeGapSink,
     GapEvent,
@@ -177,6 +178,7 @@ __all__ = [
     "ProviderResponse",
     "ProviderStreamChunk",
     "RealtimeSession",
+    "RoleUnavailableOnHost",
     "RetryPolicy",
     "SdkChatProvider",
     "SttClosed",
@@ -192,6 +194,7 @@ __all__ = [
     "VideoInbox",
     "VideoReceipt",
     "XaiClient",
+    "XaiKitError",
     "async_call_with_retry",
     "build_completion_tracer",
     "build_gap_log",

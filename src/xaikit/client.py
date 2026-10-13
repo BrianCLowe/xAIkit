@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 from collections.abc import Iterator, Sequence
 from typing import Any
@@ -48,15 +49,20 @@ from xaikit.catalog import (
     DEFAULT_VIDEO_MODEL,
     ROLE_CHAT,
     ROLE_IMAGE,
+    ROLE_SPEECH_TO_TEXT,
     ROLE_VIDEO,
     ROLE_VOICE,
     contract_imagine_aspect_ratio,
     contract_model_for_need,
     contract_thought_level,
+    fetch_host_catalog,
     imagine_generate_knobs,
+    log_host_catalog_fallback,
     normalize_thought_level,
     resolve_model_selection,
+    static_fallback_models,
 )
+from xaikit.errors import RoleUnavailableOnHost
 from xaikit.collections import (
     call_collections_rpc,
     collection_to_dict,
@@ -332,9 +338,84 @@ class XaiClient:
         self._catalog_api_key: str | None = None
         self._resolve_source = "bootstrap"
         self.thought_level = normalize_thought_level(level_in)
+        self._call_model_pin: str | None = None
+        self._regional_ready = False
+        self._regional_models: list[tuple[Any, str]] | None = None
+        self._regional_lock = threading.Lock()
+
+    def _uses_regional_catalog(self) -> bool:
+        """True when this client's base is not the default host."""
+        return bool(self._resolved.models_over_rest)
+
+    def _regional_host(self) -> str:
+        """Host label for errors and the catalog warning (``host`` or ``host:port``)."""
+        resolved = self._resolved
+        if resolved.port is not None:
+            return f"{resolved.host}:{resolved.port}"
+        return resolved.host
+
+    def _load_regional_models(self) -> list[tuple[Any, str]] | None:
+        """Host list for this client instance. None means the fetch failed.
+
+        Cached for the client's lifetime with no TTL. A second client does not
+        share this cache. The default host never calls this.
+        """
+        if self._regional_ready:
+            return self._regional_models
+        with self._regional_lock:
+            if self._regional_ready:
+                return self._regional_models
+            try:
+                models = fetch_host_catalog(
+                    self._catalog_api_key or self.api_key or "",
+                    self.base_url,
+                )
+            except Exception:
+                log_host_catalog_fallback(self._regional_host())
+                models = None
+            self._regional_models = models
+            self._regional_ready = True
+            return models
+
+    def _require_regional_role(self, role: str, *, pinned: bool = False) -> None:
+        """Raise before a request when an unpinned role is missing on the host.
+
+        A failed host list does not raise: resolve falls back to the static catalog.
+        A pin is sent as given.
+        """
+        if pinned or not self._uses_regional_catalog():
+            return
+        loaded = self._load_regional_models()
+        if loaded is None:
+            return
+        if any(listed_role == role for _info, listed_role in loaded):
+            return
+        raise RoleUnavailableOnHost(role, self._regional_host())
 
     def _selection_for(self, role: str):
         try:
+            if self._uses_regional_catalog():
+                loaded = self._load_regional_models()
+                if loaded is None:
+                    return resolve_model_selection(
+                        intent=self._intent,
+                        task=self._task,
+                        thought_level=self._level_in,
+                        bootstrap=self._bootstrap_model,
+                        role=role,
+                        catalog=static_fallback_models(),
+                    )
+                rows = [info for info, listed_role in loaded if listed_role == role]
+                if not rows:
+                    raise RoleUnavailableOnHost(role, self._regional_host())
+                return resolve_model_selection(
+                    intent=self._intent,
+                    task=self._task,
+                    thought_level=self._level_in,
+                    bootstrap=self._bootstrap_model,
+                    role=role,
+                    catalog=rows,
+                )
             return resolve_model_selection(
                 intent=self._intent,
                 task=self._task,
@@ -344,6 +425,8 @@ class XaiClient:
                 api_key=self._catalog_api_key,
                 base_url=self.base_url,
             )
+        except RoleUnavailableOnHost:
+            raise
         except Exception:
             logger.warning("Role resolve failed for %s", role, exc_info=True)
             fallback = {
@@ -358,6 +441,11 @@ class XaiClient:
             )
 
     def _finish_role_resolution(self) -> None:
+        if self._uses_regional_catalog():
+            # Missing image, video, or voice must raise on the call, not here.
+            if self._chat_pinned:
+                self._resolve_source = "override"
+            return
         if self._chat_pinned:
             self._resolve_source = "override"
         else:
@@ -375,6 +463,8 @@ class XaiClient:
 
     @property
     def model(self) -> str:
+        if self._call_model_pin:
+            return self._call_model_pin
         if not self._chat_pinned:
             selection = self._selection_for(ROLE_CHAT)
             self._chat_model = selection.model_id
@@ -796,6 +886,7 @@ class XaiClient:
         self,
         messages: list[dict[str, Any]],
         *,
+        model: str | None = None,
         purpose: str | None = None,
         parent_id: str | None = None,
         labels: dict[str, str] | None = None,
@@ -811,12 +902,51 @@ class XaiClient:
     ) -> CompletionResponse:
         """Non-streaming chat completion.
 
+        ``model`` pins this call. A pin is sent unchanged.
+
         ``tools`` are JSON-dict function defs (``name``, ``description``, ``parameters``).
         The kit returns ``tool_calls`` on the response; the app runs tools and sends
         ``role="tool"`` follow-up messages. The kit does not execute tools.
         Message ``content`` may be a string or a list of parts (text / image_url / file).
         ``service_tier`` is ``default`` | ``priority``; omit for default.
         """
+        self._call_model_pin = (model or "").strip() or None
+        try:
+            return self._chat_body(
+                messages,
+                purpose=purpose,
+                parent_id=parent_id,
+                labels=labels,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                system_prompt=system_prompt,
+                thought_level=thought_level,
+                effort=effort,
+                tools=tools,
+                tool_choice=tool_choice,
+                parallel_tool_calls=parallel_tool_calls,
+                service_tier=service_tier,
+            )
+        finally:
+            self._call_model_pin = None
+
+    def _chat_body(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        purpose: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        temperature: float,
+        max_tokens: int | None,
+        system_prompt: str | None,
+        thought_level: str | None,
+        effort: str | None,
+        tools: list[dict[str, Any]] | None,
+        tool_choice: str | dict[str, Any] | None,
+        parallel_tool_calls: bool | None,
+        service_tier: str | None,
+    ) -> CompletionResponse:
         tag = self._require_purpose_if_metered(purpose)
         level = self._effective_thought_level(thought_level, effort=effort)
         tier = _normalize_service_tier(service_tier)
@@ -863,6 +993,8 @@ class XaiClient:
                 tool_calls=getattr(resp, "tool_calls", None),
                 service_tier=getattr(resp, "service_tier", None) or tier,
             )
+        except RoleUnavailableOnHost:
+            raise
         except Exception as exc:
             err = _error_class(exc)
             self._record(
@@ -1350,6 +1482,7 @@ class XaiClient:
         tag = self._require_purpose_if_metered(purpose)
         if not file_bytes:
             raise RuntimeError("Audio file is empty")
+        self._require_regional_role(ROLE_SPEECH_TO_TEXT)
 
         data = {
             "format": "true",
@@ -1452,6 +1585,7 @@ class XaiClient:
         ``application/json``; the default path stays raw audio bytes.
         """
         tag = self._require_purpose_if_metered(purpose)
+        self._require_regional_role(ROLE_VOICE, pinned=self._voice_pinned)
         body = tts_rest_body(
             text,
             voice_id=voice_id or DEFAULT_TTS_VOICE_ID,
@@ -3520,6 +3654,7 @@ class XaiClient:
         :meth:`open_realtime_session`.
         """
         tag = self._require_purpose_if_metered(purpose)
+        self._require_regional_role(ROLE_SPEECH_TO_TEXT)
         key = self._require_stt_api_key()
         url = stt_session_url(
             base=self._endpoint(XAI_STT_WS_URL),
@@ -3602,6 +3737,7 @@ class XaiClient:
         :meth:`synthesize_speech`. STS stays on :meth:`open_realtime_session`.
         """
         tag = self._require_purpose_if_metered(purpose)
+        self._require_regional_role(ROLE_VOICE, pinned=self._voice_pinned)
         key = self._require_tts_api_key()
         url = tts_session_url(
             base=self._endpoint(XAI_TTS_WS_URL),

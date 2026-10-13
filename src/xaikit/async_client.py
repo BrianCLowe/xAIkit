@@ -22,9 +22,12 @@ from xaikit.batch import (
 from xaikit.catalog import (
     BOOTSTRAP_MODEL,
     DEFAULT_IMAGE_MODEL,
+    ROLE_SPEECH_TO_TEXT,
+    ROLE_VOICE,
     contract_imagine_aspect_ratio,
     imagine_generate_knobs,
 )
+from xaikit.errors import RoleUnavailableOnHost
 from xaikit.connect import normalize_api_key
 from xaikit.client import (
     DEFAULT_FILE_PURPOSE,
@@ -584,6 +587,7 @@ class AsyncXaiClient(XaiClient):
         self,
         messages: list[dict[str, Any]],
         *,
+        model: str | None = None,
         purpose: str | None = None,
         parent_id: str | None = None,
         labels: dict[str, str] | None = None,
@@ -596,6 +600,43 @@ class AsyncXaiClient(XaiClient):
         tool_choice: str | dict[str, Any] | None = None,
         parallel_tool_calls: bool | None = None,
         service_tier: str | None = None,
+    ) -> CompletionResponse:
+        self._call_model_pin = (model or "").strip() or None
+        try:
+            return await self._chat_body(
+                messages,
+                purpose=purpose,
+                parent_id=parent_id,
+                labels=labels,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                system_prompt=system_prompt,
+                thought_level=thought_level,
+                effort=effort,
+                tools=tools,
+                tool_choice=tool_choice,
+                parallel_tool_calls=parallel_tool_calls,
+                service_tier=service_tier,
+            )
+        finally:
+            self._call_model_pin = None
+
+    async def _chat_body(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        purpose: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        temperature: float,
+        max_tokens: int | None,
+        system_prompt: str | None,
+        thought_level: str | None,
+        effort: str | None,
+        tools: list[dict[str, Any]] | None,
+        tool_choice: str | dict[str, Any] | None,
+        parallel_tool_calls: bool | None,
+        service_tier: str | None,
     ) -> CompletionResponse:
         tag = self._require_purpose_if_metered(purpose)
         level = self._effective_thought_level(thought_level, effort=effort)
@@ -643,6 +684,8 @@ class AsyncXaiClient(XaiClient):
                 tool_calls=getattr(resp, "tool_calls", None),
                 service_tier=getattr(resp, "service_tier", None) or tier,
             )
+        except RoleUnavailableOnHost:
+            raise
         except Exception as exc:
             err = _error_class(exc)
             self._record(
@@ -1026,6 +1069,7 @@ class AsyncXaiClient(XaiClient):
         tag = self._require_purpose_if_metered(purpose)
         if not file_bytes:
             raise RuntimeError("Audio file is empty")
+        self._require_regional_role(ROLE_SPEECH_TO_TEXT)
         data = {"format": "true", "language": language}
         files = {
             "file": (filename, file_bytes, content_type or "application/octet-stream"),
@@ -1096,6 +1140,7 @@ class AsyncXaiClient(XaiClient):
         labels: dict[str, str] | None = None,
     ) -> tuple[bytes, str]:
         tag = self._require_purpose_if_metered(purpose)
+        self._require_regional_role(ROLE_VOICE, pinned=self._voice_pinned)
         body = tts_rest_body(
             text,
             voice_id=voice_id or DEFAULT_TTS_VOICE_ID,
@@ -2386,6 +2431,7 @@ class AsyncXaiClient(XaiClient):
         labels: dict[str, str] | None = None,
     ) -> AsyncSttSession:
         tag = self._require_purpose_if_metered(purpose)
+        self._require_regional_role(ROLE_SPEECH_TO_TEXT)
         key = self._require_stt_api_key()
         url = stt_session_url(
             base=self._endpoint(XAI_STT_WS_URL),
@@ -2460,6 +2506,7 @@ class AsyncXaiClient(XaiClient):
         labels: dict[str, str] | None = None,
     ) -> AsyncTtsSession:
         tag = self._require_purpose_if_metered(purpose)
+        self._require_regional_role(ROLE_VOICE, pinned=self._voice_pinned)
         key = self._require_tts_api_key()
         url = tts_session_url(
             base=self._endpoint(XAI_TTS_WS_URL),
