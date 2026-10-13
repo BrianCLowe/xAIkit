@@ -9,6 +9,7 @@ import json
 import logging
 import threading
 import time
+from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,16 @@ PUBLIC_PRICES_URL = (
 _PUBLIC_PRICE_TTL_SECONDS = 24 * 60 * 60
 # Public chat long-context tier starts at 200k prompt tokens.
 LONG_CONTEXT_PROMPT_TOKENS = 200_000
+
+# Token premium fraction keyed by hostname. Read at price time. No live fetch.
+# Token usage on the US endpoint costs ten percent more than the global endpoint,
+# including input, cached input, output, and image input tokens.
+# Cite: https://docs.x.ai/developers/advanced-api-usage/regions (fetched 2026-10-13).
+_US_REGIONAL_HOST = "us." + "api." + "x.ai"
+REGIONAL_TOKEN_PREMIUM: dict[str, float] = {
+    _US_REGIONAL_HOST: 0.10,
+}
+_PREMIUM_USD_QUANTUM = Decimal("0.00000001")
 
 # Chat token rates (USD / 1M). Estimates, not billing.
 # Long and cached fields are copied from scripts/data/xai_public_prices.json for
@@ -173,7 +184,7 @@ _DEFAULT_IMAGE_MODELS: dict[str, dict[str, Any]] = {
 }
 
 # Public streaming STT list rate (USD / audio minute from $0.20/hour). Estimates, not billing.
-# REST unary STT is $0.10/hour on the public table — not estimated here (no duration on REST calls).
+# REST unary STT is 10 cents per hour on the public table. Not estimated here (no duration on REST calls).
 # https://docs.x.ai/developers/pricing (Voice: Speech to Text Streaming $0.20 / hr)
 _DEFAULT_STT_MODELS: dict[str, dict[str, Any]] = {
     "stt": {
@@ -274,8 +285,13 @@ class PriceTable(BaseModel):
         duration_seconds: float | None = None,
         resolution: str | None = None,
         usage: dict[str, Any] | None = None,
+        token_premium: float = 0.0,
     ) -> float | None:
-        """Estimate USD from video duration, voice minutes, tokens, or per-image rate."""
+        """Estimate USD from video duration, voice minutes, tokens, or per-image rate.
+
+        ``token_premium`` marks up token components only. Per-second, per-minute,
+        and per-image amounts ignore it.
+        """
         price = self.price_for(model)
         if price is None:
             return None
@@ -300,6 +316,7 @@ class PriceTable(BaseModel):
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
                 usage=usage,
+                token_premium=token_premium,
             )
         if price.per_call_usd is not None:
             # Image rows store the per-image rate on per_call_usd.
@@ -342,12 +359,62 @@ def _usage_int(usage: dict[str, Any] | None, *keys: str) -> int | None:
     return None
 
 
+def _premium_hostname(host: str | None) -> str | None:
+    """Exact hostname, case-folded. Scheme, port, and path are ignored."""
+    if host is None:
+        return None
+    text = str(host).strip()
+    if not text:
+        return None
+    if "://" in text:
+        text = text.split("://", 1)[1]
+    text = text.split("/", 1)[0]
+    text = text.split("?", 1)[0]
+    text = text.split("#", 1)[0]
+    if "@" in text:
+        text = text.rsplit("@", 1)[1]
+    if text.startswith("["):
+        end = text.find("]")
+        raw = text[1:end] if end != -1 else ""
+    elif text.count(":") == 1:
+        name, _, port = text.partition(":")
+        raw = name if port.isdigit() else text
+    else:
+        raw = text
+    folded = raw.strip().lower()
+    return folded or None
+
+
+def token_premium_for_host(host: str | None) -> float:
+    """Premium fraction for this host, or 0 when the host is not in the table.
+
+    The table is read on each call. Unknown, lookalike, and proxy hosts return 0.
+    """
+    name = _premium_hostname(host)
+    if not name:
+        return 0.0
+    for key, value in REGIONAL_TOKEN_PREMIUM.items():
+        if str(key).strip().lower() == name:
+            return float(value)
+    return 0.0
+
+
+def _round_premium_usd(cost: float) -> float:
+    """One half-up round to 8 decimal places after the premium.
+
+    ``round(cost, 8)`` is binary and turns 1.375e-06 into 1.37e-06.
+    """
+    quantized = Decimal(str(cost)).quantize(_PREMIUM_USD_QUANTUM, rounding=ROUND_HALF_UP)
+    return float(quantized)
+
+
 def _token_estimate_usd(
     price: ModelPrice,
     *,
     prompt_tokens: int | None,
     completion_tokens: int | None,
     usage: dict[str, Any] | None,
+    token_premium: float = 0.0,
 ) -> float | None:
     """Token USD. Long-context rates apply at 200k prompt tokens when present."""
     pt = prompt_tokens if prompt_tokens is not None else 0
@@ -378,6 +445,10 @@ def _token_estimate_usd(
     cost += cached_cost
     if image_tokens and price.image_token_per_million is not None:
         cost += (image_tokens / 1_000_000.0) * float(price.image_token_per_million)
+    premium = float(token_premium or 0.0)
+    if premium:
+        cost = cost * (1.0 + premium)
+        return _round_premium_usd(cost)
     return round(cost, 8)
 
 

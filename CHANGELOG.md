@@ -6,7 +6,8 @@ All notable changes to xaikit-py. Newest entry on top.
 
 ### Added
 
-- Non-default `base_url` hosts restrict best and economy to that host's `GET /v1/models` list (fetched once per client, roles from the static catalog). An unpinned role with no listed model raises `RoleUnavailableOnHost` before the request. A failed model list warns and uses the static catalog, still on the configured host. The default host is unchanged. The usage meter does not apply the 10% US endpoint token premium.
+- Non-default `base_url` hosts restrict best and economy to that host's `GET /v1/models` list (fetched once per client, roles from the static catalog). An unpinned role with no listed model raises `RoleUnavailableOnHost` before the request. A failed model list warns and uses the static catalog, still on the configured host. The default host is unchanged.
+- The usage meter applies the documented 10% US endpoint token premium on `us.api.x.ai` to input, cached input, output, and image input tokens. The rate is one hardcoded host table. Server `cost_in_usd_ticks` stay unchanged. Other hosts and per-unit fees stay at the base price.
 
 ## 0.3.0
 
