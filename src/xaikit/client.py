@@ -338,7 +338,6 @@ class XaiClient:
         self._catalog_api_key: str | None = None
         self._resolve_source = "bootstrap"
         self.thought_level = normalize_thought_level(level_in)
-        self._call_model_pin: str | None = None
         self._regional_ready = False
         self._regional_models: list[tuple[Any, str]] | None = None
         self._regional_lock = threading.Lock()
@@ -463,8 +462,6 @@ class XaiClient:
 
     @property
     def model(self) -> str:
-        if self._call_model_pin:
-            return self._call_model_pin
         if not self._chat_pinned:
             selection = self._selection_for(ROLE_CHAT)
             self._chat_model = selection.model_id
@@ -552,11 +549,12 @@ class XaiClient:
         response_format: Any,
         service_tier: str | None,
         stream: bool = False,
+        model: str | None = None,
     ) -> tuple[str, dict[str, str], dict[str, Any]]:
         """REST chat body used when the base path is not empty and not ``/v1``."""
         body = rest_chat_body(
             messages,
-            model=self.model,
+            model=model or self.model,
             temperature=temperature,
             max_tokens=max_tokens,
             thought_level=thought_level,
@@ -574,7 +572,9 @@ class XaiClient:
         }
         return self._endpoint(XAI_CHAT_COMPLETIONS_URL), headers, body
 
-    def _rest_chat_parse(self, response: httpx.Response) -> ProviderResponse:
+    def _rest_chat_parse(
+        self, response: httpx.Response, *, model: str | None = None
+    ) -> ProviderResponse:
         if response.status_code == 401:
             raise RuntimeError("xAI chat unauthorized. Check the API key.")
         if response.status_code >= 400:
@@ -608,7 +608,7 @@ class XaiClient:
         return ProviderResponse(
             content=text,
             usage=usage,
-            model=str(payload.get("model") or self.model),
+            model=str(payload.get("model") or model or self.model),
             raw=payload,
             reasoning_content=str(reasoning) if reasoning else None,
             finish_reason=str(finish) if finish is not None else None,
@@ -629,6 +629,7 @@ class XaiClient:
         parallel_tool_calls: bool | None,
         response_format: Any,
         service_tier: str | None,
+        model: str | None = None,
     ) -> ProviderResponse:
         url, headers, body = self._rest_chat_request(
             messages,
@@ -641,6 +642,7 @@ class XaiClient:
             parallel_tool_calls=parallel_tool_calls,
             response_format=response_format,
             service_tier=service_tier,
+            model=model,
         )
         try:
             response = httpx.post(
@@ -651,7 +653,7 @@ class XaiClient:
             )
         except httpx.HTTPError as exc:
             raise RuntimeError(f"xAI chat request failed: {exc}") from exc
-        return self._rest_chat_parse(response)
+        return self._rest_chat_parse(response, model=model)
 
     def _rest_chat_stream(
         self,
@@ -731,7 +733,10 @@ class XaiClient:
         parallel_tool_calls: bool | None = None,
         response_format: Any = None,
         service_tier: str | None = None,
+        model: str | None = None,
     ):
+        chosen = model or self.model
+
         def _call():
             if self._chat_uses_rest():
                 return self._rest_chat_complete(
@@ -745,10 +750,11 @@ class XaiClient:
                     parallel_tool_calls=parallel_tool_calls,
                     response_format=response_format,
                     service_tier=service_tier,
+                    model=chosen,
                 )
             return self._provider.complete(
                 messages,
-                model=self.model,
+                model=chosen,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 thought_level=thought_level,
@@ -828,6 +834,7 @@ class XaiClient:
         parent_id: str | None = None,
         labels: dict[str, str] | None = None,
         modality: str = "chat",
+        model: str | None = None,
     ) -> None:
         if self._completion_tracer is None:
             return
@@ -837,7 +844,7 @@ class XaiClient:
                 response=response,
                 system_prompt=system_prompt,
                 purpose=purpose,
-                model=self.model,
+                model=model or self.model,
                 thought_level=thought_level,
                 success=success,
                 error=error,
@@ -910,30 +917,29 @@ class XaiClient:
         Message ``content`` may be a string or a list of parts (text / image_url / file).
         ``service_tier`` is ``default`` | ``priority``; omit for default.
         """
-        self._call_model_pin = (model or "").strip() or None
-        try:
-            return self._chat_body(
-                messages,
-                purpose=purpose,
-                parent_id=parent_id,
-                labels=labels,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                system_prompt=system_prompt,
-                thought_level=thought_level,
-                effort=effort,
-                tools=tools,
-                tool_choice=tool_choice,
-                parallel_tool_calls=parallel_tool_calls,
-                service_tier=service_tier,
-            )
-        finally:
-            self._call_model_pin = None
+        chosen = (model or "").strip() or self.model
+        return self._chat_body(
+            messages,
+            model=chosen,
+            purpose=purpose,
+            parent_id=parent_id,
+            labels=labels,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            system_prompt=system_prompt,
+            thought_level=thought_level,
+            effort=effort,
+            tools=tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            service_tier=service_tier,
+        )
 
     def _chat_body(
         self,
         messages: list[dict[str, Any]],
         *,
+        model: str,
         purpose: str | None,
         parent_id: str | None,
         labels: dict[str, str] | None,
@@ -948,7 +954,7 @@ class XaiClient:
         service_tier: str | None,
     ) -> CompletionResponse:
         tag = self._require_purpose_if_metered(purpose)
-        level = self._effective_thought_level(thought_level, effort=effort)
+        level = self._effective_thought_level(thought_level, effort=effort, model=model)
         tier = _normalize_service_tier(service_tier)
         usage: dict[str, Any] | None = None
         try:
@@ -962,6 +968,7 @@ class XaiClient:
                 tool_choice=tool_choice,
                 parallel_tool_calls=parallel_tool_calls,
                 service_tier=tier,
+                model=model,
             )
             text = resp.content or ""
             usage = resp.usage
@@ -973,6 +980,7 @@ class XaiClient:
                 success=True,
                 thought_level=level,
                 modality="chat",
+                model=model,
             )
             self._trace(
                 messages=messages,
@@ -983,10 +991,11 @@ class XaiClient:
                 success=True,
                 parent_id=parent_id,
                 labels=labels,
+                model=model,
             )
             return CompletionResponse(
                 content=str(text),
-                model=self.model,
+                model=model,
                 usage=usage,
                 reasoning_content=getattr(resp, "reasoning_content", None),
                 finish_reason=getattr(resp, "finish_reason", None),
@@ -1006,6 +1015,7 @@ class XaiClient:
                 thought_level=level,
                 error=err,
                 modality="chat",
+                model=model,
             )
             self._trace(
                 messages=messages,
@@ -1017,6 +1027,7 @@ class XaiClient:
                 error=err,
                 parent_id=parent_id,
                 labels=labels,
+                model=model,
             )
             logger.exception("xAI chat call failed")
             raise RuntimeError(f"xAI request failed: {exc}") from exc

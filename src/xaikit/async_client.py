@@ -388,6 +388,7 @@ class AsyncXaiClient(XaiClient):
         parallel_tool_calls: bool | None,
         response_format: Any,
         service_tier: str | None,
+        model: str | None = None,
     ):
         url, headers, body = self._rest_chat_request(
             messages,
@@ -400,6 +401,7 @@ class AsyncXaiClient(XaiClient):
             parallel_tool_calls=parallel_tool_calls,
             response_format=response_format,
             service_tier=service_tier,
+            model=model,
         )
         response = await self._rest(
             "POST",
@@ -410,7 +412,7 @@ class AsyncXaiClient(XaiClient):
             fail_prefix="xAI chat",
             json=body,
         )
-        return self._rest_chat_parse(response)
+        return self._rest_chat_parse(response, model=model)
 
     async def _rest_chat_stream(
         self,
@@ -500,7 +502,10 @@ class AsyncXaiClient(XaiClient):
         parallel_tool_calls: bool | None = None,
         response_format: Any = None,
         service_tier: str | None = None,
+        model: str | None = None,
     ):
+        chosen = model or self.model
+
         async def _call():
             if self._chat_uses_rest():
                 return await self._rest_chat_complete(
@@ -514,10 +519,11 @@ class AsyncXaiClient(XaiClient):
                     parallel_tool_calls=parallel_tool_calls,
                     response_format=response_format,
                     service_tier=service_tier,
+                    model=chosen,
                 )
             return await self._provider_complete(
                 messages=messages,
-                model=self.model,
+                model=chosen,
                 temperature=temperature,
                 max_tokens=max_tokens,
                 thought_level=thought_level,
@@ -601,30 +607,29 @@ class AsyncXaiClient(XaiClient):
         parallel_tool_calls: bool | None = None,
         service_tier: str | None = None,
     ) -> CompletionResponse:
-        self._call_model_pin = (model or "").strip() or None
-        try:
-            return await self._chat_body(
-                messages,
-                purpose=purpose,
-                parent_id=parent_id,
-                labels=labels,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                system_prompt=system_prompt,
-                thought_level=thought_level,
-                effort=effort,
-                tools=tools,
-                tool_choice=tool_choice,
-                parallel_tool_calls=parallel_tool_calls,
-                service_tier=service_tier,
-            )
-        finally:
-            self._call_model_pin = None
+        chosen = (model or "").strip() or self.model
+        return await self._chat_body(
+            messages,
+            model=chosen,
+            purpose=purpose,
+            parent_id=parent_id,
+            labels=labels,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            system_prompt=system_prompt,
+            thought_level=thought_level,
+            effort=effort,
+            tools=tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            service_tier=service_tier,
+        )
 
     async def _chat_body(
         self,
         messages: list[dict[str, Any]],
         *,
+        model: str,
         purpose: str | None,
         parent_id: str | None,
         labels: dict[str, str] | None,
@@ -639,7 +644,7 @@ class AsyncXaiClient(XaiClient):
         service_tier: str | None,
     ) -> CompletionResponse:
         tag = self._require_purpose_if_metered(purpose)
-        level = self._effective_thought_level(thought_level, effort=effort)
+        level = self._effective_thought_level(thought_level, effort=effort, model=model)
         tier = _normalize_service_tier(service_tier)
         usage: dict[str, Any] | None = None
         try:
@@ -653,6 +658,7 @@ class AsyncXaiClient(XaiClient):
                 tool_choice=tool_choice,
                 parallel_tool_calls=parallel_tool_calls,
                 service_tier=tier,
+                model=model,
             )
             text = resp.content or ""
             usage = resp.usage
@@ -664,6 +670,7 @@ class AsyncXaiClient(XaiClient):
                 success=True,
                 thought_level=level,
                 modality="chat",
+                model=model,
             )
             self._trace(
                 messages=messages,
@@ -674,10 +681,11 @@ class AsyncXaiClient(XaiClient):
                 success=True,
                 parent_id=parent_id,
                 labels=labels,
+                model=model,
             )
             return CompletionResponse(
                 content=str(text),
-                model=self.model,
+                model=model,
                 usage=usage,
                 reasoning_content=getattr(resp, "reasoning_content", None),
                 finish_reason=getattr(resp, "finish_reason", None),
@@ -697,6 +705,7 @@ class AsyncXaiClient(XaiClient):
                 thought_level=level,
                 error=err,
                 modality="chat",
+                model=model,
             )
             self._trace(
                 messages=messages,
@@ -708,6 +717,7 @@ class AsyncXaiClient(XaiClient):
                 error=err,
                 parent_id=parent_id,
                 labels=labels,
+                model=model,
             )
             logger.exception("xAI chat call failed")
             raise RuntimeError(f"xAI request failed: {exc}") from exc

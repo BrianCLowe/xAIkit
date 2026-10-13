@@ -325,37 +325,60 @@ def list_models_ids() -> list[str]:
     return [row.id for row in rows]
 
 
-def test_r1_4_pins_pass_through(cls, host, caplog: pytest.LogCaptureFixture) -> None:
-    caplog.set_level(logging.WARNING, logger="xaikit.catalog")
-    pinned = _make(
-        cls,
-        base_url=host["rest"],
-        model="grok-4-fast",
-        intent="best",
-    )
-    _call(pinned, "chat", [{"role": "user", "content": "hi"}])
-    per_call = _make(cls, base_url=host["rest"], intent="best")
-    _call(per_call, "chat", [{"role": "user", "content": "hi"}], model="grok-4-fast")
+def _assert_r1_4_rest(host: dict[str, Any]) -> None:
     chats = _paths_ending(host["records"], "/chat/completions")
     assert len(chats) == 2
     for row in chats:
         assert json.loads(row["body"].decode())["model"] == "grok-4-fast"
-    assert _catalog_warnings(caplog) == []
 
-    provider = MockChatProvider("ok")
-    grpc_pin = _make(
-        cls,
-        base_url=host["base"],
-        model="grok-4-fast",
-        intent="best",
-        provider=provider,
-    )
-    _call(grpc_pin, "chat", [{"role": "user", "content": "hi"}])
-    assert provider.calls[-1]["model"] == "grok-4-fast"
-    per_provider = MockChatProvider("ok")
-    grpc_call = _make(cls, base_url=host["base"], intent="best", provider=per_provider)
-    _call(grpc_call, "chat", [{"role": "user", "content": "hi"}], model="grok-4-fast")
-    assert per_provider.calls[-1]["model"] == "grok-4-fast"
+
+def test_r1_4_pins_pass_through(cls, host, caplog: pytest.LogCaptureFixture) -> None:
+    caplog.set_level(logging.WARNING, logger="xaikit.catalog")
+
+    async def _async_pins() -> None:
+        pinned = _make(cls, base_url=host["rest"], model="grok-4-fast", intent="best")
+        await pinned.chat([{"role": "user", "content": "hi"}])
+        per_call = _make(cls, base_url=host["rest"], intent="best")
+        await per_call.chat([{"role": "user", "content": "hi"}], model="grok-4-fast")
+        _assert_r1_4_rest(host)
+        provider = MockChatProvider("ok")
+        grpc_pin = _make(
+            cls,
+            base_url=host["base"],
+            model="grok-4-fast",
+            intent="best",
+            provider=provider,
+        )
+        await grpc_pin.chat([{"role": "user", "content": "hi"}])
+        assert provider.calls[-1]["model"] == "grok-4-fast"
+        per_provider = MockChatProvider("ok")
+        grpc_call = _make(cls, base_url=host["base"], intent="best", provider=per_provider)
+        await grpc_call.chat([{"role": "user", "content": "hi"}], model="grok-4-fast")
+        assert per_provider.calls[-1]["model"] == "grok-4-fast"
+
+    if cls is AsyncXaiClient:
+        # grpc.aio needs a live loop on 3.10 once a previous asyncio.run cleared it.
+        asyncio.run(_async_pins())
+    else:
+        pinned = _make(cls, base_url=host["rest"], model="grok-4-fast", intent="best")
+        pinned.chat([{"role": "user", "content": "hi"}])
+        per_call = _make(cls, base_url=host["rest"], intent="best")
+        per_call.chat([{"role": "user", "content": "hi"}], model="grok-4-fast")
+        _assert_r1_4_rest(host)
+        provider = MockChatProvider("ok")
+        grpc_pin = _make(
+            cls,
+            base_url=host["base"],
+            model="grok-4-fast",
+            intent="best",
+            provider=provider,
+        )
+        grpc_pin.chat([{"role": "user", "content": "hi"}])
+        assert provider.calls[-1]["model"] == "grok-4-fast"
+        per_provider = MockChatProvider("ok")
+        grpc_call = _make(cls, base_url=host["base"], intent="best", provider=per_provider)
+        grpc_call.chat([{"role": "user", "content": "hi"}], model="grok-4-fast")
+        assert per_provider.calls[-1]["model"] == "grok-4-fast"
     assert _catalog_warnings(caplog) == []
 
 
@@ -629,25 +652,29 @@ def test_r2_6_async_matches_sync_contract(cls, host, caplog: pytest.LogCaptureFi
     import xaikit
 
     caplog.set_level(logging.WARNING, logger="xaikit.catalog")
-    client = _make(cls, base_url=host["base"], intent="best")
-    with pytest.raises(xaikit.RoleUnavailableOnHost) as caught:
-        asyncio.run(client.generate_image("cat"))
-    assert caught.value.role == "image"
-    assert caught.value.host == host["host"]
-    assert _paths_ending(host["records"], "/images/generations") == []
-    failed = _start_host(status=500)
-    try:
-        fallback = _make(cls, base_url=failed["base"], intent="best")
-        assert fallback.model == "grok-4.7"
-        asyncio.run(fallback.generate_image("cat"))
-        posts = _paths_ending(failed["records"], "/images/generations")
-        assert len(posts) == 1
-        assert "api.x.ai" not in posts[0]["path"]
-        warnings = _catalog_warnings(caplog)
-        assert len(warnings) == 1
-        assert failed["host"] in warnings[0].getMessage()
-    finally:
-        _stop(failed)
+
+    async def _go() -> None:
+        client = _make(cls, base_url=host["base"], intent="best")
+        with pytest.raises(xaikit.RoleUnavailableOnHost) as caught:
+            await client.generate_image("cat")
+        assert caught.value.role == "image"
+        assert caught.value.host == host["host"]
+        assert _paths_ending(host["records"], "/images/generations") == []
+        failed = _start_host(status=500)
+        try:
+            fallback = _make(cls, base_url=failed["base"], intent="best")
+            assert fallback.model == "grok-4.7"
+            await fallback.generate_image("cat")
+            posts = _paths_ending(failed["records"], "/images/generations")
+            assert len(posts) == 1
+            assert "api.x.ai" not in posts[0]["path"]
+            warnings = _catalog_warnings(caplog)
+            assert len(warnings) == 1
+            assert failed["host"] in warnings[0].getMessage()
+        finally:
+            _stop(failed)
+
+    asyncio.run(_go())
 
 
 def test_m5_clients_do_not_share_a_host_cache(cls) -> None:
@@ -707,3 +734,127 @@ def test_m14_role_comes_from_static_catalog_not_rest_tag(cls) -> None:
         assert _paths_ending(unknown["records"], "/images/generations") == []
     finally:
         _stop(unknown)
+
+
+class _PinMeter:
+    """Records the model id passed to UsageMeter.record."""
+
+    def __init__(self) -> None:
+        self.models: list[str] = []
+
+    def record(self, **kwargs: Any) -> None:
+        self.models.append(str(kwargs["model"]))
+
+
+class _AsyncBarrier:
+    """Wait until ``parties`` coroutines arrive. Does not block the loop."""
+
+    def __init__(self, parties: int) -> None:
+        self._parties = parties
+        self._count = 0
+        self._event = asyncio.Event()
+
+    async def wait(self) -> None:
+        self._count += 1
+        if self._count >= self._parties:
+            self._event.set()
+        await asyncio.wait_for(self._event.wait(), timeout=5)
+
+
+def _assert_overlapping_pins(
+    host: dict[str, Any],
+    pins: tuple[str, str],
+    responses: list[str],
+    recorded: list[str],
+) -> None:
+    chats = _paths_ending(host["records"], "/chat/completions")
+    bodies = sorted(json.loads(row["body"].decode())["model"] for row in chats)
+    assert bodies == sorted(pins)
+    assert sorted(responses) == sorted(pins)
+    assert sorted(recorded) == sorted(pins)
+
+
+def test_overlapping_per_call_model_pins_stay_on_their_calls(
+    cls, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two in-flight chat(model=) calls must not swap request or recorded ids."""
+    pins = ("grok-pin-alpha", "grok-pin-beta")
+    host = _start_host()
+    try:
+        if cls is AsyncXaiClient:
+            asyncio.run(_overlap_async(cls, host, pins, monkeypatch))
+        else:
+            _overlap_sync(cls, host, pins, monkeypatch)
+    finally:
+        _stop(host)
+
+
+def _overlap_sync(
+    cls: type,
+    host: dict[str, Any],
+    pins: tuple[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gate = threading.Barrier(2)
+    original = XaiClient._chat_body
+
+    def _gated(self: XaiClient, messages: list[dict[str, Any]], **kwargs: Any) -> Any:
+        gate.wait(timeout=5)
+        return original(self, messages, **kwargs)
+
+    monkeypatch.setattr(XaiClient, "_chat_body", _gated)
+    meter = _PinMeter()
+    client = _make(cls, base_url=host["rest"], intent="best", usage_meter=meter)
+    responses: dict[str, str] = {}
+    errors: list[BaseException] = []
+
+    def _run(pin: str) -> None:
+        try:
+            resp = client.chat(
+                [{"role": "user", "content": pin}],
+                model=pin,
+                purpose="pin.race",
+            )
+            responses[pin] = resp.model
+        except Exception as exc:
+            errors.append(exc)
+
+    threads = [threading.Thread(target=_run, args=(pin,)) for pin in pins]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+    assert errors == []
+    assert [thread.is_alive() for thread in threads] == [False, False]
+    _assert_overlapping_pins(host, pins, list(responses.values()), meter.models)
+
+
+async def _overlap_async(
+    cls: type,
+    host: dict[str, Any],
+    pins: tuple[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    gate = _AsyncBarrier(2)
+    original = AsyncXaiClient._chat_body
+
+    async def _gated(
+        self: AsyncXaiClient, messages: list[dict[str, Any]], **kwargs: Any
+    ) -> Any:
+        await gate.wait()
+        return await original(self, messages, **kwargs)
+
+    monkeypatch.setattr(AsyncXaiClient, "_chat_body", _gated)
+    meter = _PinMeter()
+    client = _make(cls, base_url=host["rest"], intent="best", usage_meter=meter)
+
+    async def _run(pin: str) -> str:
+        resp = await client.chat(
+            [{"role": "user", "content": pin}],
+            model=pin,
+            purpose="pin.race",
+        )
+        return resp.model
+
+    responses = list(await asyncio.gather(_run(pins[0]), _run(pins[1])))
+    _assert_overlapping_pins(host, pins, responses, meter.models)
