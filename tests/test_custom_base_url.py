@@ -453,6 +453,111 @@ def test_u1_5_and_u2_4_rest_families_sync_and_async(monkeypatch: pytest.MonkeyPa
         assert KEY not in call
 
 
+def _assert_exact_urls(
+    calls: list[tuple[str, str, dict[str, str] | None, Any]],
+    expected: set[tuple[str, str]],
+) -> None:
+    found = {(method, url) for method, url, _headers, _body in calls}
+    missing = expected - found
+    assert not missing, sorted(missing)
+    for _method, url, _headers, _body in calls:
+        assert "api.x.ai" not in url
+        assert KEY not in url
+
+
+def _assert_bearer(
+    calls: list[tuple[str, str, dict[str, str] | None, Any]],
+    expected: set[tuple[str, str]],
+) -> None:
+    """Authorization stays Bearer on a non-default host. X-API-Key does not."""
+    by_target: dict[tuple[str, str], dict[str, str] | None] = {}
+    for method, url, headers, _body in calls:
+        by_target[(method, url)] = headers
+        assert "api.x.ai" not in url
+    missing = expected - set(by_target)
+    assert not missing, sorted(missing)
+    for target in expected:
+        headers = by_target[target] or {}
+        lowered = {key.lower(): value for key, value in headers.items()}
+        assert lowered.get("authorization") == f"Bearer {KEY}"
+        assert "x-api-key" not in lowered
+
+
+def test_m9_resource_urls_follow_custom_base(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Resource GET/DELETE and deferred create use the path-prefix base, sync and async."""
+    base = "http://127.0.0.1:9/proxy/v1"
+    expected = {
+        ("POST", f"{base}/chat/completions"),
+        ("GET", f"{base}/tts/voices/eve"),
+        ("GET", f"{base}/files/file-1"),
+        ("DELETE", f"{base}/files/file-1"),
+        ("GET", f"{base}/responses/resp-1"),
+    }
+
+    capture = _Capture()
+    capture.install(monkeypatch)
+    client = make_client(base_url=base)
+    messages = [{"role": "user", "content": "hi"}]
+    _quiet(client.create_deferred_chat, messages)
+    _quiet(client.get_tts_voice, "eve")
+    _quiet(client.get_file, "file-1")
+    _quiet(client.delete_file, "file-1")
+    _quiet(client.get_response, "resp-1")
+    _assert_exact_urls(capture.calls, expected)
+
+    capture.calls.clear()
+
+    async def _go() -> None:
+        client = make_client(AsyncXaiClient, base_url=base)
+        messages = [{"role": "user", "content": "hi"}]
+        await _quiet_async(client.create_deferred_chat(messages))
+        await _quiet_async(client.get_tts_voice("eve"))
+        await _quiet_async(client.get_file("file-1"))
+        await _quiet_async(client.delete_file("file-1"))
+        await _quiet_async(client.get_response("resp-1"))
+
+    asyncio.run(_go())
+    _assert_exact_urls(capture.calls, expected)
+
+
+def test_m12_bearer_auth_on_custom_base(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Off the default host, helper calls still send Authorization: Bearer."""
+    base = "http://127.0.0.1:9/proxy/v1"
+    expected = {
+        ("POST", f"{base}/stt"),
+        ("GET", f"{base}/files/file-1"),
+        ("DELETE", f"{base}/files/file-1"),
+        ("GET", f"{base}/responses/resp-1"),
+        ("POST", f"{base}/chat/completions"),
+        ("GET", f"{base}/videos/vid-1"),
+    }
+
+    capture = _Capture()
+    capture.install(monkeypatch)
+    client = make_client(base_url=base)
+    _quiet(client.transcribe, b"abc")
+    _quiet(client.get_file, "file-1")
+    _quiet(client.delete_file, "file-1")
+    _quiet(client.get_response, "resp-1")
+    _quiet(client.create_deferred_chat, [{"role": "user", "content": "hi"}])
+    _quiet(client.poll_video, "vid-1")
+    _assert_bearer(capture.calls, expected)
+
+    capture.calls.clear()
+
+    async def _go() -> None:
+        async_client = make_client(AsyncXaiClient, base_url=base)
+        await _quiet_async(async_client.transcribe(b"abc"))
+        await _quiet_async(async_client.get_file("file-1"))
+        await _quiet_async(async_client.delete_file("file-1"))
+        await _quiet_async(async_client.get_response("resp-1"))
+        await _quiet_async(async_client.create_deferred_chat([{"role": "user", "content": "hi"}]))
+        await _quiet_async(async_client.poll_video("vid-1"))
+
+    asyncio.run(_go())
+    _assert_bearer(capture.calls, expected)
+
+
 def test_u1_5_chat_body_is_not_deferred(monkeypatch: pytest.MonkeyPatch) -> None:
     capture = _Capture()
     capture.install(monkeypatch)
