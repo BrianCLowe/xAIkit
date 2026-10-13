@@ -12,6 +12,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from xaikit.catalog import (
+    _chat_major_minor,
     _imagine_video_version_nums,
     best_model,
     cheapest_model,
@@ -445,6 +446,58 @@ def test_s2_6_catalog_spec_records_snapshot_acceptance() -> None:
     assert "YYYYMMDD" in text
     assert "dashed" in text.lower()
     assert "compact" in text.lower()
+
+
+def test_undotted_chat_snapshot_date_is_not_a_minor() -> None:
+    """A trailing snapshot date is not the minor of grok-4 or grok-5.
+
+    Chat best and economy compare (major, minor) before the plain-id flag.
+    Parsing -20260530 or -2026-05-30 as that minor lets the dated id beat
+    the plain id, and lets a grok-4 snapshot outrank grok-4.7.
+    """
+    assert _chat_major_minor("grok-4") == (4, 0)
+    assert _chat_major_minor("grok-4-20260530") == (4, 0)
+    assert _chat_major_minor("grok-4-2026-05-30") == (4, 0)
+    assert _chat_major_minor("grok-5") == (5, 0)
+    assert _chat_major_minor("grok-5-20260530") == (5, 0)
+    assert _chat_major_minor("grok-5-2026-05-30") == (5, 0)
+    assert _chat_major_minor("grok-4.7") == (4, 7)
+    assert _chat_major_minor("grok-4.7-20261001") == (4, 7)
+    assert _chat_major_minor("grok-4.7-2026-10-01") == (4, 7)
+    assert _chat_major_minor("grok-4.20") == (4, 2)
+    assert _chat_major_minor("grok-4.20-0309") == (4, 2)
+
+    for plain, compact, dashed in (
+        ("grok-4", "grok-4-20260530", "grok-4-2026-05-30"),
+        ("grok-5", "grok-5-20260530", "grok-5-2026-05-30"),
+    ):
+        for snapshot in (compact, dashed):
+            catalog = _rows([(plain, 10), (snapshot, 900)], "chat")
+            _assert_best(catalog, "chat", plain)
+            _assert_economy(catalog, "chat", plain)
+
+    for snapshot in ("grok-4-20260530", "grok-4-2026-05-30"):
+        catalog = _rows([("grok-4.7", 10), (snapshot, 900)], "chat")
+        _assert_best(catalog, "chat", "grok-4.7")
+        _assert_economy(catalog, "chat", "grok-4.7")
+
+    priced = _rows(
+        [
+            ("grok-4.7", 10),
+            ("grok-4", 10),
+            ("grok-4-20260530", 900),
+            ("grok-4-2026-05-30", 800),
+        ],
+        "chat",
+        input_per_million={
+            "grok-4.7": 2.0,
+            "grok-4": 1.25,
+            "grok-4-20260530": 1.25,
+            "grok-4-2026-05-30": 1.25,
+        },
+    )
+    _assert_best(priced, "chat", "grok-4.7")
+    _assert_economy(priced, "chat", "grok-4")
 
 
 def test_newer_lite_and_preview_do_not_become_video_best() -> None:

@@ -295,11 +295,7 @@ def _is_chat_4_6_or_later(slug: str) -> bool:
         return False
     if re.search(r"grok-4[.-]20(?!\d)", slug):
         return False
-    matched = re.search(r"grok-(\d+)(?:[.-](\d+))?", slug)
-    if not matched:
-        return False
-    major = int(matched.group(1))
-    minor = int(matched.group(2) or 0)
+    major, minor = _chat_major_minor(slug)
     return major > 4 or (major == 4 and minor >= 6)
 
 
@@ -1072,9 +1068,11 @@ def _chat_major_minor(model_id: str) -> tuple[int, int]:
 
     ``grok-4.10`` is ``(4, 10)`` (above 4.9). ``grok-5`` / ``grok-5.0`` is
     ``(5, 0)`` (above every 4.x). ``grok-4.20`` sorts as minor 2 so it stays
-    older than ``grok-4.3``.
+    older than ``grok-4.3``. Dashed and compact snapshot dates are removed
+    first, so ``grok-4-20260530`` and ``grok-4-2026-05-30`` stay ``(4, 0)``
+    and a ``grok-5`` snapshot stays ``(5, 0)``.
     """
-    mid = (model_id or "").lower().replace("_", "-")
+    mid = _strip_snapshot_dates(model_id)
     matched = _CHAT_VERSION.search(mid)
     if not matched:
         return (0, 0)
@@ -1455,7 +1453,8 @@ def best_model(
     date. Preview is returned only when those candidates have no stable model.
     Video ranks every non-lite id above ``-lite`` before that comparison.
     A snapshot ranks behind the plain id or ``-latest`` alias of the same
-    family. The date is not a version number.
+    family. The date is not a version number, including the minor of an
+    undotted id such as ``grok-4`` or ``grok-5``.
     """
     return prefer_latest_model(catalog, role=role)
 
