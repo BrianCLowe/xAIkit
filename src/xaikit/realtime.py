@@ -17,9 +17,9 @@ from collections.abc import AsyncIterator, Callable, Iterator
 from typing import Any
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
-logger = logging.getLogger(__name__)
+from xaikit.base_url import XAI_REALTIME_URL
 
-XAI_REALTIME_URL = "wss://api.x.ai/v1/realtime"
+logger = logging.getLogger(__name__)
 DEFAULT_VOICE_MODEL = "grok-voice-latest"
 DEFAULT_REALTIME_VOICE = "eve"
 XAI_CLIENT_SECRET_PROTOCOL_PREFIX = "xai-client-secret."
@@ -61,7 +61,7 @@ def realtime_session_url(
     *,
     base: str = XAI_REALTIME_URL,
 ) -> str:
-    """``wss://api.x.ai/v1/realtime?model=…`` (keeps any existing query)."""
+    """Realtime websocket URL with ``model`` set (keeps any existing query)."""
     mid = (model or "").strip() or DEFAULT_VOICE_MODEL
     parts = urlsplit(base)
     query = dict(p.split("=", 1) if "=" in p else (p, "") for p in parts.query.split("&") if p)

@@ -78,7 +78,8 @@ class CatalogSnapshot(BaseModel):
 
     models: list[ModelInfo] = Field(default_factory=list)
     fetched_at: float = Field(default_factory=time.time)
-    source: str = "unknown"  # sdk | persist | fixture | inject
+    source: str = "unknown"  # sdk | rest | persist | fixture | inject
+    base_url: str = ""
 
     def age_seconds(self) -> float:
         return max(0.0, time.time() - self.fetched_at)
@@ -866,6 +867,52 @@ def _sdk_list_models(
     return out, None
 
 
+def fetch_models_via_rest(api_key: str, base_url: str) -> list[ModelInfo]:
+    """GET ``<base>/models`` for a non-default inference base.
+
+    Rows keep the ids the server returned. This does not filter by host.
+    """
+    import httpx
+
+    from xaikit.base_url import join_url
+
+    url = join_url(base_url, "models")
+    headers = {"Authorization": f"Bearer {api_key}"}
+    try:
+        response = httpx.get(url, headers=headers, timeout=30.0)
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"Model catalog request failed: {exc}") from exc
+    if response.status_code >= 400:
+        detail = response.text[:500] if response.text else response.reason_phrase
+        raise RuntimeError(f"Model catalog failed ({response.status_code}): {detail}")
+    try:
+        payload = response.json()
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Model catalog returned non-JSON response") from exc
+    if isinstance(payload, dict):
+        data = payload.get("data")
+        if data is None:
+            data = payload.get("models")
+    elif isinstance(payload, list):
+        data = payload
+    else:
+        data = None
+    if not isinstance(data, list):
+        raise RuntimeError("Model catalog returned unexpected payload")
+    out: list[ModelInfo] = []
+    for item in data:
+        if isinstance(item, str):
+            mid = item.strip()
+        elif isinstance(item, dict):
+            mid = str(item.get("id") or item.get("name") or "").strip()
+        else:
+            continue
+        if not mid:
+            continue
+        out.append(ModelInfo(id=mid, display_name=mid, capabilities=["chat"]))
+    return out
+
+
 def fetch_models_from_sdk(api_key: str) -> list[ModelInfo]:
     """Live fetch language + image-generation models via xAI SDK.
 
@@ -926,6 +973,18 @@ def _bootstrap_offline_models() -> list[ModelInfo]:
     ]
 
 
+def _rest_catalog_base(base_url: str | None) -> str:
+    """Empty string keeps today's gRPC catalog. A non-default base uses REST."""
+    if base_url is None or not str(base_url).strip():
+        return ""
+    from xaikit.base_url import parse_base_url
+
+    resolved = parse_base_url(str(base_url).strip())
+    if not resolved.models_over_rest:
+        return ""
+    return resolved.base_url
+
+
 def list_models(
     *,
     force_refresh: bool = False,
@@ -934,6 +993,7 @@ def list_models(
     fixture_path: Path | str | None = None,
     persist_path: Path | str | None = None,
     allow_fixture_fallback: bool = True,
+    base_url: str | None = None,
 ) -> list[ModelInfo]:
     """Return the model catalog (cached).
 
@@ -950,12 +1010,14 @@ def list_models(
     ``clear_catalog_cache`` drops memory only; it does not delete the file.
     """
     key = (api_key or "").strip() or None
+    rest_base = _rest_catalog_base(base_url)
     with _state.lock:
         snap = _state.snapshot
         if (
             not force_refresh
             and snap is not None
             and snap.is_fresh(ttl_seconds)
+            and snap.base_url == rest_base
             and not _live_key_needs_fetch(snap, key)
         ):
             return list(snap.models)
@@ -974,8 +1036,12 @@ def list_models(
     else:
         if key:
             try:
-                models = fetch_models_from_sdk(key)
-                source = "sdk"
+                if rest_base:
+                    models = fetch_models_via_rest(key, rest_base)
+                    source = "rest"
+                else:
+                    models = fetch_models_from_sdk(key)
+                    source = "sdk"
             except Exception as exc:
                 sdk_error = exc
                 logger.warning(
@@ -1014,7 +1080,12 @@ def list_models(
                 exc_info=True,
             )
 
-    snap = CatalogSnapshot(models=models, fetched_at=time.time(), source=source)
+    snap = CatalogSnapshot(
+        models=models,
+        fetched_at=time.time(),
+        source=source,
+        base_url=rest_base,
+    )
     with _state.lock:
         _state.snapshot = snap
     return list(models)
@@ -1572,6 +1643,7 @@ def resolve_model(
     role: str | None = None,
     need: str | Sequence[str] | None = None,
     api_key: str | None = None,
+    base_url: str | None = None,
 ) -> str:
     """Resolve a model id via the kit policy chain."""
     return resolve_model_selection(
@@ -1585,6 +1657,7 @@ def resolve_model(
         role=role,
         need=need,
         api_key=api_key,
+        base_url=base_url,
     ).model_id
 
 
@@ -1606,6 +1679,7 @@ def resolve_model_selection(
     role: str | None = None,
     need: str | Sequence[str] | None = None,
     api_key: str | None = None,
+    base_url: str | None = None,
 ) -> ModelSelection:
     """pin → need-filter → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap.
 
@@ -1625,7 +1699,7 @@ def resolve_model_selection(
     cat: Sequence[ModelInfo] | None = catalog
     if cat is None:
         try:
-            cat = list_models(api_key=api_key)
+            cat = list_models(api_key=api_key, base_url=base_url)
         except Exception as exc:
             logger.warning("Catalog unavailable (%s)", type(exc).__name__)
             cat = None
