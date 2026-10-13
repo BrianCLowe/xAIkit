@@ -207,11 +207,13 @@ def feature_options(model: str | None = None) -> list[str]:
 
     No ``model`` → current chat flagship extras (Grok 4.7; same set as 4.6+).
     ``grok-4.6`` and later chat SKUs (including ``grok-4.7``) → that set (not ``batch``).
-    ``grok-4.3`` → ``batch``. Imagine **quality**
-    (    ``grok-imagine-video`` without ``-1.5``) → extend / edit / R2V.
-    ``grok-imagine-video-1.5`` → 1080p / R2V (no extend or edit).
-    ``grok-imagine-video-1.5-lite`` → 1080p only (text and image in; no R2V,
-    extend, or edit).
+    ``grok-4.3`` → ``batch``. Imagine **quality** extras (extend / edit / R2V)
+    go only to unversioned ``grok-imagine-video``, its ``-latest`` alias, and a
+    dated snapshot of that id. ``grok-imagine-video-1.5`` → 1080p / R2V (no
+    extend or edit). ``grok-imagine-video-1.5-lite`` → 1080p only (text and
+    image in; no R2V, extend, or edit). A versioned or unknown id such as
+    ``grok-imagine-video-2.0-preview`` or ``grok-imagine-video-3.0-lite`` is
+    empty until the catalog lists it.
     Unknown or older SKUs → empty (do not invent).
     ``resolve_model(need=…)`` uses this list so ``best`` is best for the job.
     """
@@ -228,17 +230,42 @@ def feature_options(model: str | None = None) -> list[str]:
     return []
 
 
+# ``lite`` as its own id segment. ``latest``, ``elite``, and ``lites`` do not match.
+_LITE_SEGMENT = re.compile(r"(?:^|-)lite(?:-|$)")
+
+
+def _is_lite_id(model_id: str) -> bool:
+    """True when ``lite`` is its own segment of the model id."""
+    mid = (model_id or "").strip().lower().replace("_", "-")
+    return _LITE_SEGMENT.search(mid) is not None
+
+
+def _non_lite_rank(model_id: str) -> int:
+    """1 for a non-lite id, 0 for a ``-lite`` id. Higher sorts first."""
+    return 0 if _is_lite_id(model_id) else 1
+
+
 def _is_imagine_video_lite(slug: str) -> bool:
     """True for a ``-lite`` Imagine video id (not ``-latest``)."""
-    return bool(re.search(r"(?:^|-)lite(?:-|$)", slug))
+    return _is_lite_id(slug)
 
 
 def _video_feature_family(slug: str) -> tuple[str, ...] | None:
+    """Known Imagine video extras, or None when the id is not a known family.
+
+    The 1.5 family keeps today's classification, including preview and dated
+    ids. Extend, edit, and r2v belong only to unversioned
+    ``grok-imagine-video``, its ``-latest`` alias, and a dated snapshot of
+    that id. Any other versioned or unknown id stays unknown so a pin is kept
+    and ``need=`` does not select it.
+    """
+    if "imagine-video" not in slug:
+        return None
     if re.search(r"imagine-video-1[.-]5", slug):
-        if _is_imagine_video_lite(slug):
+        if _is_lite_id(slug):
             return _VIDEO_EXTRAS_1_5_LITE
         return _VIDEO_EXTRAS_1_5
-    if "imagine-video" in slug:
+    if _snapshot_family(slug) == "grok-imagine-video":
         return _VIDEO_EXTRAS_QUALITY
     return None
 
@@ -1109,6 +1136,8 @@ def _version_tuple(model: ModelInfo) -> tuple:
     # plain id. Before created, so a snapshot of this version does not.
     is_plain = 0 if _is_snapshot_id(mid) else 1
     return (
+        # Before stable and version, so a newer or higher lite id loses best.
+        _non_lite_rank(mid),
         _stable_rank(mid),
         major,
         minor,
@@ -1234,7 +1263,7 @@ def _imagine_video_sort_key(model: ModelInfo) -> tuple:
     """
     mid = _norm_model_id(model.id)
     rest = _imagine_video_rest(mid)
-    is_lite = 0 if _is_imagine_video_lite(mid) else 1
+    is_lite = _non_lite_rank(mid)
     is_stable = _stable_rank(mid)
     is_preview = is_stable == 0
     is_snapshot = _is_snapshot_id(mid)
@@ -1254,30 +1283,32 @@ def _imagine_video_sort_key(model: ModelInfo) -> tuple:
 
 
 def _generic_rank_key(model: ModelInfo, role: str) -> tuple:
-    """Created, then ``-latest``, for image, voice, and speech-to-text.
+    """Non-lite, then stable, then created, for image, voice, and speech-to-text.
 
-    Image names are product families, not numeric versions, so the id string
-    breaks a created tie (``grok-imagine-image-quality`` above
-    ``grok-imagine-image-2.0``). Voice and speech-to-text still use version
-    digits with snapshot dates removed.
+    A ``-lite`` id ranks below every non-lite id before stable, created, or
+    version, same as video. Image names are product families, not numeric
+    versions, so the id string breaks a created tie
+    (``grok-imagine-image-quality`` above ``grok-imagine-image-2.0``). Voice
+    and speech-to-text still use version digits with snapshot dates removed.
     """
     mid = _norm_model_id(model.id)
     is_latest = 1 if mid.endswith("-latest") or "-latest-" in f"-{mid}-" else 0
     created = model.created or 0
     stable = _stable_rank(mid)
+    non_lite = _non_lite_rank(mid)
     if role == ROLE_IMAGE:
-        return (stable, created, is_latest, mid)
-    return (stable, created, is_latest, _version_digits(mid), mid)
+        return (non_lite, stable, created, is_latest, mid)
+    return (non_lite, stable, created, is_latest, _version_digits(mid), mid)
 
 
 def _newest_key(model: ModelInfo, role: str) -> tuple:
     """Sort key for ``best`` / prefer-latest within a role pool.
 
-    A stable id ranks above any ``-preview`` id before version or created
-    date. Chat then uses integer major/minor, and a snapshot of that version
-    ranks behind the plain id. Video uses the Imagine video key, which still
-    ranks every non-lite id above ``-lite`` before that stable flag. Other
-    roles then use created date. Snapshot dates are not version digits.
+    A non-lite id ranks above any ``-lite`` id in every role, before stable,
+    version, or created date. A stable id then ranks above any ``-preview``
+    id. Chat uses integer major/minor, and a snapshot of that version ranks
+    behind the plain id. Video uses the Imagine video key. Other roles then
+    use created date. Snapshot dates are not version digits.
     """
     if role == ROLE_CHAT:
         return _version_tuple(model)
@@ -1346,10 +1377,10 @@ def prefer_latest_model(
 ) -> str | None:
     """Pick the stable flagship from the role pool.
 
-    A stable id beats any ``-preview`` id, regardless of version or created
-    date. Preview is returned only when those candidates have no stable model.
-    Video ranks every non-lite id above ``-lite`` before that comparison, so
-    lite stays out of best while any non-lite id exists. A snapshot ranks
+    In every role a non-lite id beats any ``-lite`` id, regardless of version
+    or created date, and a stable id then beats any ``-preview`` id. Preview
+    is returned only when those candidates have no stable non-lite model.
+    Lite is returned only when the pool has no non-lite id. A snapshot ranks
     behind the plain id or ``-latest`` alias of the same family. Chat skips
     coding SKUs when other chat rows exist.
     """
@@ -1449,12 +1480,13 @@ def best_model(
 ) -> str | None:
     """Alias for prefer_latest (flagship / best quality heuristic).
 
-    A stable id beats any ``-preview`` id, regardless of version or created
-    date. Preview is returned only when those candidates have no stable model.
-    Video ranks every non-lite id above ``-lite`` before that comparison.
-    A snapshot ranks behind the plain id or ``-latest`` alias of the same
-    family. The date is not a version number, including the minor of an
-    undotted id such as ``grok-4`` or ``grok-5``.
+    In every role a non-lite id beats any ``-lite`` id, regardless of version
+    or created date, and a stable id then beats any ``-preview`` id. Preview
+    is returned only when those candidates have no stable non-lite model.
+    Lite is returned only when the pool has no non-lite id. A snapshot ranks
+    behind the plain id or ``-latest`` alias of the same family. The date is
+    not a version number, including the minor of an undotted id such as
+    ``grok-4`` or ``grok-5``. Lite can still win economy and cheapest.
     """
     return prefer_latest_model(catalog, role=role)
 
@@ -1471,6 +1503,8 @@ def economy_model(
     band is a single price, and overlaps ``best`` when nothing is cheaper
     than the flagship. The same snapshot rule as ``best`` applies inside
     the cheaper band: a dated id does not beat the plain id of its family.
+    Lite-last is not applied by dropping lite rows here, so a lone ``-lite``
+    id in that cheaper band still wins economy.
     """
     role_n = normalize_role(role)
     pool = models_for_role(catalog, role_n)
