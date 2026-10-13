@@ -378,10 +378,10 @@ def test_async_n4_keeps_mixed_url_b64_and_file_id_items(
     _assert_mixed_items(out, sink)
 
 
-def test_xk_ac_doc_2_readme_and_issue_config_say_0_2_0() -> None:
+def test_xk_ac_doc_2_readme_and_issue_config_say_current_version() -> None:
     readme = (_ROOT / "README.md").read_text(encoding="utf-8")
     config = (_ROOT / ".github/ISSUE_TEMPLATE/config.yml").read_text(encoding="utf-8")
     assert "0.1.3" not in readme
     assert "0.1.3" not in config
-    assert "git+https://github.com/BrianCLowe/xAIkit@v0.2.0" in readme
-    assert "This repo's version is 0.2.0." in config
+    assert "git+https://github.com/BrianCLowe/xAIkit@v0.3.0" in readme
+    assert "This repo's version is 0.3.0." in config
