@@ -25,6 +25,7 @@ from xaikit.pricing import (
     _usage_int,
     default_price_table,
     public_price_table,
+    token_premium_for_host,
 )
 
 logger = logging.getLogger(__name__)
@@ -291,6 +292,7 @@ def _estimate_from_catalog(
     completion_tokens: int | None,
     duration_seconds: float | None,
     usage: dict[str, Any] | None,
+    token_premium: float = 0.0,
 ) -> float | None:
     """In-process catalog rates. None when the row cannot price this call.
 
@@ -340,6 +342,7 @@ def _estimate_from_catalog(
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             usage=usage,
+            token_premium=token_premium,
         )
     if info.per_image_usd is not None:
         return round(float(info.per_image_usd) * _image_count(usage), 8)
@@ -398,12 +401,15 @@ class UsageMeter:
         estimated_usd: float | None = None,
         modality: str | None = None,
         apply_price_table: bool = True,
+        host: str | None = None,
     ) -> UsageEvent:
         """Build, price, append, and return a UsageEvent.
 
         *purpose* is required (fail loud). Prefer *usage* dict from the API;
         explicit token kwargs override it. Set *apply_price_table* False to
         record tokens without inventing USD when the public table has no rate.
+        *host* is the client base URL or hostname. It selects a token premium
+        and is not stored on the event. Omit it for the base price.
         """
         tag = (purpose or "").strip()
         if not tag:
@@ -420,6 +426,10 @@ class UsageMeter:
             if ticks is not None:
                 estimated_usd = _usd_from_ticks(ticks)
 
+        # Ticks already won above. The premium applies only to a price this
+        # meter computes, and only inside the token estimator.
+        token_premium = token_premium_for_host(host) if estimated_usd is None else 0.0
+
         if estimated_usd is None and apply_price_table:
             duration = _duration_seconds_from_usage(usage)
             resolution = None
@@ -433,6 +443,7 @@ class UsageMeter:
                 completion_tokens=ct,
                 duration_seconds=duration,
                 usage=usage,
+                token_premium=token_premium,
             )
             if estimated_usd is None:
                 estimated_usd = self.price_table.estimate_usd(
@@ -442,6 +453,7 @@ class UsageMeter:
                     duration_seconds=duration,
                     resolution=resolution,
                     usage=usage,
+                    token_premium=token_premium,
                 )
             if estimated_usd is None:
                 gap = public_price_table()
@@ -453,6 +465,7 @@ class UsageMeter:
                         duration_seconds=duration,
                         resolution=resolution,
                         usage=usage,
+                        token_premium=token_premium,
                     )
 
         event = UsageEvent(

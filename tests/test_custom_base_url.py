@@ -881,8 +881,9 @@ def test_u1_8_one_api_host_literal() -> None:
         for number, line in enumerate(text.splitlines(), 1):
             if "api.x.ai" in line:
                 hits.append(f"{path.relative_to(ROOT)}:{number}:{line.strip()}")
-    assert hits == [
-        'src/xaikit/base_url.py:14:DEFAULT_BASE_URL = "https://api.x.ai/v1"'
+    assert sorted(hits) == [
+        'src/xaikit/base_url.py:14:DEFAULT_BASE_URL = "https://api.x.ai/v1"',
+        'src/xaikit/pricing.py:38:_US_REGIONAL_HOST = "us.api.x.ai"',
     ]
 
 

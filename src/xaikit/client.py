@@ -269,8 +269,21 @@ class XaiClient:
 
     def _apply_base_url(self, base_url: str | None) -> None:
         """Resolve once. Later env changes do not move this client."""
+        explicit = (
+            str(base_url).strip()
+            if base_url is not None and str(base_url).strip()
+            else None
+        )
         self._resolved = resolve_base_url(base_url)
         self.base_url = self._resolved.base_url
+        if explicit is not None:
+            self._meter_host = explicit
+            return
+        env_value = os.environ.get("XAI_BASE_URL")
+        if env_value is not None and str(env_value).strip():
+            self._meter_host = str(env_value).strip()
+            return
+        self._meter_host = self.base_url
 
     def _endpoint(self, url: str) -> str:
         return rebase_url(url, self._resolved)
@@ -885,6 +898,7 @@ class XaiClient:
                 error=error,
                 modality=modality,
                 apply_price_table=apply_price_table,
+                host=self._meter_host,
             )
         except Exception:
             logger.exception("Failed to record usage event (purpose=%s)", purpose)
