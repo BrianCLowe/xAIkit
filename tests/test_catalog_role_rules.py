@@ -534,17 +534,11 @@ def test_e7_catalog_documents_empty_extras_for_unknown_ids() -> None:
 
 
 def test_e8_pinned_unknown_id_stays_pinned() -> None:
-    """CAT-AC-EXTRAS-1 E-8. Pin wins. Pool resolution still does not pick it."""
+    """CAT-AC-EXTRAS-1 E-8. A pin stays put. Pool resolution is E-4."""
     pinned = "grok-imagine-video-2.0-preview"
     assert contract_model_for_need(pinned, "video_extend") == pinned
-    catalog = [
-        _row("grok-imagine-video-1.5", "video", 10),
-        _row(pinned, "video", 900),
-    ]
-    assert (
-        resolve_model(intent="best", role="video", need="video_extend", catalog=catalog)
-        == "grok-imagine-video"
-    )
+    assert contract_model_for_need(pinned, "video_edit", role="video") == pinned
+    assert contract_model_for_need(pinned, "r2v") == pinned
 
 
 def test_e9_quality_latest_and_dated_snapshot_keep_extras() -> None:
