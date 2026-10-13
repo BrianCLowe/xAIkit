@@ -867,10 +867,139 @@ def _sdk_list_models(
     return out, None
 
 
-def fetch_models_via_rest(api_key: str, base_url: str) -> list[ModelInfo]:
-    """GET ``<base>/models`` for a non-default inference base.
+# Seconds for one host GET /v1/models. Tests may shorten this.
+HOST_MODELS_TIMEOUT_SECONDS = 30.0
 
-    Rows keep the ids the server returned. This does not filter by host.
+_shipped_roles: dict[str, str] | None = None
+
+
+def _shipped_role_map() -> dict[str, str]:
+    """Exact ids the shipped price table and speech-to-text defaults already know.
+
+    Lookup is by id only. A prefix or an id pattern is not a role.
+    """
+    global _shipped_roles
+    if _shipped_roles is not None:
+        return _shipped_roles
+    from xaikit.pricing import (
+        _DEFAULT_IMAGE_MODELS,
+        _DEFAULT_MODELS,
+        _DEFAULT_STT_MODELS,
+        _DEFAULT_VIDEO_MODELS,
+        _DEFAULT_VOICE_MODELS,
+    )
+
+    roles: dict[str, str] = {}
+    for mid in _DEFAULT_MODELS:
+        if mid != "default":
+            roles[mid] = ROLE_CHAT
+    for mid in _DEFAULT_IMAGE_MODELS:
+        roles[mid] = ROLE_IMAGE
+    for mid in _DEFAULT_VIDEO_MODELS:
+        roles[mid] = ROLE_VIDEO
+    for mid in _DEFAULT_VOICE_MODELS:
+        roles[mid] = ROLE_VOICE
+    for mid in _DEFAULT_STT_MODELS:
+        roles[mid] = ROLE_SPEECH_TO_TEXT
+    roles["grok-voice-transcribe-1.0"] = ROLE_SPEECH_TO_TEXT
+    roles[_SPEECH_TO_TEXT_BOOTSTRAP] = ROLE_SPEECH_TO_TEXT
+    _shipped_roles = roles
+    return roles
+
+
+def static_role_for_id(model_id: str) -> str:
+    """Role of a listed id from the static catalog.
+
+    An id the static catalog does not know is chat. The REST ``/v1/models``
+    payload is not consulted: that list tags every model as chat.
+    """
+    key = (model_id or "").strip()
+    if not key:
+        return ROLE_CHAT
+    return _shipped_role_map().get(key, ROLE_CHAT)
+
+
+def _exact_injected_row(model_id: str) -> ModelInfo | None:
+    rows = _injected_models
+    if not rows:
+        return None
+    for row in rows:
+        if row.id == model_id:
+            return row
+    return None
+
+
+def _exact_shipped_price(model_id: str) -> Any:
+    from xaikit.pricing import default_price_table
+
+    return default_price_table().models.get(model_id)
+
+
+def describe_listed_id(model_id: str) -> tuple[ModelInfo, str]:
+    """One host-listed id as ``(row, role)``.
+
+    Role comes from :func:`static_role_for_id`. Prices prefer an injected row
+    for that exact id, then the shipped table's exact row. REST tags are ignored.
+    """
+    role = static_role_for_id(model_id)
+    source = _exact_injected_row(model_id)
+    input_rate = source.input_per_million if source is not None else None
+    output_rate = source.output_per_million if source is not None else None
+    created = source.created if source is not None else None
+    if input_rate is None or output_rate is None:
+        price = _exact_shipped_price(model_id)
+        if price is not None:
+            if input_rate is None:
+                input_rate = price.input_per_million
+            if output_rate is None:
+                output_rate = price.output_per_million
+    caps = ["chat"] if role == ROLE_CHAT else [role]
+    info = ModelInfo(
+        id=model_id,
+        display_name=model_id,
+        capabilities=caps,
+        input_per_million=input_rate,
+        output_per_million=output_rate,
+        created=created,
+    )
+    return info, role
+
+
+def _model_ids_from_payload(payload: Any) -> list[str]:
+    """Read ``data[].id`` only. Any other field, including a role tag, is ignored."""
+    if not isinstance(payload, dict):
+        raise RuntimeError("Model catalog returned unexpected payload")
+    data = payload.get("data")
+    if not isinstance(data, list):
+        raise RuntimeError("Model catalog returned unexpected payload")
+    ids: list[str] = []
+    seen: set[str] = set()
+    for item in data:
+        if not isinstance(item, dict) or "id" not in item:
+            continue
+        mid = str(item.get("id") or "").strip()
+        if not mid or mid in seen:
+            continue
+        seen.add(mid)
+        ids.append(mid)
+    if not ids:
+        raise RuntimeError("Model catalog returned an empty data list")
+    return ids
+
+
+def log_host_catalog_fallback(host: str) -> None:
+    """One warning when a client's host model list cannot be used."""
+    logger.warning(
+        "Model list for host %s failed; using the static catalog",
+        host,
+    )
+
+
+def fetch_host_catalog(api_key: str, base_url: str) -> list[tuple[ModelInfo, str]]:
+    """GET ``<base>/models`` and classify each id from the static catalog.
+
+    Raises on HTTP errors, connection failures, timeouts, non-JSON bodies,
+    and a 200 with an empty ``data`` list. Does not cache.
     """
     import httpx
 
@@ -879,7 +1008,11 @@ def fetch_models_via_rest(api_key: str, base_url: str) -> list[ModelInfo]:
     url = join_url(base_url, "models")
     headers = {"Authorization": f"Bearer {api_key}"}
     try:
-        response = httpx.get(url, headers=headers, timeout=30.0)
+        response = httpx.get(
+            url,
+            headers=headers,
+            timeout=HOST_MODELS_TIMEOUT_SECONDS,
+        )
     except httpx.HTTPError as exc:
         raise RuntimeError(f"Model catalog request failed: {exc}") from exc
     if response.status_code >= 400:
@@ -889,28 +1022,28 @@ def fetch_models_via_rest(api_key: str, base_url: str) -> list[ModelInfo]:
         payload = response.json()
     except json.JSONDecodeError as exc:
         raise RuntimeError("Model catalog returned non-JSON response") from exc
-    if isinstance(payload, dict):
-        data = payload.get("data")
-        if data is None:
-            data = payload.get("models")
-    elif isinstance(payload, list):
-        data = payload
-    else:
-        data = None
-    if not isinstance(data, list):
-        raise RuntimeError("Model catalog returned unexpected payload")
-    out: list[ModelInfo] = []
-    for item in data:
-        if isinstance(item, str):
-            mid = item.strip()
-        elif isinstance(item, dict):
-            mid = str(item.get("id") or item.get("name") or "").strip()
-        else:
-            continue
-        if not mid:
-            continue
-        out.append(ModelInfo(id=mid, display_name=mid, capabilities=["chat"]))
-    return out
+    return [describe_listed_id(mid) for mid in _model_ids_from_payload(payload)]
+
+
+def fetch_models_via_rest(api_key: str, base_url: str) -> list[ModelInfo]:
+    """GET ``<base>/models`` for a non-default inference base.
+
+    Ids come from ``data[].id``. Each row's role comes from the static catalog.
+    An unknown id is chat. This function does not cache and does not filter
+    the client's later resolve; callers do that.
+    """
+    return [info for info, _role in fetch_host_catalog(api_key, base_url)]
+
+
+def static_fallback_models() -> list[ModelInfo]:
+    """Offline catalog when a host model list cannot be read.
+
+    Injected rows win. Otherwise the bootstrap pair. Does not fetch and does
+    not write the process-wide snapshot.
+    """
+    if _injected_models is not None:
+        return list(_injected_models)
+    return _bootstrap_offline_models()
 
 
 def fetch_models_from_sdk(api_key: str) -> list[ModelInfo]:
