@@ -413,10 +413,14 @@ def test_u1_5_and_u2_4_rest_families_sync_and_async(monkeypatch: pytest.MonkeyPa
     def _run(cls: type) -> set[str]:
         capture = _Capture()
         capture.install(monkeypatch)
-        client = make_client(cls, base_url=custom)
         if cls is AsyncXaiClient:
-            asyncio.run(_exercise_async(client))
+            async def _go() -> None:
+                client = make_client(cls, base_url=custom)
+                await _exercise_async(client)
+
+            asyncio.run(_go())
         else:
+            client = make_client(cls, base_url=custom)
             _exercise_sync(client)
         inject_catalog(None)
         clear_catalog_cache()
@@ -424,7 +428,7 @@ def test_u1_5_and_u2_4_rest_families_sync_and_async(monkeypatch: pytest.MonkeyPa
             _quiet(
                 list_models,
                 api_key=KEY,
-                base_url=client.base_url,
+                base_url=custom,
                 force_refresh=True,
                 allow_fixture_fallback=False,
             )
@@ -532,9 +536,9 @@ def test_u1_6_websockets_sync_and_async(monkeypatch: pytest.MonkeyPatch) -> None
     _quiet(sync.open_stt_session)
     _quiet(sync.open_tts_session)
     _quiet(sync.open_realtime_session)
-    async_client = make_client(AsyncXaiClient, base_url=https_base)
 
     async def _open() -> None:
+        async_client = make_client(AsyncXaiClient, base_url=https_base)
         await _quiet_async(async_client.open_stt_session())
         await _quiet_async(async_client.open_tts_session())
         await _quiet_async(async_client.open_realtime_session())
