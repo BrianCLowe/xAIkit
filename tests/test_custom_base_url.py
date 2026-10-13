@@ -558,6 +558,122 @@ def test_m12_bearer_auth_on_custom_base(monkeypatch: pytest.MonkeyPatch) -> None
     _assert_bearer(capture.calls, expected)
 
 
+def test_each_rest_site_bearer_and_base(monkeypatch: pytest.MonkeyPatch) -> None:
+    """One call per REST site. Header rename or a hard-coded host fails that call."""
+    base = "http://127.0.0.1:9/proxy/v1"
+    messages = [{"role": "user", "content": "hi"}]
+    capture = _Capture()
+    capture.install(monkeypatch)
+
+    def check(method: str, path: str, *, deferred: bool | None = None) -> None:
+        url = f"{base}{path}"
+        matched = [item for item in capture.calls if item[0] == method and item[1] == url]
+        assert matched, [(item[0], item[1]) for item in capture.calls]
+        for _method, got, _headers, _body in capture.calls:
+            assert "api.x.ai" not in got
+        headers = matched[-1][2] or {}
+        lowered = {key.lower(): value for key, value in headers.items()}
+        assert lowered.get("authorization") == f"Bearer {KEY}"
+        assert "x-api-key" not in lowered
+        body = matched[-1][3]
+        if deferred is True:
+            assert isinstance(body, dict) and body.get("deferred") is True
+        if deferred is False:
+            assert not (isinstance(body, dict) and body.get("deferred") is True)
+        capture.calls.clear()
+
+    client = make_client(base_url=base)
+    _quiet(client.chat, messages)
+    check("POST", "/chat/completions", deferred=False)
+    _quiet(client.create_deferred_chat, messages)
+    check("POST", "/chat/completions", deferred=True)
+    _quiet(client.get_deferred_chat, "d1")
+    check("GET", "/chat/deferred-completion/d1")
+    _quiet(client.transcribe, b"abc")
+    check("POST", "/stt")
+    _quiet(client.synthesize_speech, "hi")
+    check("POST", "/tts")
+    _quiet(client.list_tts_voices)
+    check("GET", "/tts/voices")
+    _quiet(client.get_tts_voice, "eve")
+    check("GET", "/tts/voices/eve")
+    _quiet(client.upload_file, b"abc", "a.txt")
+    check("POST", "/files")
+    _quiet(client.get_file, "file-1")
+    check("GET", "/files/file-1")
+    _quiet(client.delete_file, "file-1")
+    check("DELETE", "/files/file-1")
+    _quiet(client.embed, "hi", model="grok-test")
+    check("POST", "/embeddings")
+    _quiet(client.tokenize, "hi")
+    check("POST", "/tokenize-text")
+    _quiet(client.create_response, "hi")
+    check("POST", "/responses")
+    _quiet(client.get_response, "resp-1")
+    check("GET", "/responses/resp-1")
+    _quiet(client.generate_image, "a cat")
+    check("POST", "/images/generations")
+    _quiet(client.edit_image, "edit", image_url="http://127.0.0.1/a.png")
+    check("POST", "/images/edits")
+    _quiet(client.generate_video, "clip", into=[], wait=False)
+    check("POST", "/videos/generations")
+    _quiet(client.extend_video, "more", video_url="http://127.0.0.1/v.mp4", into=[], wait=False)
+    check("POST", "/videos/extensions")
+    _quiet(client.poll_video, "vid-1")
+    check("GET", "/videos/vid-1")
+    _quiet(client.create_realtime_client_secret)
+    check("POST", "/realtime/client_secrets")
+
+    async def _go() -> None:
+        async_client = make_client(AsyncXaiClient, base_url=base)
+        await _quiet_async(async_client.chat(messages))
+        check("POST", "/chat/completions", deferred=False)
+        await _quiet_async(async_client.create_deferred_chat(messages))
+        check("POST", "/chat/completions", deferred=True)
+        await _quiet_async(async_client.get_deferred_chat("d1"))
+        check("GET", "/chat/deferred-completion/d1")
+        await _quiet_async(async_client.transcribe(b"abc"))
+        check("POST", "/stt")
+        await _quiet_async(async_client.synthesize_speech("hi"))
+        check("POST", "/tts")
+        await _quiet_async(async_client.list_tts_voices())
+        check("GET", "/tts/voices")
+        await _quiet_async(async_client.get_tts_voice("eve"))
+        check("GET", "/tts/voices/eve")
+        await _quiet_async(async_client.upload_file(b"abc", "a.txt"))
+        check("POST", "/files")
+        await _quiet_async(async_client.get_file("file-1"))
+        check("GET", "/files/file-1")
+        await _quiet_async(async_client.delete_file("file-1"))
+        check("DELETE", "/files/file-1")
+        await _quiet_async(async_client.embed("hi", model="grok-test"))
+        check("POST", "/embeddings")
+        await _quiet_async(async_client.tokenize("hi"))
+        check("POST", "/tokenize-text")
+        await _quiet_async(async_client.create_response("hi"))
+        check("POST", "/responses")
+        await _quiet_async(async_client.get_response("resp-1"))
+        check("GET", "/responses/resp-1")
+        await _quiet_async(async_client.generate_image("a cat"))
+        check("POST", "/images/generations")
+        await _quiet_async(async_client.edit_image("edit", image_url="http://127.0.0.1/a.png"))
+        check("POST", "/images/edits")
+        await _quiet_async(async_client.generate_video("clip", into=[], wait=False))
+        check("POST", "/videos/generations")
+        await _quiet_async(
+            async_client.extend_video(
+                "more", video_url="http://127.0.0.1/v.mp4", into=[], wait=False
+            )
+        )
+        check("POST", "/videos/extensions")
+        await _quiet_async(async_client.poll_video("vid-1"))
+        check("GET", "/videos/vid-1")
+        await _quiet_async(async_client.create_realtime_client_secret())
+        check("POST", "/realtime/client_secrets")
+
+    asyncio.run(_go())
+
+
 def test_u1_5_chat_body_is_not_deferred(monkeypatch: pytest.MonkeyPatch) -> None:
     capture = _Capture()
     capture.install(monkeypatch)
