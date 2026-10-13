@@ -23,7 +23,7 @@ import pytest
 
 from xaikit import AsyncXaiClient, InMemoryUsageSink, UsageMeter, XaiClient
 from xaikit.catalog import clear_catalog_cache, inject_catalog, list_models
-from xaikit.pricing import REGIONAL_TOKEN_PREMIUM, clear_public_price_cache
+from xaikit.pricing import clear_public_price_cache
 from xaikit.provider import MockChatProvider
 from xaikit.types import ModelInfo
 
@@ -335,6 +335,13 @@ def test_rm1_5_host_spelling(cls, mock_http: dict[str, Any]) -> None:
         host="https://US.API.X.AI/v1",
     )
     assert _usd(direct) == 11.0
+    omitted = UsageMeter().record(
+        purpose="meter",
+        model="grok-4.7",
+        usage=dict(BASIC),
+        host=None,
+    )
+    assert omitted.estimated_usd == 10.0
 
 
 def test_rm1_6_client_host_threads_and_env(
@@ -460,6 +467,8 @@ def test_rm1_8_price_sources(cls, mock_http: dict[str, Any], monkeypatch: pytest
 
 
 def test_rm1_9_one_host_table(cls, mock_http: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    from xaikit.pricing import REGIONAL_TOKEN_PREMIUM
+
     hits: list[str] = []
     for path in (REPO / "src").rglob("*.py"):
         for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
@@ -501,6 +510,9 @@ def test_rm1_10_server_ticks_win(cls, mock_http: dict[str, Any]) -> None:
     }
     assert _price(cls, usage, US) == 5.5
     assert _price(cls, usage, None) == 5.5
+    # The same token counts without ticks take the premium, so this case
+    # fails when the host table is missing.
+    assert _price(cls, ONE_47, US) == 0.0000022
 
 
 def test_rm1_11_image_input_tokens(cls, mock_http: dict[str, Any]) -> None:
@@ -618,13 +630,6 @@ def test_rm2_4_standalone_meter_keeps_base(cls) -> None:
         success=True,
     )
     assert event.estimated_usd == 10.0
-    explicit = UsageMeter().record(
-        purpose="meter",
-        model="grok-4.7",
-        usage=dict(BASIC),
-        host=None,
-    )
-    assert explicit.estimated_usd == 10.0
     assert "host" not in type(event).model_fields
 
 
