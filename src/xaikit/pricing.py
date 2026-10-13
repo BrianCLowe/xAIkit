@@ -35,7 +35,7 @@ LONG_CONTEXT_PROMPT_TOKENS = 200_000
 # Token usage on the US endpoint costs ten percent more than the global endpoint,
 # including input, cached input, output, and image input tokens.
 # Cite: https://docs.x.ai/developers/advanced-api-usage/regions (fetched 2026-10-13).
-_US_REGIONAL_HOST = "us." + "api." + "x.ai"
+_US_REGIONAL_HOST = "us.api.x.ai"
 REGIONAL_TOKEN_PREMIUM: dict[str, float] = {
     _US_REGIONAL_HOST: 0.10,
 }
