@@ -152,6 +152,25 @@ url = build_oauth_authorize_url(
 
 This is **not** grok.com / SuperGrok login. A Grok subscription’s **weekly usage pool** (Settings → Usage in the Grok app) has no public API. The kit does not scrape it, does not show “how much you have left,” and does not mint User/Session objects. `UsageMeter` only records calls **your app** made through `XaiClient`. Team API prepaid remaining lives in the [xAI Console](https://console.x.ai) Usage Explorer (a management-key billing API, not OAuth).
 
+## Custom base URL
+
+`XaiClient` and `AsyncXaiClient` take `base_url`. When that argument is omitted or blank, the client reads `XAI_BASE_URL`. When the variable is also omitted or blank, the base is `https://api.x.ai/v1`. Precedence is the constructor argument, then `XAI_BASE_URL`, then the default. The choice is fixed when the client is constructed.
+
+REST calls use that base. The speech-to-text, text-to-speech, and realtime websockets use it too: `https` becomes `wss` and `http` becomes `ws`, with the same host, port, and path. One trailing slash is removed. The path is used as written, so a base without `/v1` does not gain one. Any host is accepted. A scheme other than http or https, a missing host, a query, a fragment, or a username and password raises `ValueError`.
+
+Chat whose base path is empty or `/v1` stays on gRPC at that host and port (`http` uses an insecure channel). Any other path sends `chat` and `chat_stream` as REST `POST <base>/chat/completions` (`chat_stream` sets `stream` to true). An injected `provider` is used instead of that REST call. A non-default base loads the model list with `GET <base>/models`. Collections and batch stay on the SDK default hosts, including when chat uses a custom gRPC host. OAuth connect and the usage meter price fetch do not follow `base_url`.
+
+```python
+import os
+
+from xaikit import XaiClient
+
+client = XaiClient(
+    api_key=os.environ["XAI_API_KEY"],
+    base_url="https://proxy.example:8443/llm/v1",
+)
+```
+
 ## Catalog resolve
 
 Callers pass `cheapest` / `economy` / `best` (and optional `role=`). Chat is the default pool. Pin still wins when `pin=` is set.

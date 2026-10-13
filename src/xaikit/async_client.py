@@ -102,7 +102,12 @@ from xaikit.collections import (
     search_to_dict,
 )
 from xaikit.credentials import CredentialStore
-from xaikit.provider import AsyncChatProvider, AsyncSdkChatProvider, ChatProvider
+from xaikit.provider import (
+    AsyncChatProvider,
+    AsyncSdkChatProvider,
+    ChatProvider,
+    RestSseCursor,
+)
 from xaikit.realtime import (
     XAI_REALTIME_URL,
     AsyncRealtimeSession,
@@ -173,7 +178,11 @@ class AsyncXaiClient(XaiClient):
         voice_model: str | None = None,
         bootstrap_model: str = BOOTSTRAP_MODEL,
         completion_tracer: CompletionTracer | None = None,
+        base_url: str | None = None,
     ) -> None:
+        self._apply_base_url(base_url)
+        self._injected_provider = provider is not None
+        self._chat_sdk = None
         level_in = thought_level if thought_level is not None else effort
         self._remember_role_pins(
             model=model,
@@ -203,11 +212,15 @@ class AsyncXaiClient(XaiClient):
                 )
             self.api_key = key
             management_api_key = (os.environ.get("XAI_MANAGEMENT_KEY") or "").strip() or None
-            self._client = AsyncClient(
-                api_key=key,
-                management_api_key=management_api_key,
-            )
-            self._provider = AsyncSdkChatProvider(self._client)
+            # Batch and collections stay on the SDK default hosts. Chat gRPC
+            # gets its own client only when this base is a bare host or /v1.
+            self._client = self._open_async_sdk(key, management_api_key, chat_host=False)
+            if self._resolved.chat_over_rest or self._resolved.grpc_api_host is None:
+                chat_sdk = self._client
+            else:
+                chat_sdk = self._open_async_sdk(key, management_api_key, chat_host=True)
+            self._chat_sdk = chat_sdk
+            self._provider = AsyncSdkChatProvider(chat_sdk)
             self._catalog_api_key = key or None
 
         self._finish_role_resolution()
@@ -219,6 +232,34 @@ class AsyncXaiClient(XaiClient):
         self._http: httpx.AsyncClient | None = None
         self._owns_http = False
         self._inflight_video_waits: set[asyncio.Task[Any]] = set()
+
+    def _open_async_sdk(
+        self,
+        key: str,
+        management_api_key: str | None,
+        *,
+        chat_host: bool,
+    ) -> AsyncClient:
+        """Default hosts for batch and collections. Chat may pass host:port.
+
+        ``chat_host`` is set only for gRPC chat on a bare host or ``/v1``.
+        A path-prefixed base does not move the shared client off the SDK defaults.
+        """
+        if (
+            chat_host
+            and not self._resolved.chat_over_rest
+            and self._resolved.grpc_api_host is not None
+        ):
+            return AsyncClient(
+                api_key=key,
+                management_api_key=management_api_key,
+                api_host=self._resolved.grpc_api_host,
+                use_insecure_channel=self._resolved.grpc_insecure,
+            )
+        return AsyncClient(
+            api_key=key,
+            management_api_key=management_api_key,
+        )
 
     async def __aenter__(self) -> AsyncXaiClient:
         if self._http is None:
@@ -234,8 +275,11 @@ class AsyncXaiClient(XaiClient):
             await self._http.aclose()
             self._http = None
             self._owns_http = False
-        sdk = self._client
-        if sdk is not None:
+        closed: set[int] = set()
+        for sdk in (getattr(self, "_chat_sdk", None), self._client):
+            if sdk is None or id(sdk) in closed:
+                continue
+            closed.add(id(sdk))
             closer = getattr(sdk, "close", None)
             if callable(closer):
                 result = closer()
@@ -328,6 +372,118 @@ class AsyncXaiClient(XaiClient):
             "AsyncXaiClient requires a provider with async_stream or async stream()"
         )
 
+    async def _rest_chat_complete(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        temperature: float,
+        max_tokens: int | None,
+        thought_level: str | None,
+        system_prompt: str | None,
+        tools: list[dict[str, Any]] | None,
+        tool_choice: str | dict[str, Any] | None,
+        parallel_tool_calls: bool | None,
+        response_format: Any,
+        service_tier: str | None,
+    ):
+        url, headers, body = self._rest_chat_request(
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            thought_level=thought_level,
+            system_prompt=system_prompt,
+            tools=tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            response_format=response_format,
+            service_tier=service_tier,
+        )
+        response = await self._rest(
+            "POST",
+            url,
+            timeout=_DEFERRED_CHAT_TIMEOUT,
+            headers=headers,
+            unauthorized="xAI chat unauthorized. Check the API key.",
+            fail_prefix="xAI chat",
+            json=body,
+        )
+        return self._rest_chat_parse(response)
+
+    async def _rest_chat_stream(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        temperature: float,
+        max_tokens: int | None,
+        thought_level: str | None,
+        system_prompt: str | None,
+        tools: list[dict[str, Any]] | None,
+        tool_choice: str | dict[str, Any] | None,
+        parallel_tool_calls: bool | None,
+        response_format: Any,
+        service_tier: str | None,
+    ):
+        """SSE chat on ``POST <base>/chat/completions`` with ``stream`` true."""
+        url, headers, body = self._rest_chat_request(
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            thought_level=thought_level,
+            system_prompt=system_prompt,
+            tools=tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            response_format=response_format,
+            service_tier=service_tier,
+            stream=True,
+        )
+        owns = self._http is None
+        http = self._http if self._http is not None else httpx.AsyncClient(
+            timeout=_DEFERRED_CHAT_TIMEOUT
+        )
+        stream_cm = http.stream(
+            "POST",
+            url,
+            headers=headers,
+            json=body,
+            timeout=_DEFERRED_CHAT_TIMEOUT,
+        )
+        try:
+            response = await stream_cm.__aenter__()
+        except httpx.HTTPError as exc:
+            if owns:
+                await http.aclose()
+            raise RuntimeError(f"xAI chat request failed: {exc}") from exc
+        status = int(getattr(response, "status_code", 200) or 200)
+        if status == 401 or status >= 400:
+            try:
+                await response.aread()
+            except Exception:
+                pass
+            detail = (getattr(response, "text", "") or getattr(response, "reason_phrase", "") or "")[:500]
+            await stream_cm.__aexit__(None, None, None)
+            if owns:
+                await http.aclose()
+            if status == 401:
+                raise RuntimeError("xAI chat unauthorized. Check the API key.")
+            raise RuntimeError(f"xAI chat failed ({status}): {detail}")
+
+        async def _chunks():
+            cursor = RestSseCursor()
+            try:
+                async for line in response.aiter_lines():
+                    piece = cursor.push(line)
+                    if piece is not None:
+                        yield piece
+                    if cursor.done:
+                        break
+            finally:
+                await stream_cm.__aexit__(None, None, None)
+                if owns:
+                    await http.aclose()
+
+        return _chunks()
+
     async def _complete(
         self,
         messages: list[dict[str, Any]],
@@ -343,6 +499,19 @@ class AsyncXaiClient(XaiClient):
         service_tier: str | None = None,
     ):
         async def _call():
+            if self._chat_uses_rest():
+                return await self._rest_chat_complete(
+                    messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    thought_level=thought_level,
+                    system_prompt=system_prompt,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    parallel_tool_calls=parallel_tool_calls,
+                    response_format=response_format,
+                    service_tier=service_tier,
+                )
             return await self._provider_complete(
                 messages=messages,
                 model=self.model,
@@ -378,6 +547,19 @@ class AsyncXaiClient(XaiClient):
         service_tier: str | None = None,
     ):
         async def _call():
+            if self._chat_uses_rest():
+                return await self._rest_chat_stream(
+                    messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    thought_level=thought_level,
+                    system_prompt=system_prompt,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    parallel_tool_calls=parallel_tool_calls,
+                    response_format=response_format,
+                    service_tier=service_tier,
+                )
             return self._provider_stream(
                 messages=messages,
                 model=self.model,
@@ -761,7 +943,7 @@ class AsyncXaiClient(XaiClient):
         }
         response = await self._rest(
             "POST",
-            XAI_CHAT_COMPLETIONS_URL,
+            self._endpoint(XAI_CHAT_COMPLETIONS_URL),
             timeout=_DEFERRED_CHAT_TIMEOUT,
             headers=headers,
             unauthorized="xAI deferred chat unauthorized — check API key",
@@ -792,7 +974,7 @@ class AsyncXaiClient(XaiClient):
         labels: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
-        url = _deferred_chat_resource_url(request_id)
+        url = self._endpoint(_deferred_chat_resource_url(request_id))
         pin = (self.model or "").strip() or "chat"
         headers = {"Authorization": f"Bearer {self.api_key}"}
         response = await self._rest(
@@ -865,7 +1047,7 @@ class AsyncXaiClient(XaiClient):
 
         response = await self._rest(
             "POST",
-            XAI_STT_URL,
+            self._endpoint(XAI_STT_URL),
             timeout=120.0,
             headers=headers,
             unauthorized="xAI STT unauthorized — check API key",
@@ -949,7 +1131,7 @@ class AsyncXaiClient(XaiClient):
 
         response = await self._rest(
             "POST",
-            XAI_TTS_URL,
+            self._endpoint(XAI_TTS_URL),
             timeout=120.0,
             headers=headers,
             unauthorized="xAI TTS unauthorized — check API key",
@@ -988,7 +1170,7 @@ class AsyncXaiClient(XaiClient):
         headers = {"Authorization": f"Bearer {key}"}
         response = await self._rest(
             "GET",
-            XAI_TTS_VOICES_URL,
+            self._endpoint(XAI_TTS_VOICES_URL),
             timeout=_TTS_VOICES_TIMEOUT,
             headers=headers,
             unauthorized="xAI TTS voices unauthorized — check API key",
@@ -1016,7 +1198,7 @@ class AsyncXaiClient(XaiClient):
         labels: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
-        url = _tts_voice_resource_url(voice_id)
+        url = self._endpoint(_tts_voice_resource_url(voice_id))
         key = self._require_tts_api_key()
         headers = {"Authorization": f"Bearer {key}"}
         response = await self._rest(
@@ -1071,7 +1253,7 @@ class AsyncXaiClient(XaiClient):
         headers = {"Authorization": f"Bearer {self.api_key}"}
         response = await self._rest(
             "POST",
-            XAI_FILES_URL,
+            self._endpoint(XAI_FILES_URL),
             timeout=_FILES_TIMEOUT,
             headers=headers,
             unauthorized="xAI Files unauthorized — check API key",
@@ -1100,7 +1282,7 @@ class AsyncXaiClient(XaiClient):
         labels: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
-        url = _file_resource_url(file_id)
+        url = self._endpoint(_file_resource_url(file_id))
         headers = {"Authorization": f"Bearer {self.api_key}"}
         response = await self._rest(
             "GET",
@@ -1130,7 +1312,7 @@ class AsyncXaiClient(XaiClient):
         labels: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
-        url = _file_resource_url(file_id)
+        url = self._endpoint(_file_resource_url(file_id))
         headers = {"Authorization": f"Bearer {self.api_key}"}
         response = await self._rest(
             "DELETE",
@@ -1181,7 +1363,7 @@ class AsyncXaiClient(XaiClient):
         body = {"model": pin, "input": payload_input}
         response = await self._rest(
             "POST",
-            XAI_EMBEDDINGS_URL,
+            self._endpoint(XAI_EMBEDDINGS_URL),
             timeout=_EMBED_TIMEOUT,
             headers=headers,
             unauthorized="xAI embeddings unauthorized — check API key",
@@ -1227,7 +1409,7 @@ class AsyncXaiClient(XaiClient):
         body = {"text": payload_text, "model": pin}
         response = await self._rest(
             "POST",
-            XAI_TOKENIZE_URL,
+            self._endpoint(XAI_TOKENIZE_URL),
             timeout=_TOKENIZE_TIMEOUT,
             headers=headers,
             unauthorized="xAI tokenize unauthorized — check API key",
@@ -1281,7 +1463,7 @@ class AsyncXaiClient(XaiClient):
         }
         response = await self._rest(
             "POST",
-            XAI_RESPONSES_URL,
+            self._endpoint(XAI_RESPONSES_URL),
             timeout=_RESPONSES_TIMEOUT,
             headers=headers,
             unauthorized="xAI responses unauthorized — check API key",
@@ -1316,7 +1498,7 @@ class AsyncXaiClient(XaiClient):
         labels: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
-        url = _response_resource_url(response_id)
+        url = self._endpoint(_response_resource_url(response_id))
         pin = (self.model or "").strip() or "responses"
         headers = {"Authorization": f"Bearer {self.api_key}"}
         response = await self._rest(
@@ -1874,7 +2056,7 @@ class AsyncXaiClient(XaiClient):
             )
         )
         return await self._submit_imagine(
-            XAI_IMAGES_URL,
+            self._endpoint(XAI_IMAGES_URL),
             body,
             image_model=image_model,
             tag=tag,
@@ -1921,7 +2103,7 @@ class AsyncXaiClient(XaiClient):
         if response_format:
             body["response_format"] = response_format
         return await self._submit_imagine(
-            XAI_IMAGE_EDITS_URL,
+            self._endpoint(XAI_IMAGE_EDITS_URL),
             body,
             image_model=image_model,
             tag=tag,
@@ -1987,7 +2169,7 @@ class AsyncXaiClient(XaiClient):
         if ref_audios:
             body["reference_audios"] = ref_audios
         return await self._start_and_maybe_wait_video(
-            XAI_VIDEOS_URL,
+            self._endpoint(XAI_VIDEOS_URL),
             body,
             tag=tag,
             parent_id=parent_id,
@@ -2038,7 +2220,7 @@ class AsyncXaiClient(XaiClient):
         if duration is not None:
             body["duration"] = int(duration)
         return await self._start_and_maybe_wait_video(
-            XAI_VIDEO_EXTENSIONS_URL,
+            self._endpoint(XAI_VIDEO_EXTENSIONS_URL),
             body,
             tag=tag,
             parent_id=parent_id,
@@ -2098,7 +2280,7 @@ class AsyncXaiClient(XaiClient):
         tag = self._require_purpose_if_metered(purpose)
         key = self._require_realtime_api_key()
         voice_model = self._effective_voice_model(model)
-        url = realtime_session_url(voice_model, base=XAI_REALTIME_URL)
+        url = realtime_session_url(voice_model, base=self._endpoint(XAI_REALTIME_URL))
         headers = {"Authorization": f"Bearer {key}"}
         session_body = _realtime_session_body(
             voice=voice,
@@ -2162,7 +2344,7 @@ class AsyncXaiClient(XaiClient):
         body: dict[str, Any] = {"expires_after": {"seconds": seconds}}
         response = await self._rest(
             "POST",
-            XAI_REALTIME_CLIENT_SECRETS_URL,
+            self._endpoint(XAI_REALTIME_CLIENT_SECRETS_URL),
             timeout=_REALTIME_CLIENT_SECRETS_TIMEOUT,
             headers=headers,
             unauthorized="xAI realtime client secret unauthorized — check API key",
@@ -2206,7 +2388,7 @@ class AsyncXaiClient(XaiClient):
         tag = self._require_purpose_if_metered(purpose)
         key = self._require_stt_api_key()
         url = stt_session_url(
-            base=XAI_STT_WS_URL,
+            base=self._endpoint(XAI_STT_WS_URL),
             sample_rate=sample_rate,
             encoding=encoding,
             interim_results=interim_results,
@@ -2280,7 +2462,7 @@ class AsyncXaiClient(XaiClient):
         tag = self._require_purpose_if_metered(purpose)
         key = self._require_tts_api_key()
         url = tts_session_url(
-            base=XAI_TTS_WS_URL,
+            base=self._endpoint(XAI_TTS_WS_URL),
             voice=voice,
             language=language,
             codec=codec,
@@ -2537,7 +2719,7 @@ class AsyncXaiClient(XaiClient):
                 await asyncio.sleep(sleep_for)
 
     async def _get_video_status(self, request_id: str) -> dict[str, Any]:
-        url = XAI_VIDEO_STATUS_URL.format(request_id=request_id)
+        url = self._endpoint(XAI_VIDEO_STATUS_URL.format(request_id=request_id))
         headers = {"Authorization": f"Bearer {self.api_key}"}
         try:
             response = await self._http_request(

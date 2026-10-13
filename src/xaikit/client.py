@@ -16,6 +16,25 @@ from typing import Any
 import httpx
 from xai_sdk import Client
 
+from xaikit.base_url import (
+    XAI_CHAT_COMPLETIONS_URL,
+    XAI_DEFERRED_CHAT_URL,
+    XAI_EMBEDDINGS_URL,
+    XAI_FILES_URL,
+    XAI_IMAGE_EDITS_URL,
+    XAI_IMAGES_URL,
+    XAI_REALTIME_CLIENT_SECRETS_URL,
+    XAI_RESPONSES_URL,
+    XAI_STT_URL,
+    XAI_TOKENIZE_URL,
+    XAI_TTS_URL,
+    XAI_TTS_VOICES_URL,
+    XAI_VIDEO_EXTENSIONS_URL,
+    XAI_VIDEO_STATUS_URL,
+    XAI_VIDEOS_URL,
+    rebase_url,
+    resolve_base_url,
+)
 from xaikit.batch import (
     batch_to_dict,
     call_batch_rpc,
@@ -48,7 +67,14 @@ from xaikit.collections import (
 )
 from xaikit.connect import normalize_api_key
 from xaikit.credentials import CredentialStore
-from xaikit.provider import ChatProvider, SdkChatProvider
+from xaikit.provider import (
+    ChatProvider,
+    ProviderResponse,
+    RestSseCursor,
+    SdkChatProvider,
+    _normalize_tool_calls,
+    rest_chat_body,
+)
 from xaikit.realtime import (
     DEFAULT_REALTIME_VOICE,
     DEFAULT_VOICE_MODEL,
@@ -92,21 +118,6 @@ logger = logging.getLogger(__name__)
 
 _JSON_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 
-XAI_STT_URL = "https://api.x.ai/v1/stt"
-XAI_TTS_URL = "https://api.x.ai/v1/tts"
-XAI_TTS_VOICES_URL = "https://api.x.ai/v1/tts/voices"
-XAI_IMAGES_URL = "https://api.x.ai/v1/images/generations"
-XAI_IMAGE_EDITS_URL = "https://api.x.ai/v1/images/edits"
-XAI_FILES_URL = "https://api.x.ai/v1/files"
-XAI_EMBEDDINGS_URL = "https://api.x.ai/v1/embeddings"
-XAI_TOKENIZE_URL = "https://api.x.ai/v1/tokenize-text"
-XAI_RESPONSES_URL = "https://api.x.ai/v1/responses"
-XAI_CHAT_COMPLETIONS_URL = "https://api.x.ai/v1/chat/completions"
-XAI_DEFERRED_CHAT_URL = "https://api.x.ai/v1/chat/deferred-completion"
-XAI_REALTIME_CLIENT_SECRETS_URL = "https://api.x.ai/v1/realtime/client_secrets"
-XAI_VIDEOS_URL = "https://api.x.ai/v1/videos/generations"
-XAI_VIDEO_EXTENSIONS_URL = "https://api.x.ai/v1/videos/extensions"
-XAI_VIDEO_STATUS_URL = "https://api.x.ai/v1/videos/{request_id}"
 DEFAULT_TTS_VOICE_ID = "eve"
 XAI_FILE_MAX_BYTES = 50 * 1024 * 1024
 XAI_EMBED_MAX_INPUTS = 128
@@ -190,8 +201,12 @@ class XaiClient:
         voice_model: str | None = None,
         bootstrap_model: str = BOOTSTRAP_MODEL,
         completion_tracer: CompletionTracer | None = None,
+        base_url: str | None = None,
     ) -> None:
         # effort is an alias for thought_level → reasoning_effort on the wire
+        self._apply_base_url(base_url)
+        self._injected_provider = provider is not None
+        self._chat_sdk = None
         level_in = thought_level if thought_level is not None else effort
         self._remember_role_pins(
             model=model,
@@ -224,11 +239,15 @@ class XaiClient:
             # XAI_MANAGEMENT_KEY through if present — do not store a second key
             # on this client. Search uses the regular API channel.
             management_api_key = (os.environ.get("XAI_MANAGEMENT_KEY") or "").strip() or None
-            self._client = Client(
-                api_key=key,
-                management_api_key=management_api_key,
-            )
-            self._provider = SdkChatProvider(self._client)
+            # Batch and collections stay on the SDK default hosts. Chat gRPC
+            # gets its own client only when this base is a bare host or /v1.
+            self._client = self._open_sync_sdk(key, management_api_key, chat_host=False)
+            if self._resolved.chat_over_rest or self._resolved.grpc_api_host is None:
+                chat_sdk = self._client
+            else:
+                chat_sdk = self._open_sync_sdk(key, management_api_key, chat_host=True)
+            self._chat_sdk = chat_sdk
+            self._provider = SdkChatProvider(chat_sdk)
             self._catalog_api_key = key or None
 
         self._finish_role_resolution()
@@ -236,6 +255,50 @@ class XaiClient:
         self._completion_tracer = completion_tracer
         self._retry_policy = (
             retry_policy if retry_policy is not None else default_retry_policy()
+        )
+
+    def __repr__(self) -> str:
+        base = getattr(self, "base_url", None)
+        return f"{type(self).__name__}(base_url={base!r})"
+
+    def _apply_base_url(self, base_url: str | None) -> None:
+        """Resolve once. Later env changes do not move this client."""
+        self._resolved = resolve_base_url(base_url)
+        self.base_url = self._resolved.base_url
+
+    def _endpoint(self, url: str) -> str:
+        return rebase_url(url, self._resolved)
+
+    def _chat_uses_rest(self) -> bool:
+        """Path-prefix chat uses REST unless the caller injected a provider."""
+        return bool(self._resolved.chat_over_rest) and not self._injected_provider
+
+    def _open_sync_sdk(
+        self,
+        key: str,
+        management_api_key: str | None,
+        *,
+        chat_host: bool,
+    ) -> Client:
+        """Default hosts for batch and collections. Chat may pass host:port.
+
+        ``chat_host`` is set only for gRPC chat on a bare host or ``/v1``.
+        A path-prefixed base does not move the shared client off the SDK defaults.
+        """
+        if (
+            chat_host
+            and not self._resolved.chat_over_rest
+            and self._resolved.grpc_api_host is not None
+        ):
+            return Client(
+                api_key=key,
+                management_api_key=management_api_key,
+                api_host=self._resolved.grpc_api_host,
+                use_insecure_channel=self._resolved.grpc_insecure,
+            )
+        return Client(
+            api_key=key,
+            management_api_key=management_api_key,
         )
 
     def _remember_role_pins(
@@ -279,6 +342,7 @@ class XaiClient:
                 bootstrap=self._bootstrap_model,
                 role=role,
                 api_key=self._catalog_api_key,
+                base_url=self.base_url,
             )
         except Exception:
             logger.warning("Role resolve failed for %s", role, exc_info=True)
@@ -384,6 +448,186 @@ class XaiClient:
             canonical = self.thought_level
         return contract_thought_level(canonical, model or self.model)
 
+    def _rest_chat_request(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        temperature: float,
+        max_tokens: int | None,
+        thought_level: str | None,
+        system_prompt: str | None,
+        tools: list[dict[str, Any]] | None,
+        tool_choice: str | dict[str, Any] | None,
+        parallel_tool_calls: bool | None,
+        response_format: Any,
+        service_tier: str | None,
+        stream: bool = False,
+    ) -> tuple[str, dict[str, str], dict[str, Any]]:
+        """REST chat body used when the base path is not empty and not ``/v1``."""
+        body = rest_chat_body(
+            messages,
+            model=self.model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            thought_level=thought_level,
+            system_prompt=system_prompt,
+            tools=tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            response_format=response_format,
+            service_tier=service_tier,
+            stream=stream,
+        )
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        return self._endpoint(XAI_CHAT_COMPLETIONS_URL), headers, body
+
+    def _rest_chat_parse(self, response: httpx.Response) -> ProviderResponse:
+        if response.status_code == 401:
+            raise RuntimeError("xAI chat unauthorized. Check the API key.")
+        if response.status_code >= 400:
+            detail = response.text[:500] if response.text else response.reason_phrase
+            raise RuntimeError(f"xAI chat failed ({response.status_code}): {detail}")
+        try:
+            payload = response.json()
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Chat completion returned non-JSON response") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError("Chat completion returned unexpected payload")
+        choices = payload.get("choices")
+        choice = choices[0] if isinstance(choices, list) and choices else {}
+        if not isinstance(choice, dict):
+            choice = {}
+        message = choice.get("message")
+        if not isinstance(message, dict):
+            message = {}
+        content = message.get("content")
+        if content is None:
+            text = ""
+        elif isinstance(content, str):
+            text = content
+        else:
+            text = json.dumps(content)
+        usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else None
+        reasoning = message.get("reasoning_content")
+        finish = choice.get("finish_reason")
+        echoed = payload.get("service_tier") or message.get("service_tier")
+        echoed_s = str(echoed).strip() if echoed else None
+        return ProviderResponse(
+            content=text,
+            usage=usage,
+            model=str(payload.get("model") or self.model),
+            raw=payload,
+            reasoning_content=str(reasoning) if reasoning else None,
+            finish_reason=str(finish) if finish is not None else None,
+            tool_calls=_normalize_tool_calls(message.get("tool_calls")),
+            service_tier=echoed_s or None,
+        )
+
+    def _rest_chat_complete(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        temperature: float,
+        max_tokens: int | None,
+        thought_level: str | None,
+        system_prompt: str | None,
+        tools: list[dict[str, Any]] | None,
+        tool_choice: str | dict[str, Any] | None,
+        parallel_tool_calls: bool | None,
+        response_format: Any,
+        service_tier: str | None,
+    ) -> ProviderResponse:
+        url, headers, body = self._rest_chat_request(
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            thought_level=thought_level,
+            system_prompt=system_prompt,
+            tools=tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            response_format=response_format,
+            service_tier=service_tier,
+        )
+        try:
+            response = httpx.post(
+                url,
+                headers=headers,
+                json=body,
+                timeout=_DEFERRED_CHAT_TIMEOUT,
+            )
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"xAI chat request failed: {exc}") from exc
+        return self._rest_chat_parse(response)
+
+    def _rest_chat_stream(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        temperature: float,
+        max_tokens: int | None,
+        thought_level: str | None,
+        system_prompt: str | None,
+        tools: list[dict[str, Any]] | None,
+        tool_choice: str | dict[str, Any] | None,
+        parallel_tool_calls: bool | None,
+        response_format: Any,
+        service_tier: str | None,
+    ) -> Iterator[Any]:
+        """SSE chat on ``POST <base>/chat/completions`` with ``stream`` true."""
+        url, headers, body = self._rest_chat_request(
+            messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            thought_level=thought_level,
+            system_prompt=system_prompt,
+            tools=tools,
+            tool_choice=tool_choice,
+            parallel_tool_calls=parallel_tool_calls,
+            response_format=response_format,
+            service_tier=service_tier,
+            stream=True,
+        )
+        try:
+            stream_cm = httpx.stream(
+                "POST",
+                url,
+                headers=headers,
+                json=body,
+                timeout=_DEFERRED_CHAT_TIMEOUT,
+            )
+            response = stream_cm.__enter__()
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"xAI chat request failed: {exc}") from exc
+        status = int(getattr(response, "status_code", 200) or 200)
+        if status == 401 or status >= 400:
+            try:
+                response.read()
+            except Exception:
+                pass
+            detail = (getattr(response, "text", "") or getattr(response, "reason_phrase", "") or "")[:500]
+            stream_cm.__exit__(None, None, None)
+            if status == 401:
+                raise RuntimeError("xAI chat unauthorized. Check the API key.")
+            raise RuntimeError(f"xAI chat failed ({status}): {detail}")
+
+        def _chunks() -> Iterator[Any]:
+            cursor = RestSseCursor()
+            try:
+                for line in response.iter_lines():
+                    piece = cursor.push(line)
+                    if piece is not None:
+                        yield piece
+                    if cursor.done:
+                        break
+            finally:
+                stream_cm.__exit__(None, None, None)
+
+        return _chunks()
+
     def _complete(
         self,
         messages: list[dict[str, Any]],
@@ -399,6 +643,19 @@ class XaiClient:
         service_tier: str | None = None,
     ):
         def _call():
+            if self._chat_uses_rest():
+                return self._rest_chat_complete(
+                    messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    thought_level=thought_level,
+                    system_prompt=system_prompt,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    parallel_tool_calls=parallel_tool_calls,
+                    response_format=response_format,
+                    service_tier=service_tier,
+                )
             return self._provider.complete(
                 messages,
                 model=self.model,
@@ -434,6 +691,19 @@ class XaiClient:
         service_tier: str | None = None,
     ):
         def _call():
+            if self._chat_uses_rest():
+                return self._rest_chat_stream(
+                    messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    thought_level=thought_level,
+                    system_prompt=system_prompt,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    parallel_tool_calls=parallel_tool_calls,
+                    response_format=response_format,
+                    service_tier=service_tier,
+                )
             return self._provider.stream(
                 messages,
                 model=self.model,
@@ -987,7 +1257,7 @@ class XaiClient:
             body["service_tier"] = tier
         response = self._deferred_chat_http(
             "POST",
-            XAI_CHAT_COMPLETIONS_URL,
+            self._endpoint(XAI_CHAT_COMPLETIONS_URL),
             tag=tag,
             parent_id=parent_id,
             labels=labels,
@@ -1027,7 +1297,7 @@ class XaiClient:
         available once within 24 hours. Empty ``request_id`` is rejected before HTTP.
         """
         tag = self._require_purpose_if_metered(purpose)
-        url = _deferred_chat_resource_url(request_id)
+        url = self._endpoint(_deferred_chat_resource_url(request_id))
         pin = (self.model or "").strip() or "chat"
         response = self._deferred_chat_http(
             "GET",
@@ -1092,7 +1362,7 @@ class XaiClient:
 
         try:
             response = httpx.post(
-                XAI_STT_URL,
+                self._endpoint(XAI_STT_URL),
                 headers=headers,
                 data=data,
                 files=files,
@@ -1205,7 +1475,7 @@ class XaiClient:
 
         try:
             response = httpx.post(
-                XAI_TTS_URL,
+                self._endpoint(XAI_TTS_URL),
                 headers=headers,
                 json=body,
                 timeout=120.0,
@@ -1341,7 +1611,7 @@ class XaiClient:
         """
         tag = self._require_purpose_if_metered(purpose)
         response = self._tts_voices_http(
-            XAI_TTS_VOICES_URL,
+            self._endpoint(XAI_TTS_VOICES_URL),
             tag=tag,
             parent_id=parent_id,
             labels=labels,
@@ -1371,7 +1641,7 @@ class XaiClient:
     ) -> dict[str, Any]:
         """Fetch one built-in TTS voice via ``GET /v1/tts/voices/{voice_id}``."""
         tag = self._require_purpose_if_metered(purpose)
-        url = _tts_voice_resource_url(voice_id)
+        url = self._endpoint(_tts_voice_resource_url(voice_id))
         response = self._tts_voices_http(
             url,
             tag=tag,
@@ -1516,7 +1786,7 @@ class XaiClient:
         }
         response = self._files_http(
             "POST",
-            XAI_FILES_URL,
+            self._endpoint(XAI_FILES_URL),
             tag=tag,
             parent_id=parent_id,
             labels=labels,
@@ -1546,7 +1816,7 @@ class XaiClient:
     ) -> dict[str, Any]:
         """Fetch Files metadata for an opaque ``file_id`` (GET /v1/files/{id})."""
         tag = self._require_purpose_if_metered(purpose)
-        url = _file_resource_url(file_id)
+        url = self._endpoint(_file_resource_url(file_id))
         response = self._files_http(
             "GET",
             url,
@@ -1577,7 +1847,7 @@ class XaiClient:
     ) -> dict[str, Any]:
         """Delete a stored file (DELETE /v1/files/{id})."""
         tag = self._require_purpose_if_metered(purpose)
-        url = _file_resource_url(file_id)
+        url = self._endpoint(_file_resource_url(file_id))
         response = self._files_http(
             "DELETE",
             url,
@@ -1659,7 +1929,7 @@ class XaiClient:
         body = {"model": pin, "input": payload_input}
         try:
             response = httpx.post(
-                XAI_EMBEDDINGS_URL,
+                self._endpoint(XAI_EMBEDDINGS_URL),
                 headers=headers,
                 json=body,
                 timeout=_EMBED_TIMEOUT,
@@ -1762,7 +2032,7 @@ class XaiClient:
         body = {"text": payload_text, "model": pin}
         try:
             response = httpx.post(
-                XAI_TOKENIZE_URL,
+                self._endpoint(XAI_TOKENIZE_URL),
                 headers=headers,
                 json=body,
                 timeout=_TOKENIZE_TIMEOUT,
@@ -1919,7 +2189,7 @@ class XaiClient:
             body["service_tier"] = tier
         response = self._responses_http(
             "POST",
-            XAI_RESPONSES_URL,
+            self._endpoint(XAI_RESPONSES_URL),
             tag=tag,
             model=pin,
             parent_id=parent_id,
@@ -1952,7 +2222,7 @@ class XaiClient:
     ) -> dict[str, Any]:
         """Fetch a stored response via xAI REST ``GET /v1/responses/{id}``."""
         tag = self._require_purpose_if_metered(purpose)
-        url = _response_resource_url(response_id)
+        url = self._endpoint(_response_resource_url(response_id))
         pin = (self.model or "").strip() or "responses"
         response = self._responses_http(
             "GET",
@@ -2734,7 +3004,7 @@ class XaiClient:
         )
 
         return self._submit_imagine(
-            XAI_IMAGES_URL,
+            self._endpoint(XAI_IMAGES_URL),
             body,
             image_model=image_model,
             tag=tag,
@@ -2793,7 +3063,7 @@ class XaiClient:
             body["response_format"] = response_format
 
         return self._submit_imagine(
-            XAI_IMAGE_EDITS_URL,
+            self._endpoint(XAI_IMAGE_EDITS_URL),
             body,
             image_model=image_model,
             tag=tag,
@@ -2914,7 +3184,7 @@ class XaiClient:
             body["reference_audios"] = ref_audios
 
         return self._start_and_maybe_wait_video(
-            XAI_VIDEOS_URL,
+            self._endpoint(XAI_VIDEOS_URL),
             body,
             tag=tag,
             parent_id=parent_id,
@@ -2974,7 +3244,7 @@ class XaiClient:
             body["duration"] = int(duration)
 
         return self._start_and_maybe_wait_video(
-            XAI_VIDEO_EXTENSIONS_URL,
+            self._endpoint(XAI_VIDEO_EXTENSIONS_URL),
             body,
             tag=tag,
             parent_id=parent_id,
@@ -3055,7 +3325,7 @@ class XaiClient:
     ) -> RealtimeSession:
         """Open a speech-to-speech WebSocket session (documented realtime protocol).
 
-        Connects to ``wss://api.x.ai/v1/realtime?model=…`` with
+        Connects to the realtime websocket (``?model=…``) with
         ``Authorization: Bearer <api_key>``, then sends ``session.update``.
         ``voice`` is a built-in id (``eve``, ``ara``, …) or an opaque custom
         ``voice_id``; empty/whitespace keeps the default. REST STT/TTS stay on
@@ -3064,7 +3334,7 @@ class XaiClient:
         tag = self._require_purpose_if_metered(purpose)
         key = self._require_realtime_api_key()
         voice_model = self._effective_voice_model(model)
-        url = realtime_session_url(voice_model, base=XAI_REALTIME_URL)
+        url = realtime_session_url(voice_model, base=self._endpoint(XAI_REALTIME_URL))
         headers = {"Authorization": f"Bearer {key}"}
 
         session_body = _realtime_session_body(
@@ -3163,7 +3433,7 @@ class XaiClient:
         body: dict[str, Any] = {"expires_after": {"seconds": seconds}}
         try:
             response = httpx.post(
-                XAI_REALTIME_CLIENT_SECRETS_URL,
+                self._endpoint(XAI_REALTIME_CLIENT_SECRETS_URL),
                 headers=headers,
                 json=body,
                 timeout=_REALTIME_CLIENT_SECRETS_TIMEOUT,
@@ -3243,7 +3513,7 @@ class XaiClient:
     ) -> SttSession:
         """Open a streaming speech-to-text WebSocket (not speech-to-speech).
 
-        Connects to ``wss://api.x.ai/v1/stt`` with query knobs and
+        Connects to the streaming STT websocket with query knobs and
         ``Authorization: Bearer <api_key>``, then waits for
         ``transcript.created`` before the caller sends audio. REST file
         transcription stays on :meth:`transcribe`. STS stays on
@@ -3252,7 +3522,7 @@ class XaiClient:
         tag = self._require_purpose_if_metered(purpose)
         key = self._require_stt_api_key()
         url = stt_session_url(
-            base=XAI_STT_WS_URL,
+            base=self._endpoint(XAI_STT_WS_URL),
             sample_rate=sample_rate,
             encoding=encoding,
             interim_results=interim_results,
@@ -3327,14 +3597,14 @@ class XaiClient:
     ) -> TtsSession:
         """Open a streaming text-to-speech WebSocket (not speech-to-speech).
 
-        Connects to ``wss://api.x.ai/v1/tts`` with query knobs and
+        Connects to the streaming TTS websocket with query knobs and
         ``Authorization: Bearer <api_key>``. REST unary synthesis stays on
         :meth:`synthesize_speech`. STS stays on :meth:`open_realtime_session`.
         """
         tag = self._require_purpose_if_metered(purpose)
         key = self._require_tts_api_key()
         url = tts_session_url(
-            base=XAI_TTS_WS_URL,
+            base=self._endpoint(XAI_TTS_WS_URL),
             voice=voice,
             language=language,
             codec=codec,
@@ -3633,7 +3903,7 @@ class XaiClient:
                 time.sleep(sleep_for)
 
     def _get_video_status(self, request_id: str) -> dict[str, Any]:
-        url = XAI_VIDEO_STATUS_URL.format(request_id=request_id)
+        url = self._endpoint(XAI_VIDEO_STATUS_URL.format(request_id=request_id))
         headers = {"Authorization": f"Bearer {self.api_key}"}
         try:
             response = httpx.get(url, headers=headers, timeout=_VIDEO_POLL_TIMEOUT)

@@ -1,6 +1,6 @@
 """xAI streaming speech-to-text WebSocket helpers (unary-transcribe, not STS).
 
-Wraps the documented ``wss://api.x.ai/v1/stt`` protocol. Configuration is URL
+Wraps the documented streaming STT websocket protocol. Configuration is URL
 query parameters (no setup message). Audio is raw binary frames, not base64.
 Tests inject a fake socket by monkeypatching :func:`connect_stt_websocket`.
 """
@@ -17,9 +17,9 @@ from collections.abc import AsyncIterator, Callable, Iterator, Sequence
 from typing import Any, NoReturn
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
-logger = logging.getLogger(__name__)
+from xaikit.base_url import XAI_STT_WS_URL
 
-XAI_STT_WS_URL = "wss://api.x.ai/v1/stt"
+logger = logging.getLogger(__name__)
 DEFAULT_STT_SAMPLE_RATE = 16000
 DEFAULT_STT_ENCODING = "pcm"
 STT_ENCODINGS = frozenset({"pcm", "mulaw", "alaw"})
@@ -73,7 +73,7 @@ def stt_session_url(
     smart_turn_timeout: int | None = None,
     vad_threshold: float | None = None,
 ) -> str:
-    """``wss://api.x.ai/v1/stt?sample_rate=…&encoding=…`` plus optional knobs."""
+    """Streaming STT websocket URL plus ``sample_rate`` and ``encoding`` knobs."""
     enc = (encoding or DEFAULT_STT_ENCODING).strip().lower()
     if enc not in STT_ENCODINGS:
         raise RuntimeError(

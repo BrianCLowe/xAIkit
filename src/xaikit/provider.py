@@ -5,6 +5,7 @@ Live path uses the xAI SDK. Offline tests inject :class:`MockChatProvider`.
 
 from __future__ import annotations
 
+import base64
 import json
 from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass
@@ -209,9 +210,8 @@ def _image_url_and_detail(part: dict[str, Any]) -> tuple[str, str]:
     return url_s, detail_s
 
 
-def _sdk_file_part(part: dict[str, Any]) -> Any:
-    from xai_sdk.chat import file
-
+def _file_fields(part: dict[str, Any]) -> dict[str, Any]:
+    """Fields ``xai_sdk.chat.file`` accepts. Exactly one of id, bytes, or url."""
     file_id = part.get("file_id") or part.get("id")
     data = part.get("data")
     url = part.get("url") or part.get("file_url")
@@ -225,52 +225,109 @@ def _sdk_file_part(part: dict[str, Any]) -> Any:
         filename = filename or nested.get("filename")
         mime_type = mime_type or nested.get("mime_type")
     if file_id:
-        return file(str(file_id).strip())
+        return {"file_id": str(file_id).strip()}
     if data is not None:
         raw = data if isinstance(data, (bytes, bytearray)) else str(data).encode("utf-8")
-        return file(data=bytes(raw), filename=filename, mime_type=mime_type)
+        fields: dict[str, Any] = {"data": bytes(raw)}
+        if filename is not None:
+            fields["filename"] = filename
+        if mime_type is not None:
+            fields["mime_type"] = mime_type
+        return fields
     if url:
-        return file(url=str(url).strip(), filename=filename, mime_type=mime_type)
+        fields = {"url": str(url).strip()}
+        if filename is not None:
+            fields["filename"] = filename
+        if mime_type is not None:
+            fields["mime_type"] = mime_type
+        return fields
     raise ValueError("file part needs file_id, data, or url")
 
 
-def _sdk_content_part(part: Any) -> Any:
-    from xai_sdk.chat import file, image, text
-
+def _normalize_kit_part(part: Any) -> dict[str, Any]:
+    """One kit content part, with the fields the SDK content helpers send."""
     if isinstance(part, str):
-        return part
+        return {"kind": "text", "text": part}
     if not isinstance(part, dict):
-        return str(part)
+        return {"kind": "text", "text": str(part)}
     ptype = str(part.get("type") or "").strip().lower()
     if ptype in {"text", ""} and "text" in part:
-        return part.get("text") or ""
+        return {"kind": "text", "text": part.get("text") or ""}
     if ptype in {"image_url", "image"}:
         url, detail = _image_url_and_detail(part)
         if not url:
             raise ValueError("image part missing url")
-        return image(url, detail=detail)  # type: ignore[arg-type]
+        return {"kind": "image_url", "url": url, "detail": detail}
     if ptype in {"file", "file_id"}:
-        return _sdk_file_part(part)
+        return {"kind": "file", **_file_fields(part)}
     if ptype in {"video_url", "video"}:
         file_id = part.get("file_id")
         url = part.get("url") or part.get("video_url")
         if isinstance(url, dict):
             url = url.get("url")
         if file_id:
-            return file(str(file_id).strip())
+            return {"kind": "video_url", "file_id": str(file_id).strip()}
         if url:
-            return file(
-                url=str(url).strip(),
-                mime_type=part.get("mime_type") or "video/mp4",
-            )
+            return {
+                "kind": "video_url",
+                "url": str(url).strip(),
+                "mime_type": part.get("mime_type") or "video/mp4",
+            }
         raise ValueError("video part missing url or file_id")
     if "text" in part:
-        return part.get("text") or ""
+        return {"kind": "text", "text": part.get("text") or ""}
     if part.get("url") or part.get("image_url"):
         url, detail = _image_url_and_detail(part)
         if url:
-            return image(url, detail=detail)  # type: ignore[arg-type]
-    return text(json.dumps(part))
+            return {"kind": "image_url", "url": url, "detail": detail}
+    return {"kind": "text", "text": json.dumps(part)}
+
+
+def _sdk_file_part(part: dict[str, Any]) -> Any:
+    from xai_sdk.chat import file
+
+    fields = _file_fields(part)
+    if fields.get("file_id"):
+        return file(fields["file_id"])
+    if fields.get("data") is not None:
+        return file(
+            data=fields["data"],
+            filename=fields.get("filename"),
+            mime_type=fields.get("mime_type"),
+        )
+    return file(
+        url=fields["url"],
+        filename=fields.get("filename"),
+        mime_type=fields.get("mime_type"),
+    )
+
+
+def _sdk_content_part(part: Any) -> Any:
+    from xai_sdk.chat import file, image
+
+    norm = _normalize_kit_part(part)
+    kind = norm["kind"]
+    if kind == "text":
+        return norm["text"]
+    if kind == "image_url":
+        return image(norm["url"], detail=norm["detail"])  # type: ignore[arg-type]
+    if kind == "file":
+        if norm.get("file_id"):
+            return file(norm["file_id"])
+        if norm.get("data") is not None:
+            return file(
+                data=norm["data"],
+                filename=norm.get("filename"),
+                mime_type=norm.get("mime_type"),
+            )
+        return file(
+            url=norm["url"],
+            filename=norm.get("filename"),
+            mime_type=norm.get("mime_type"),
+        )
+    if norm.get("file_id"):
+        return file(norm["file_id"])
+    return file(url=norm["url"], mime_type=norm.get("mime_type") or "video/mp4")
 
 
 def _sdk_content_args(content: Any) -> list[Any]:
@@ -424,6 +481,329 @@ def _sdk_chat_kwargs(
     if service_tier is not None:
         kwargs["service_tier"] = service_tier
     return kwargs
+
+
+def _rest_tool_from_sdk(tool: Any) -> dict[str, Any]:
+    """Project an SDK tool proto onto an OpenAI function tool."""
+    fn = getattr(tool, "function", None)
+    name = str(getattr(fn, "name", "") or "")
+    description = str(getattr(fn, "description", "") or "")
+    raw_params = getattr(fn, "parameters", None)
+    if isinstance(raw_params, str) and raw_params.strip():
+        try:
+            parameters = json.loads(raw_params)
+        except json.JSONDecodeError:
+            parameters = {"type": "object", "properties": {}}
+    elif isinstance(raw_params, dict):
+        parameters = raw_params
+    else:
+        parameters = {"type": "object", "properties": {}}
+    if not isinstance(parameters, dict):
+        parameters = {"type": "object", "properties": {}}
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": parameters,
+        },
+    }
+
+
+def _rest_tool_choice_from_sdk(choice: Any) -> Any:
+    """Project SDK tool choice onto the REST wire form."""
+    if isinstance(choice, str):
+        return choice
+    name = getattr(choice, "function_name", None)
+    if name:
+        return {"type": "function", "function": {"name": str(name)}}
+    return choice
+
+
+def _rest_response_format_from_sdk(value: Any) -> Any:
+    """Project SDK response_format onto the REST JSON object."""
+    if isinstance(value, str):
+        return {"type": value}
+    if isinstance(value, type) and issubclass(value, BaseModel):
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": value.__name__ or "response",
+                "schema": value.model_json_schema(),
+            },
+        }
+    format_type = getattr(value, "format_type", None)
+    schema_text = getattr(value, "schema", None)
+    if format_type is None or not isinstance(schema_text, str):
+        if isinstance(value, dict):
+            return value
+        return value
+    from xai_sdk.proto import chat_pb2
+
+    if format_type == chat_pb2.FORMAT_TYPE_JSON_OBJECT:
+        return {"type": "json_object"}
+    if format_type == chat_pb2.FORMAT_TYPE_TEXT:
+        return {"type": "text"}
+    if format_type == chat_pb2.FORMAT_TYPE_JSON_SCHEMA:
+        try:
+            schema = json.loads(schema_text) if schema_text else {}
+        except json.JSONDecodeError:
+            schema = {}
+        if not isinstance(schema, dict):
+            schema = {}
+        return {
+            "type": "json_schema",
+            "json_schema": {"name": "response", "schema": schema},
+        }
+    return value
+
+
+def _rest_part_from_norm(norm: dict[str, Any]) -> dict[str, Any]:
+    """JSON part with the same fields the SDK content helper would send."""
+    kind = norm["kind"]
+    if kind == "text":
+        return {"type": "text", "text": norm.get("text") or ""}
+    if kind == "image_url":
+        return {
+            "type": "image_url",
+            "url": norm["url"],
+            "detail": norm.get("detail") or "auto",
+        }
+    if kind == "video_url":
+        out: dict[str, Any] = {"type": "video_url"}
+        if norm.get("file_id"):
+            out["file_id"] = norm["file_id"]
+        if norm.get("url"):
+            out["url"] = norm["url"]
+        if norm.get("mime_type"):
+            out["mime_type"] = norm["mime_type"]
+        return out
+    out = {"type": "file"}
+    if norm.get("file_id"):
+        out["file_id"] = norm["file_id"]
+    if norm.get("url"):
+        out["url"] = norm["url"]
+    if norm.get("data") is not None:
+        out["data"] = base64.b64encode(norm["data"]).decode("ascii")
+    if norm.get("filename"):
+        out["filename"] = norm["filename"]
+    if norm.get("mime_type"):
+        out["mime_type"] = norm["mime_type"]
+    return out
+
+
+def _rest_content_value(content: Any) -> Any:
+    if isinstance(content, str):
+        return content
+    if content is None:
+        return ""
+    items = content if isinstance(content, list) else [content]
+    # SDK uses ``parts or [""]``. An empty list is an empty string, not [].
+    if not items:
+        return ""
+    parts = [_rest_part_from_norm(_normalize_kit_part(item)) for item in items]
+    if parts and all(set(part) == {"type", "text"} for part in parts):
+        return "".join(str(part.get("text") or "") for part in parts)
+    return parts
+
+
+def _rest_tool_call_from_kit(tc: dict[str, Any]) -> dict[str, Any]:
+    fn = tc.get("function") if isinstance(tc.get("function"), dict) else None
+    name = tc.get("name") or (fn.get("name") if fn else "")
+    arguments = tc.get("arguments")
+    if arguments is None and fn is not None:
+        arguments = fn.get("arguments")
+    return {
+        "id": str(tc.get("id") or ""),
+        "type": "function",
+        "function": {
+            "name": str(name or ""),
+            "arguments": _dump_tool_arguments(arguments),
+        },
+    }
+
+
+def _rest_messages_from_kit(
+    messages: list[dict[str, Any]],
+    *,
+    system_prompt: str | None,
+) -> list[dict[str, Any]]:
+    """REST messages. Content uses the same part split as ``_build_sdk_messages``."""
+    out: list[dict[str, Any]] = []
+    if system_prompt:
+        out.append({"role": "system", "content": system_prompt})
+    for message in messages:
+        role = str(message.get("role") or "user").strip().lower()
+        content = message.get("content", "")
+        if role == "tool":
+            tool_msg: dict[str, Any] = {
+                "role": "tool",
+                "content": _tool_result_text(content),
+                "tool_call_id": message.get("tool_call_id") or "",
+            }
+            if message.get("name"):
+                tool_msg["name"] = message["name"]
+            out.append(tool_msg)
+            continue
+        value = _rest_content_value(content)
+        wire_role = role if role in {"system", "user"} else "assistant"
+        wire: dict[str, Any] = {"role": wire_role, "content": value}
+        if wire_role == "assistant":
+            calls = [
+                _rest_tool_call_from_kit(tc)
+                for tc in (message.get("tool_calls") or [])
+                if isinstance(tc, dict)
+            ]
+            if calls:
+                wire["tool_calls"] = calls
+                if value == "":
+                    wire["content"] = None
+        out.append(wire)
+    return out
+
+
+def rest_chat_body(
+    messages: list[dict[str, Any]],
+    *,
+    model: str,
+    temperature: float,
+    max_tokens: int | None,
+    thought_level: str | None,
+    system_prompt: str | None,
+    tools: list[Any] | None,
+    tool_choice: str | dict[str, Any] | None,
+    parallel_tool_calls: bool | None,
+    response_format: Any,
+    service_tier: str | None,
+    stream: bool = False,
+) -> dict[str, Any]:
+    """Build a REST chat body from the same adapters the SDK path uses."""
+    kwargs = _sdk_chat_kwargs(
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        thought_level=thought_level,
+        tools=tools,
+        tool_choice=tool_choice,
+        parallel_tool_calls=parallel_tool_calls,
+        response_format=response_format,
+        service_tier=service_tier,
+    )
+    body: dict[str, Any] = {
+        "model": kwargs["model"],
+        "messages": _rest_messages_from_kit(messages, system_prompt=system_prompt),
+        "temperature": kwargs["temperature"],
+    }
+    if "max_tokens" in kwargs:
+        body["max_tokens"] = kwargs["max_tokens"]
+    if "reasoning_effort" in kwargs:
+        body["reasoning_effort"] = kwargs["reasoning_effort"]
+    if "tools" in kwargs:
+        body["tools"] = [_rest_tool_from_sdk(tool) for tool in kwargs["tools"]]
+    if "tool_choice" in kwargs:
+        body["tool_choice"] = _rest_tool_choice_from_sdk(kwargs["tool_choice"])
+    if "parallel_tool_calls" in kwargs:
+        body["parallel_tool_calls"] = kwargs["parallel_tool_calls"]
+    if "response_format" in kwargs:
+        body["response_format"] = _rest_response_format_from_sdk(kwargs["response_format"])
+    if "service_tier" in kwargs:
+        body["service_tier"] = kwargs["service_tier"]
+    if stream:
+        body["stream"] = True
+    return body
+
+
+def _merge_rest_tool_deltas(acc: list[dict[str, Any]], deltas: Any) -> None:
+    if not isinstance(deltas, list):
+        return
+    for item in deltas:
+        if not isinstance(item, dict):
+            continue
+        try:
+            index = int(item.get("index") or 0)
+        except (TypeError, ValueError):
+            index = 0
+        if index < 0:
+            index = 0
+        while len(acc) <= index:
+            acc.append({"id": "", "name": "", "arguments": ""})
+        slot = acc[index]
+        if item.get("id"):
+            slot["id"] = str(item["id"])
+        fn = item.get("function") if isinstance(item.get("function"), dict) else {}
+        if item.get("name"):
+            slot["name"] = str(item["name"])
+        if fn.get("name"):
+            slot["name"] = str(fn["name"])
+        args = fn.get("arguments")
+        if args is None:
+            args = item.get("arguments")
+        if isinstance(args, str) and args:
+            slot["arguments"] = str(slot.get("arguments") or "") + args
+        elif isinstance(args, (dict, list)):
+            slot["arguments"] = args
+
+
+class RestSseCursor:
+    """Turn OpenAI-style SSE lines into provider stream chunks."""
+
+    def __init__(self) -> None:
+        self.accumulated = ""
+        self.tools: list[dict[str, Any]] = []
+        self.done = False
+
+    def push(self, line: str | bytes) -> ProviderStreamChunk | None:
+        if self.done:
+            return None
+        if isinstance(line, bytes):
+            text = line.decode("utf-8", errors="replace")
+        else:
+            text = str(line)
+        text = text.strip()
+        if not text or text.startswith(":"):
+            return None
+        if not text.lower().startswith("data:"):
+            return None
+        data = text.split(":", 1)[1].strip()
+        if data == "[DONE]":
+            self.done = True
+            return None
+        try:
+            payload = json.loads(data)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("Chat stream returned non-JSON data") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError("Chat stream returned unexpected payload")
+        error = payload.get("error")
+        if error:
+            message = error.get("message") if isinstance(error, dict) else str(error)
+            raise RuntimeError(f"xAI chat failed: {message}")
+        choices = payload.get("choices")
+        choice = choices[0] if isinstance(choices, list) and choices else {}
+        if not isinstance(choice, dict):
+            choice = {}
+        delta = choice.get("delta") if isinstance(choice.get("delta"), dict) else {}
+        content = delta.get("content")
+        if not isinstance(content, str):
+            content = "" if content is None else str(content)
+        self.accumulated += content
+        reasoning = delta.get("reasoning_content")
+        reasoning_s = reasoning if isinstance(reasoning, str) and reasoning else None
+        _merge_rest_tool_deltas(self.tools, delta.get("tool_calls"))
+        usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else None
+        finish = choice.get("finish_reason")
+        if not choices and usage is None and not delta:
+            return None
+        return ProviderStreamChunk(
+            delta=content,
+            accumulated=self.accumulated,
+            usage=usage,
+            finish_reason=str(finish) if finish else None,
+            reasoning_delta=reasoning_s,
+            raw=payload,
+            tool_call_delta=_normalize_tool_calls(delta.get("tool_calls")),
+            tool_calls=_normalize_tool_calls(self.tools) if self.tools else None,
+        )
 
 
 def _sdk_cost_ticks(usage_obj: Any) -> int | None:

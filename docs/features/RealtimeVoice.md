@@ -17,6 +17,8 @@ Library-only **realtime voice** (speech-to-speech) on `XaiClient`: documented xA
 
 Upstream: `wss://api.x.ai/v1/realtime?model=…`. Default model `grok-voice-latest` (alias for `grok-voice-think-fast-2.0`). `xai_sdk` has no voice/realtime module — the kit wraps the public WS protocol (same spirit as video wrapping REST via `httpx`). Ephemeral tokens: `POST https://api.x.ai/v1/realtime/client_secrets`.
 
+Custom `base_url` and `XAI_BASE_URL` for the realtime socket and the client-secret REST call are specified on [ClientChat](ClientChat.md) (XK-AC-URL-1, XK-AC-URL-2).
+
 ## Architecture / Contract
 
 - **Owns**: session open/close, inbound/outbound audio, optional text, usage `modality="realtime"`; server-side mint helper `create_realtime_client_secret` (wraps documented `POST /v1/realtime/client_secrets`)

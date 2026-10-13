@@ -15,6 +15,8 @@
 
 REST modalities on `XaiClient` via `httpx` (not the chat provider): speech-to-text, text-to-speech, Imagine image generation + edit, and a built-in TTS voice roster. Streaming STT (unary-transcribe over WebSocket) and streaming TTS-only (bidirectional TTS over WebSocket) live on this same stem — **not** speech-to-speech.
 
+Custom `base_url` and `XAI_BASE_URL` for these REST and websocket URLs are specified on [ClientChat](ClientChat.md) (XK-AC-URL-1, XK-AC-URL-2).
+
 ## Architecture / Contract
 
 - **Owns**: request shape, auth header, empty-input guards, HTTP/WS error mapping, usage modality tags; streaming STT (non-STS) on `wss://api.x.ai/v1/stt`; streaming TTS (non-STS) on `wss://api.x.ai/v1/tts`; built-in TTS voice roster (`GET /v1/tts/voices`)

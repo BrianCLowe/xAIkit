@@ -1,6 +1,6 @@
 """xAI streaming text-to-speech WebSocket helpers (not STS).
 
-Wraps the documented ``wss://api.x.ai/v1/tts`` protocol. Configuration is URL
+Wraps the documented streaming TTS websocket protocol. Configuration is URL
 query parameters. Client frames are JSON ``text.delta`` / ``text.done`` /
 ``text.clear``; server audio is base64 ``audio.delta``. Tests inject a fake
 socket by monkeypatching :func:`connect_tts_websocket`.
@@ -18,9 +18,9 @@ from collections.abc import AsyncIterator, Callable, Iterator, Mapping
 from typing import Any, NoReturn
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
-logger = logging.getLogger(__name__)
+from xaikit.base_url import XAI_TTS_WS_URL
 
-XAI_TTS_WS_URL = "wss://api.x.ai/v1/tts"
+logger = logging.getLogger(__name__)
 DEFAULT_TTS_WS_VOICE = "eve"
 DEFAULT_TTS_WS_LANGUAGE = "en"
 DEFAULT_TTS_CODEC = "mp3"
@@ -286,7 +286,7 @@ def tts_session_url(
     text_normalization: bool | None = None,
     with_timestamps: bool | None = None,
 ) -> str:
-    """``wss://api.x.ai/v1/tts?language=…&voice=…&codec=…`` plus optional knobs."""
+    """Streaming TTS websocket URL plus language, voice, and codec knobs."""
     codec_clean = normalize_tts_codec(codec, default=DEFAULT_TTS_CODEC)
     if codec_clean is None:
         codec_clean = DEFAULT_TTS_CODEC
