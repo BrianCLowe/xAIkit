@@ -7,6 +7,7 @@ The assertions are specific enough to kill mutants M1..M14.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import socket
@@ -1098,6 +1099,75 @@ def test_batch_and_collections_stay_on_sdk_default_hosts(monkeypatch: pytest.Mon
         assert "api_host" not in proxy._client.kwargs
 
     asyncio.run(_go())
+
+
+def test_rest_content_parts_round_trip(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each kit content part reaches REST with the same fields the SDK path sends."""
+    raw = b"\x00\x01inline-file"
+    capture = _Capture()
+    capture.install(monkeypatch)
+    client = make_client(base_url="http://127.0.0.1:9/proxy/v1")
+    _quiet(
+        client.chat,
+        [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "look"},
+                    {"type": "image_url", "url": "https://example.com/a.png", "detail": "high"},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": "https://example.com/b.png", "detail": "low"},
+                    },
+                    {"type": "image", "url": "https://example.com/c.png"},
+                    {"type": "file", "file_id": "file-1"},
+                    {
+                        "type": "file",
+                        "data": raw,
+                        "filename": "note.txt",
+                        "mime_type": "text/plain",
+                    },
+                    {
+                        "type": "file",
+                        "url": "https://example.com/d.pdf",
+                        "filename": "d.pdf",
+                        "mime_type": "application/pdf",
+                    },
+                    {"type": "file_id", "id": "file-2"},
+                    {"type": "video_url", "url": "https://example.com/v.mp4"},
+                    {"type": "video", "file_id": "vid-1"},
+                    "tail",
+                ],
+            }
+        ],
+    )
+    body = capture.calls[-1][3]
+    parts = body["messages"][0]["content"]
+    assert parts == [
+        {"type": "text", "text": "look"},
+        {"type": "image_url", "url": "https://example.com/a.png", "detail": "high"},
+        {"type": "image_url", "url": "https://example.com/b.png", "detail": "low"},
+        {"type": "image_url", "url": "https://example.com/c.png", "detail": "auto"},
+        {"type": "file", "file_id": "file-1"},
+        {
+            "type": "file",
+            "data": base64.b64encode(raw).decode("ascii"),
+            "filename": "note.txt",
+            "mime_type": "text/plain",
+        },
+        {
+            "type": "file",
+            "url": "https://example.com/d.pdf",
+            "filename": "d.pdf",
+            "mime_type": "application/pdf",
+        },
+        {"type": "file", "file_id": "file-2"},
+        {"type": "video_url", "url": "https://example.com/v.mp4", "mime_type": "video/mp4"},
+        {"type": "video_url", "file_id": "vid-1"},
+        {"type": "text", "text": "tail"},
+    ]
+    encoded = next(part["data"] for part in parts if part.get("type") == "file" and "data" in part)
+    assert base64.b64decode(encoded) == raw
 
 
 def test_m14_clients_do_not_share_a_resolved_base(monkeypatch: pytest.MonkeyPatch) -> None:
