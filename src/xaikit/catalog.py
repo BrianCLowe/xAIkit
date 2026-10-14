@@ -98,6 +98,9 @@ class CatalogSnapshot(BaseModel):
 @dataclass
 class _CatalogState:
     snapshot: CatalogSnapshot | None = None
+    # Deadline fallbacks stay on the timeout that hit them. A live snapshot
+    # for another timeout is left in place.
+    by_timeout: dict[float, CatalogSnapshot] = field(default_factory=dict)
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
@@ -111,6 +114,7 @@ def clear_catalog_cache() -> None:
     """Drop in-process catalog cache."""
     with _state.lock:
         _state.snapshot = None
+        _state.by_timeout.clear()
 
 
 def find_cached_model(model_id: str) -> ModelInfo | None:
@@ -1157,6 +1161,7 @@ def fetch_models_from_sdk(api_key: str, *, timeout: float | None = None) -> list
     the others. If **every** list call fails, raise so ``list_models`` can
     fixture-fallback instead of caching an empty SDK snapshot. When any of
     those failures is a deadline, that deadline is the error raised.
+    ``timeout=None`` uses ``XAI_SDK_TIMEOUT_SECONDS`` when set, otherwise 180.
     """
     from xai_sdk import Client
 
@@ -1264,11 +1269,13 @@ def list_models(
     A fresh bootstrap or persist snapshot does not count when *api_key* is
     set — that call tries the SDK. SDK failure with fallback allowed caches
     the bootstrap pair as ``sdk-error`` for the TTL so a dead list is not
-    retried on every call. An invalid ``sdk_timeout`` raises ``ValueError``
-    before that fetch and does not write the cache. A deadline
+    retried on every call. An invalid ``sdk_timeout``, or an invalid
+    ``XAI_SDK_TIMEOUT_SECONDS`` when ``sdk_timeout`` is omitted, raises
+    ``ValueError`` before that fetch and does not write the cache. A deadline
     (``XaiTimeoutError`` or gRPC ``DEADLINE_EXCEEDED``) uses the same
     persist, fixture, and bootstrap fallbacks, cached for
-    ``CATALOG_TIMEOUT_RETRY_SECONDS`` (60) instead of the full TTL.
+    ``CATALOG_TIMEOUT_RETRY_SECONDS`` (60) on that timeout only, instead of
+    the full TTL. A different timeout does not receive that fallback.
 
     After a successful SDK fetch, if ``persist_path`` is set, write
     ``{models: [...]}`` there (best-effort: disk errors are logged and the
@@ -1277,13 +1284,12 @@ def list_models(
     """
     from xaikit.errors import timeout_for_catalog
 
-    if sdk_timeout is not None:
-        timeout_for_catalog(sdk_timeout)
+    resolved_timeout = timeout_for_catalog(sdk_timeout)
 
     key = (api_key or "").strip() or None
     rest_base = _rest_catalog_base(base_url)
     with _state.lock:
-        snap = _state.snapshot
+        snap = _state.by_timeout.get(resolved_timeout)
         if (
             not force_refresh
             and snap is not None
@@ -1311,11 +1317,13 @@ def list_models(
                     models = fetch_models_via_rest(key, rest_base)
                     source = "rest"
                 else:
-                    # None means the fetch applies its own 180s default.
+                    # Omit timeout when the caller did not pass one so a
+                    # replacement fetch that only accepts the key still works.
+                    # fetch_models_from_sdk applies the same env default.
                     if sdk_timeout is None:
                         models = fetch_models_from_sdk(key)
                     else:
-                        models = fetch_models_from_sdk(key, timeout=sdk_timeout)
+                        models = fetch_models_from_sdk(key, timeout=resolved_timeout)
                     source = "sdk"
             except Exception as exc:
                 sdk_error = exc
@@ -1366,7 +1374,17 @@ def list_models(
         fresh_for=fresh_for,
     )
     with _state.lock:
-        _state.snapshot = snap
+        _state.by_timeout[resolved_timeout] = snap
+        previous = _state.snapshot
+        # Keep a live snapshot when this deadline belongs to another timeout.
+        # The same timeout still replaces its own slot, including catalog_source.
+        other_holds_previous = previous is not None and any(
+            held is previous
+            for key, held in _state.by_timeout.items()
+            if key != resolved_timeout
+        )
+        if not other_holds_previous:
+            _state.snapshot = snap
     return list(models)
 
 

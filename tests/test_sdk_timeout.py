@@ -406,7 +406,7 @@ def test_to1_5_catalog_default_and_explicit(monkeypatch: pytest.MonkeyPatch) -> 
     _install_capture(monkeypatch)
     monkeypatch.setenv(SDK_TIMEOUT_ENV, "30")
     fetch_models_from_sdk(FAKE_KEY)
-    _assert_timeout(_CaptureClient.built[-1], 180.0)
+    _assert_timeout(_CaptureClient.built[-1], 30.0)
     fetch_models_from_sdk(FAKE_KEY, timeout=2.5)
     _assert_timeout(_CaptureClient.built[-1], 2.5)
 
