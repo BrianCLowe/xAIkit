@@ -158,12 +158,12 @@
         "1080p": 0.25
       }
     },
-    "grok-voice-latest": {
+    "grok-voice-2.0": {
       "input_per_million": 0.0,
       "output_per_million": 0.0,
       "per_minute_usd": 0.08
     },
-    "grok-voice-think-fast-2.0": {
+    "grok-voice-3.0": {
       "input_per_million": 0.0,
       "output_per_million": 0.0,
       "per_minute_usd": 0.08
