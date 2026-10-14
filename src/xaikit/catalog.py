@@ -1108,6 +1108,13 @@ def _bootstrap_offline_models() -> list[ModelInfo]:
     ]
 
 
+def _is_uncached_catalog_timeout(exc: BaseException) -> bool:
+    """A deadline is not a catalog outage, so ``list_models`` must not store it."""
+    from xaikit.errors import XaiTimeoutError, is_grpc_deadline_exceeded
+
+    return isinstance(exc, XaiTimeoutError) or is_grpc_deadline_exceeded(exc)
+
+
 def _rest_catalog_base(base_url: str | None) -> str:
     """Empty string keeps today's gRPC catalog. A non-default base uses REST."""
     if base_url is None or not str(base_url).strip():
@@ -1138,13 +1145,21 @@ def list_models(
     A fresh bootstrap or persist snapshot does not count when *api_key* is
     set — that call tries the SDK. SDK failure with fallback allowed caches
     the bootstrap pair as ``sdk-error`` for the TTL so a dead list is not
-    retried on every call.
+    retried on every call. An invalid ``sdk_timeout`` raises ``ValueError``
+    before that fetch and does not write the cache. A deadline
+    (``XaiTimeoutError`` or gRPC ``DEADLINE_EXCEEDED``) is not stored as
+    ``sdk-error``; the next call fetches again.
 
     After a successful SDK fetch, if ``persist_path`` is set, write
     ``{models: [...]}`` there (best-effort: disk errors are logged and the
     live list is still returned). No default path — omit to skip disk.
     ``clear_catalog_cache`` drops memory only; it does not delete the file.
     """
+    from xaikit.errors import timeout_for_catalog
+
+    if sdk_timeout is not None:
+        timeout_for_catalog(sdk_timeout)
+
     key = (api_key or "").strip() or None
     rest_base = _rest_catalog_base(base_url)
     with _state.lock:
@@ -1183,6 +1198,8 @@ def list_models(
                         models = fetch_models_from_sdk(key, timeout=sdk_timeout)
                     source = "sdk"
             except Exception as exc:
+                if _is_uncached_catalog_timeout(exc):
+                    raise
                 sdk_error = exc
                 logger.warning(
                     "Model catalog SDK fetch failed (%s); falling back if allowed",

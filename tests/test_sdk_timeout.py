@@ -25,7 +25,14 @@ from xaikit import (
     XaiTimeoutError,
     default_retry_policy,
 )
-from xaikit.catalog import clear_catalog_cache, fetch_models_from_sdk, inject_catalog
+from xaikit.catalog import (
+    cached_catalog,
+    catalog_source,
+    clear_catalog_cache,
+    fetch_models_from_sdk,
+    inject_catalog,
+    list_models,
+)
 from xaikit.client import (
     _DEFERRED_CHAT_TIMEOUT,
     _EMBED_TIMEOUT,
@@ -811,6 +818,58 @@ def test_to3_7_non_timeout_errors_stay_runtime(
         client.chat([{"role": "user", "content": "hi"}])
     assert not isinstance(caught.value, XaiTimeoutError)
     assert status_name.lower() not in type(caught.value).__name__.lower()
+
+
+@pytest.mark.parametrize("bad", [0, 0.0, -1])
+def test_list_models_invalid_sdk_timeout_is_not_cached(
+    monkeypatch: pytest.MonkeyPatch, bad: float
+) -> None:
+    calls = {"n": 0}
+
+    def _fetch(api_key: str, *, timeout: float | None = None) -> list[ModelInfo]:
+        del api_key, timeout
+        calls["n"] += 1
+        raise RuntimeError("list down")
+
+    monkeypatch.setattr("xaikit.catalog.fetch_models_from_sdk", _fetch)
+    with pytest.raises(ValueError):
+        list_models(api_key=FAKE_KEY, sdk_timeout=bad, force_refresh=True)
+    assert calls["n"] == 0
+    assert catalog_source() is None
+    assert cached_catalog() is None
+
+    rows = list_models(api_key=FAKE_KEY, force_refresh=True)
+    assert calls["n"] == 1
+    assert catalog_source() == "sdk-error"
+    assert rows
+
+
+@pytest.mark.parametrize("kind", ["xai", "deadline"])
+def test_list_models_timeout_failure_is_not_cached(
+    monkeypatch: pytest.MonkeyPatch, kind: str
+) -> None:
+    calls = {"n": 0}
+    if kind == "xai":
+        failure: BaseException = XaiTimeoutError("xAI SDK call timed out")
+    else:
+        failure = _FakeRpcError("DEADLINE_EXCEEDED", "Deadline Exceeded")
+
+    def _fetch(api_key: str, *, timeout: float | None = None) -> list[ModelInfo]:
+        del api_key, timeout
+        calls["n"] += 1
+        raise failure
+
+    monkeypatch.setattr("xaikit.catalog.fetch_models_from_sdk", _fetch)
+    with pytest.raises(type(failure)):
+        list_models(api_key=FAKE_KEY, sdk_timeout=1.0, force_refresh=True)
+    assert calls["n"] == 1
+    assert catalog_source() is None
+    assert cached_catalog() is None
+
+    with pytest.raises(type(failure)):
+        list_models(api_key=FAKE_KEY, sdk_timeout=1.0)
+    assert calls["n"] == 2
+    assert catalog_source() is None
 
 
 def test_long_stream_doc_line() -> None:
