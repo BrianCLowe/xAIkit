@@ -4,6 +4,10 @@ All notable changes to xaikit-py. Newest entry on top.
 
 ## Unreleased
 
+### Added
+
+- `AsyncXaiClient` fetches a non-default host model list with `httpx.AsyncClient` inside awaited calls, so the event loop is not blocked. The fetch timeout is the resolved SDK timeout capped at 30 seconds. Sync `XaiClient` is unchanged. A failed list still warns once and uses the static catalog. (XK-AHC-1, XK-AHC-2, XK-AHC-3)
+
 ### Fixed
 
 - Non-default host model lists keep `created` (Unix seconds) and `owned_by` from `GET /v1/models`. Image best and economy on that host use those created times. A missing or non-integer `created` stays unset, payload prices are ignored, and the default host is unchanged. (XK-HCC-1, XK-HCC-2, XK-HCC-3)

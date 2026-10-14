@@ -1044,12 +1044,44 @@ def log_host_catalog_fallback(host: str) -> None:
     )
 
 
+def _host_catalog_rows(response: Any) -> list[tuple[ModelInfo, str]]:
+    """Rows from a finished ``GET /models`` response.
+
+    Shared by the sync and async fetches so both keep ``created`` and
+    ``owned_by`` the same way. Raises on HTTP errors, non-JSON bodies, and a
+    200 with an empty ``data`` list.
+    """
+    if response.status_code >= 400:
+        detail = response.text[:500] if response.text else response.reason_phrase
+        raise RuntimeError(f"Model catalog failed ({response.status_code}): {detail}")
+    try:
+        payload = response.json()
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Model catalog returned non-JSON response") from exc
+    return [
+        describe_listed_id(str(row["id"]), row=row)
+        for row in _model_ids_from_payload(payload)
+    ]
+
+
+def regional_host_catalog_timeout(sdk_timeout: float) -> float:
+    """Async host-list timeout: resolved SDK timeout, capped at 30 seconds.
+
+    ``sdk_timeout`` is the client's resolved value (constructor, then
+    ``XAI_SDK_TIMEOUT_SECONDS``, then 180). The cap is
+    ``HOST_MODELS_TIMEOUT_SECONDS``. Sync ``fetch_host_catalog`` does not use
+    this helper.
+    """
+    return min(float(sdk_timeout), float(HOST_MODELS_TIMEOUT_SECONDS))
+
+
 def fetch_host_catalog(api_key: str, base_url: str) -> list[tuple[ModelInfo, str]]:
     """GET ``<base>/models`` and classify each id from the static catalog.
 
     Each row keeps ``created`` and ``owned_by``. Role tags and payload prices
     are ignored. Raises on HTTP errors, connection failures, timeouts,
     non-JSON bodies, and a 200 with an empty ``data`` list. Does not cache.
+    The timeout is ``HOST_MODELS_TIMEOUT_SECONDS`` only.
     """
     import httpx
 
@@ -1065,17 +1097,34 @@ def fetch_host_catalog(api_key: str, base_url: str) -> list[tuple[ModelInfo, str
         )
     except httpx.HTTPError as exc:
         raise RuntimeError(f"Model catalog request failed: {exc}") from exc
-    if response.status_code >= 400:
-        detail = response.text[:500] if response.text else response.reason_phrase
-        raise RuntimeError(f"Model catalog failed ({response.status_code}): {detail}")
+    return _host_catalog_rows(response)
+
+
+async def fetch_host_catalog_async(
+    api_key: str,
+    base_url: str,
+    *,
+    timeout: float,
+) -> list[tuple[ModelInfo, str]]:
+    """Async GET ``<base>/models`` via ``httpx.AsyncClient``.
+
+    Same rows and errors as :func:`fetch_host_catalog`. ``timeout`` is the
+    caller's limit in seconds. ``AsyncXaiClient`` passes
+    :func:`regional_host_catalog_timeout`. Does not cache. Does not block the
+    event loop.
+    """
+    import httpx
+
+    from xaikit.base_url import join_url
+
+    url = join_url(base_url, "models")
+    headers = {"Authorization": f"Bearer {api_key}"}
     try:
-        payload = response.json()
-    except json.JSONDecodeError as exc:
-        raise RuntimeError("Model catalog returned non-JSON response") from exc
-    return [
-        describe_listed_id(str(row["id"]), row=row)
-        for row in _model_ids_from_payload(payload)
-    ]
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.get(url, headers=headers)
+    except httpx.HTTPError as exc:
+        raise RuntimeError(f"Model catalog request failed: {exc}") from exc
+    return _host_catalog_rows(response)
 
 
 def fetch_models_via_rest(api_key: str, base_url: str) -> list[ModelInfo]:
