@@ -1,6 +1,6 @@
 # MediaRest
 
-**Last Updated**: 2026-10-12  
+**Last Updated**: 2026-10-14  
 **Related Understanding**: —  
 
 ---
@@ -19,8 +19,8 @@ Custom `base_url` and `XAI_BASE_URL` for these REST and websocket URLs are speci
 
 ## Architecture / Contract
 
-- **Owns**: request shape, auth header, empty-input guards, HTTP/WS error mapping, usage modality tags; streaming STT (non-STS) on `wss://api.x.ai/v1/stt`; streaming TTS (non-STS) on `wss://api.x.ai/v1/tts`; built-in TTS voice roster (`GET /v1/tts/voices`)
-- **Does not own**: realtime speech-to-speech (see [RealtimeVoice](RealtimeVoice.md)), video (see [VideoGeneration](VideoGeneration.md)), Files upload (see [ApiCoverage](ApiCoverage.md)), team-scoped custom-voice clone (`POST /v1/custom-voices` / `GET /v1/custom-voices`)
+- **Owns**: request shape, auth header, empty-input guards, HTTP/WS error mapping, usage modality tags; streaming STT (non-STS) on `wss://api.x.ai/v1/stt`; streaming TTS (non-STS) on `wss://api.x.ai/v1/tts`; built-in TTS voice roster (`GET /v1/tts/voices`); team custom voices (`/v1/custom-voices`)
+- **Does not own**: realtime speech-to-speech (see [RealtimeVoice](RealtimeVoice.md)), video (see [VideoGeneration](VideoGeneration.md)), Files upload (see [ApiCoverage](ApiCoverage.md))
 - **Public API**:
   - `transcribe(file_bytes, filename, content_type, language, purpose, …)` → `str`
   - `open_stt_session(...)` → `SttSession` (context manager)
@@ -28,13 +28,20 @@ Custom `base_url` and `XAI_BASE_URL` for these REST and websocket URLs are speci
   - `synthesize_speech(text, voice_id, language, codec, sample_rate, bit_rate, output_format, speed, optimize_streaming_latency, text_normalization, with_timestamps, replace, purpose, …)` → `(bytes, content_type)`
   - `list_tts_voices(*, purpose, parent_id, labels)` → list of dicts (upstream `voices` array)
   - `get_tts_voice(voice_id, *, purpose, …)` → one voice dict
+  - `create_custom_voice(file, *, name, description, gender, accent, age, language, use_case, tone, filename, content_type, purpose, …)` → `CustomVoice`
+  - `list_custom_voices(*, limit, pagination_token, purpose, …)` → `CustomVoicePage`
+  - `iter_custom_voices(*, limit, pagination_token, purpose, …)` → iterator of `CustomVoice`
+  - `get_custom_voice(voice_id, *, purpose, …)` → `CustomVoice`
+  - `update_custom_voice(voice_id, *, name, description, gender, accent, age, language, use_case, tone, purpose, …)` → `CustomVoice`
+  - `delete_custom_voice(voice_id, *, purpose, …)` → `True`
+  - `download_custom_voice_audio(voice_id, *, purpose, …)` → `(bytes, content_type)`
   - `open_tts_session(...)` → `TtsSession` (context manager)
   - `TtsSession.send_text(delta)`, `text_done()`, `text_clear()`, `update_session(replace)`, `recv()`, `events()`, `close()`
   - `decode_tts_audio(event)` — base64 from `audio.delta`
   - `generate_image(prompt, model, aspect_ratio, n, resolution, quality, response_format, purpose, ...)` → `{url, b64_json, model, file_id, images}` (first item on the top-level fields; `images` is every `data` item, in order)
   - `edit_image(prompt, image url|file_id | images sequence, ...)` → same shape (`file_id` when upstream returns it)
 
-Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://api.x.ai/v1/stt`), `XAI_TTS_URL` (`https://api.x.ai/v1/tts`), `XAI_TTS_VOICES_URL` (`https://api.x.ai/v1/tts/voices`), `XAI_TTS_WS_URL` (`wss://api.x.ai/v1/tts`), `XAI_IMAGES_URL`, `XAI_IMAGE_EDITS_URL`, `DEFAULT_TTS_VOICE_ID` (`eve`), `DEFAULT_IMAGE_MODEL` (`grok-imagine-image-quality`). Tests monkeypatch `connect_stt_websocket` / `connect_tts_websocket` (no live socket). Roster tests mock `httpx.get`.
+Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://api.x.ai/v1/stt`), `XAI_TTS_URL` (`https://api.x.ai/v1/tts`), `XAI_TTS_VOICES_URL` (`https://api.x.ai/v1/tts/voices`), `XAI_TTS_WS_URL` (`wss://api.x.ai/v1/tts`), `XAI_CUSTOM_VOICES_URL` (`https://api.x.ai/v1/custom-voices`), `XAI_IMAGES_URL`, `XAI_IMAGE_EDITS_URL`, `DEFAULT_TTS_VOICE_ID` (`eve`), `DEFAULT_IMAGE_MODEL` (`grok-imagine-image-quality`). Tests monkeypatch `connect_stt_websocket` / `connect_tts_websocket` (no live socket). Roster tests mock `httpx.get`. Custom voice tests mock `httpx` transports (no live clone).
 
 ## Behavior (stable)
 
@@ -42,7 +49,8 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 - Streaming STT: connect `wss://api.x.ai/v1/stt` with query knobs (no setup message); wait for `transcript.created` before sending; client audio is **raw binary** frames (not base64); client JSON `{"type": "finalize"}` and `{"type": "audio.done"}`; server events `transcript.created` / `transcript.partial` / `transcript.done` / `error` (error → `RuntimeError`); empty audio rejected before send
 - Query knobs on STT open: `sample_rate` (default 16000), `encoding` (`pcm` \| `mulaw` \| `alaw`), `interim_results`, `endpointing`, `language`, `diarize`, `filler_words`, `multichannel`, `channels`, `keyterm` (repeatable), `smart_turn`, `smart_turn_timeout`, `vad_threshold`
 - TTS REST: JSON `{text, voice_id, language}` plus optional `output_format` `{codec, sample_rate, bit_rate}`, `speed` (0.7–1.5), `optimize_streaming_latency` (`0` / `1` / `2`), `text_normalization`, `with_timestamps`, `replace`. Flat `codec=` / `sample_rate=` / `bit_rate=` match streaming names and nest as `output_format` on the wire (`output_format=` also accepted; flat wins). Unset optional knobs omitted (do not send MP3 24 kHz / 128 kbps defaults). Accept audio; `with_timestamps=True` Accept includes `application/json` and returns the JSON envelope as bytes. Strips surrounding whitespace; empty and **>15,000** chars rejected before HTTP. Invalid `codec` / `sample_rate` / `bit_rate` / `speed` / latency rejected before HTTP (same `TTS_CODECS` / `TTS_SAMPLE_RATES` as streaming; `ulaw` stays the `mulaw` alias). Cite: https://docs.x.ai/developers/model-capabilities/audio/text-to-speech
-- TTS voice roster: `GET /v1/tts/voices` with Bearer `api_key`; returns the `voices` array as JSON dicts (`voice_id` / `name` / `language`) as-is. Omitting `voices`, a non-list, or an empty list → `RuntimeError`. Optional `GET /v1/tts/voices/{voice_id}` returns one object; empty/blank `voice_id` is rejected before HTTP. Missing key fails before HTTP. Does not wrap `GET`/`POST /v1/custom-voices` — custom ids already pass through on TTS/realtime `voice=` / `voice_id=`
+- TTS voice roster: `GET /v1/tts/voices` with Bearer `api_key`; returns the `voices` array as JSON dicts (`voice_id` / `name` / `language`) as-is. Omitting `voices`, a non-list, or an empty list → `RuntimeError`. Optional `GET /v1/tts/voices/{voice_id}` returns one object; empty/blank `voice_id` is rejected before HTTP. Missing key fails before HTTP. Team custom voices are the methods below. A custom `voice_id` still passes through unchanged on TTS `voice_id`, the TTS websocket `voice=` query, and realtime `session.voice`
+- Custom voices (XK-CV-AC-1, XK-CV-AC-2, XK-CV-AC-3, XK-CV-AC-4, XK-CV-AC-5, XK-CV-AC-6, XK-CV-AC-7, XK-CV-AC-8, XK-CV-AC-9): sync and async `create_custom_voice`, `list_custom_voices`, `iter_custom_voices`, `get_custom_voice`, `update_custom_voice`, `delete_custom_voice`, `download_custom_voice_audio`. Create is multipart `POST /v1/custom-voices` (file required and non-empty; path, bytes, or binary file object; filename defaults to the path name or `reference.wav`; content type guessed from the filename, with `.wav` as `audio/wav` and `.mp3` as `audio/mpeg`, else `application/octet-stream`). Unset create fields are omitted. List omits `limit` when the caller omits it; `limit` must be an int from 1 to 1000; an empty `voices` list is a valid page. `iter_custom_voices` follows `pagination_token` until it is null. `voice_id` must match `^[a-z0-9]{8}$` before HTTP. PATCH omits fields the caller did not pass, sends JSON null when the caller passes `None`, and rejects an empty string or a call with no fields before HTTP. Delete returns `True` on any 2xx. Download returns `(bytes, content_type)`; a missing `Content-Type` is `application/octet-stream`. Client checks raise `ValueError` before any HTTP call. HTTP status >= 400 raises `CustomVoiceError` (`XaiKitError` and `RuntimeError`) with `status_code` and a server detail truncated to 500 characters and with the API key removed. 403 is passed through with no region or Enterprise rewrite. The client `RetryPolicy` retries GET, PATCH, and DELETE on 500 and transport errors. 4xx is not retried. POST create is never retried. Timeout is 30 seconds, and 120 seconds for create and download. No regional role check. Usage is modality `tts`, `apply_price_table=False`, and `model` set to `custom_voices.create`, `custom_voices.list`, `custom_voices.get`, `custom_voices.update`, `custom_voices.delete`, or `custom_voices.download`. `purpose`, `parent_id`, and `labels` are forwarded. One record per request, including failures. `iter_custom_voices` records one `custom_voices.list` event per page. Cite: https://docs.x.ai/developers/model-capabilities/audio/custom-voices
 - Streaming TTS: connect `wss://api.x.ai/v1/tts` with query knobs (no setup message); client JSON `{"type": "text.delta", "delta": …}`, `{"type": "text.done"}`, `{"type": "text.clear"}`, optional `{"type": "session.update", "replace": {…}}`; server events `audio.delta` (base64) / `audio.done` / `audio.clear` / `error` (error → `RuntimeError`). Empty text and `text.delta` over 15,000 characters rejected before send. Invalid `codec` / `sample_rate` rejected before connect
 - Query knobs on TTS open: `voice` (query `voice=`, default `eve`), `language` (required upstream; kit default `"en"`), `codec` (default `mp3`; `mp3` \| `wav` \| `pcm` \| `mulaw`/`ulaw` \| `alaw`), `sample_rate` (omit unless set; 8000, 16000, 22050, 24000, 44100, 48000), `bit_rate` (omit unless set; MP3), `speed` (omit unless set), `optimize_streaming_latency` (omit unless set), `text_normalization` / `with_timestamps` (omit unless set)
 - Image generate: JSON `{model, prompt, n}` with `n` clamped 1–4; per-call `model` overrides `XaiClient.image_model`. Optional knobs: `aspect_ratio` (Imagine list incl. `auto` / `19.5:9` / `20:9`), `resolution` (`1k` \| `2k`), `response_format` (`b64_json`), `quality` (`low` \| `medium`, **`grok-imagine-image-2.0` only**). Unknown `aspect_ratio` / `resolution` / `quality` are omitted (do not 400). `quality` is omitted on `grok-imagine-image` / `grok-imagine-image-quality` (default pin) even if the caller passed it. Cite: https://docs.x.ai/developers/model-capabilities/images/generation
@@ -70,6 +78,7 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 | 2026-08-14 | Multi-image edit: one source wires `image`; 2–3 wire `images` | Official `/v1/images/edits` is JSON `image` **or** `images` (max 3, mixable URL / data URI / `file_id`). Keep single-image kwargs backward compatible. Helper: `_imagine_edit_source_fields` reuses `_imagine_edit_image_ref`. Cite: https://docs.x.ai/developers/model-capabilities/images/multi-image-editing |
 | 2026-10-10 | Unusable image generation body records one failed event, then raises | A 2xx non-JSON body on generate or edit is a failed imagine call. The event `error` field is `Imagine returned non-JSON response`, the same text that is raised. 401 still skips the meter. |
 | 2026-10-12 | Image calls return every `data` item; cost follows images returned | XK-AC-IMGN-1 / XK-AC-IMGN-2. First-item fields stay so a one-image call keeps the old shape. Count is images returned, not requested `n`. |
+| 2026-10-14 | Wrap all six `/v1/custom-voices` endpoints on both clients | XK-CV-AC-1 through XK-CV-AC-9. Multipart create, sentinel PATCH (`None` clears, omit leaves the field out), `CustomVoiceError`, checks before HTTP, create never retried, 30s default and 120s for create and download. Response enums tolerate unknown values. A created `voice_id` is passed through unchanged to TTS, the TTS websocket, and realtime. |
 
 ## Dependencies
 
@@ -93,6 +102,15 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 - [x] XK-AC-IMGN-1: sync `generate_image` with n=4 against a response `data` of 4 items returns all 4 urls in order, and the meter records cost equal to 4 times the per-image rate
 - [x] XK-AC-IMGN-2: async `generate_image` does the same for the same mock: 4 urls in order and cost equal to 4 times the per-image rate
 - [x] XK-AC-DOC-2: `README.md` git-install example and `.github/ISSUE_TEMPLATE/config.yml` say 0.2.0, and neither file contains `0.1.3`
+- [x] XK-CV-AC-1: `create_custom_voice` sends one multipart POST with the file and only the fields the caller set
+- [x] XK-CV-AC-2: enum, limit, `voice_id`, empty PATCH string, empty file, and missing file checks raise `ValueError` before HTTP
+- [x] XK-CV-AC-3: `list_custom_voices` and `iter_custom_voices` paginate; an empty page is valid
+- [x] XK-CV-AC-4: get, PATCH (omit vs null), and delete use `/v1/custom-voices/{voice_id}`
+- [x] XK-CV-AC-5: `download_custom_voice_audio` returns the original bytes and content type
+- [x] XK-CV-AC-6: 400, 401, 403, 404, and 500 raise `CustomVoiceError` with the key removed; retry policy applies; create is not retried
+- [x] XK-CV-AC-7: a created `voice_id` passes unchanged to `synthesize_speech`, `open_tts_session`, and `open_realtime_session`
+- [x] XK-CV-AC-8: `AsyncXaiClient` matches the sync methods, usage records, and custom `base_url`
+- [x] XK-CV-AC-9: `XAI_CUSTOM_VOICES_URL`, `CustomVoice`, `CustomVoicePage`, and `CustomVoiceError` are exported; docs and changelog name these ids
 
 ## Visual references
 
@@ -100,6 +118,6 @@ Constants: `XAI_STT_URL` (`https://api.x.ai/v1/stt`), `XAI_STT_WS_URL` (`wss://a
 
 ## Current status
 
-- **Shipped** (library-only): REST STT/TTS (unary knobs + 15k cap) / Imagine (generate knobs + per-SKU `quality` contraction + multi-image edit) + streaming STT/TTS + built-in TTS voice roster
+- **Shipped** (library-only): REST STT/TTS (unary knobs + 15k cap) / Imagine (generate knobs + per-SKU `quality` contraction + multi-image edit) + streaming STT/TTS + built-in TTS voice roster + custom voices (`/v1/custom-voices`)
 - **Queued**: none on this stem (human extras / knobs look-lists closed 2026-08-16)
-- **Last reconciled with code**: 2026-10-12 (image calls return every data item; cost is the per-image rate times images returned)
+- **Last reconciled with code**: 2026-10-14 (custom voices: XK-CV-AC-1 through XK-CV-AC-9)

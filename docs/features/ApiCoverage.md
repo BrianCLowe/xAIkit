@@ -1,6 +1,6 @@
 # ApiCoverage
 
-**Last Updated**: 2026-09-23  
+**Last Updated**: 2026-10-14  
 **Related Understanding**: —  
 
 ---
@@ -33,6 +33,7 @@ Implement order after video was **realtime voice**, then **no order** — both s
 | STT / TTS (REST) | [MediaRest](MediaRest.md) | Yes |
 | Streaming STT (non-STS) | [MediaRest](MediaRest.md) | Yes |
 | Streaming TTS (non-STS) | [MediaRest](MediaRest.md) | Yes |
+| Custom voices | [MediaRest](MediaRest.md) | Yes |
 | Video | [VideoGeneration](VideoGeneration.md) | Yes |
 | Realtime voice / STS | [RealtimeVoice](RealtimeVoice.md) | Yes |
 | Files upload / `file_id` | `XaiClient` files helpers (this spec until a map row) | Yes |
@@ -88,6 +89,7 @@ Same three intents, applied to a **role-filtered** pool (`chat` \| `image` \| `v
 - **Image edit**: `POST /v1/images/edits` JSON (not multipart) on [MediaRest](MediaRest.md). Knobs: model, prompt, source image, `n`, aspect/response_format as upstream allows. Same return shape as `generate_image` plus `file_id` when present.
 - **Streaming STT**: unary-transcribe over `wss://api.x.ai/v1/stt` on [MediaRest](MediaRest.md) (`open_stt_session` / `SttSession`). Not speech-to-speech (that is [RealtimeVoice](RealtimeVoice.md)).
 - **Streaming TTS**: bidirectional TTS over `wss://api.x.ai/v1/tts` on [MediaRest](MediaRest.md) (`open_tts_session` / `TtsSession`). Not STS (`/v1/realtime`). REST `synthesize_speech` stays.
+- **Custom voices** (XK-CV-AC-1, XK-CV-AC-2, XK-CV-AC-3, XK-CV-AC-4, XK-CV-AC-5, XK-CV-AC-6, XK-CV-AC-7, XK-CV-AC-8, XK-CV-AC-9): `create_custom_voice`, `list_custom_voices`, `iter_custom_voices`, `get_custom_voice`, `update_custom_voice`, `delete_custom_voice`, `download_custom_voice_audio` on [MediaRest](MediaRest.md), sync and async. Constant `XAI_CUSTOM_VOICES_URL`. HTTP failures raise `CustomVoiceError`. A created `voice_id` passes unchanged to TTS, the TTS websocket, and realtime.
 
 ### Other `XaiClient` surfaces *(target — this spec)*
 
@@ -165,4 +167,4 @@ Standing process (not leftover product work): each implemented slice matches its
 - **Shipped**: video + realtime voice + ClientChat extras + Files + embeddings + tokenizer + batch + collections + Responses + service tier / deferred + async twin (see Target kit table)
 - **Open**: REST embed live playtest (empty team roster) — [Human-TODO](../Human-TODO.md)
 - **Parked** (not leftover Acceptance): collections search-lag helper; video edits (`POST /v1/videos/edits`)
-- **Last reconciled with code**: 2026-09-23 (`grok-4.7` stays off `need=batch`)
+- **Last reconciled with code**: 2026-10-14 (custom voices on MediaRest, XK-CV-AC-1 through XK-CV-AC-9)

@@ -34,6 +34,7 @@ from xaikit.client import (
     XAI_STT_URL,
     XAI_TTS_URL,
     XAI_TTS_VOICES_URL,
+    XAI_CUSTOM_VOICES_URL,
     XAI_VIDEO_EXTENSIONS_URL,
     XAI_VIDEO_STATUS_URL,
     XAI_VIDEOS_URL,
@@ -46,7 +47,8 @@ from xaikit.connect import (
     oauth_is_configured,
 )
 from xaikit.credentials import CredentialStore, DictCredentialStore, EnvCredentialStore
-from xaikit.errors import RoleUnavailableOnHost, XaiKitError, XaiTimeoutError
+from xaikit.custom_voices import CustomVoice, CustomVoicePage
+from xaikit.errors import CustomVoiceError, RoleUnavailableOnHost, XaiKitError, XaiTimeoutError
 from xaikit.gaps import (
     CompositeGapSink,
     GapEvent,
@@ -136,6 +138,7 @@ __all__ = [
     "XAI_STT_WS_URL",
     "XAI_TTS_URL",
     "XAI_TTS_VOICES_URL",
+    "XAI_CUSTOM_VOICES_URL",
     "XAI_TTS_WS_URL",
     "XAI_VIDEO_EXTENSIONS_URL",
     "XAI_VIDEO_STATUS_URL",
@@ -148,6 +151,9 @@ __all__ = [
     "AsyncXaiClient",
     "ChatProvider",
     "CompletionResponse",
+    "CustomVoice",
+    "CustomVoiceError",
+    "CustomVoicePage",
     "CompletionTrace",
     "CompletionTracer",
     "CompositeGapSink",

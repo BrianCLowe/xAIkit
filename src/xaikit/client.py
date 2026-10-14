@@ -30,6 +30,7 @@ from xaikit.base_url import (
     XAI_TOKENIZE_URL,
     XAI_TTS_URL,
     XAI_TTS_VOICES_URL,
+    XAI_CUSTOM_VOICES_URL,
     XAI_VIDEO_EXTENSIONS_URL,
     XAI_VIDEO_STATUS_URL,
     XAI_VIDEOS_URL,
@@ -78,6 +79,34 @@ from xaikit.collections import (
 )
 from xaikit.connect import normalize_api_key
 from xaikit.credentials import CredentialStore
+from xaikit.custom_voices import (
+    CUSTOM_VOICE_LONG_TIMEOUT,
+    CUSTOM_VOICE_TIMEOUT,
+    OP_CREATE,
+    OP_DELETE,
+    OP_DOWNLOAD,
+    OP_GET,
+    OP_LIST,
+    OP_UPDATE,
+    UNSET,
+    CustomVoice,
+    CustomVoiceError,
+    CustomVoicePage,
+    check_limit,
+    check_voice_id,
+    content_type_from_response,
+    custom_voice_failure,
+    custom_voice_retryable,
+    item_url,
+    list_query,
+    parse_page,
+    parse_voice,
+    patch_bytes,
+    prepare_create,
+    prepare_update,
+    redact_secret,
+    require_custom_voice_api_key,
+)
 from xaikit.provider import (
     ChatProvider,
     ProviderResponse,
@@ -1786,7 +1815,9 @@ class XaiClient:
         """List built-in TTS voices via ``GET /v1/tts/voices``.
 
         Returns the upstream ``voices`` array as JSON dicts (``voice_id``,
-        ``name``, ``language``). Does not wrap team-scoped custom-voice clone.
+        ``name``, ``language``). Team custom voices use
+        :meth:`create_custom_voice`, :meth:`list_custom_voices`, and
+        :meth:`get_custom_voice`.
         """
         tag = self._require_purpose_if_metered(purpose)
         response = self._tts_voices_http(
@@ -1840,6 +1871,407 @@ class XaiClient:
             success=True,
         )
         return payload
+
+    def _record_custom_voice(
+        self,
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        success: bool,
+        operation: str,
+        error: str | None = None,
+    ) -> None:
+        self._record(
+            purpose=tag,
+            usage=None,
+            parent_id=parent_id,
+            labels=labels,
+            success=success,
+            thought_level=None,
+            error=error,
+            modality="tts",
+            model=operation,
+            apply_price_table=False,
+        )
+
+    def _finish_custom_voice(
+        self,
+        response: httpx.Response,
+        parser: Any,
+        *,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        operation: str,
+    ) -> Any:
+        try:
+            parsed = parser(response)
+        except Exception as exc:
+            self._record_custom_voice(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                operation=operation,
+                error=type(exc).__name__,
+            )
+            raise
+        self._record_custom_voice(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+            operation=operation,
+        )
+        return parsed
+
+    def _custom_voice_http(
+        self,
+        method: str,
+        url: str,
+        *,
+        timeout: float,
+        tag: str | None,
+        parent_id: str | None,
+        labels: dict[str, str] | None,
+        operation: str,
+        retry: bool,
+        extra_headers: dict[str, str] | None = None,
+        **request_kwargs: Any,
+    ) -> httpx.Response:
+        """Send one custom-voices request. Validation belongs to the caller.
+
+        POST create passes ``retry=False`` so a 500 cannot mint a second voice.
+        GET, PATCH, and DELETE retry HTTP 500 and transport errors only.
+        """
+        key = require_custom_voice_api_key(self.api_key)
+        headers = {"Authorization": f"Bearer {key}"}
+        if extra_headers:
+            headers.update(extra_headers)
+
+        def attempt() -> httpx.Response:
+            response = httpx.request(
+                method,
+                url,
+                headers=headers,
+                timeout=timeout,
+                **request_kwargs,
+            )
+            if response.status_code >= 400:
+                err = custom_voice_failure(response, key)
+                logger.error("custom voice error %s: %s", err.status_code, err)
+                raise err
+            return response
+
+        try:
+            if retry:
+                response = call_with_retry(
+                    attempt,
+                    policy=self._retry_policy,
+                    is_retryable_fn=custom_voice_retryable,
+                    label="custom voice",
+                )
+            else:
+                response = attempt()
+        except CustomVoiceError as exc:
+            self._record_custom_voice(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                operation=operation,
+                error=type(exc).__name__,
+            )
+            raise
+        except httpx.HTTPError as exc:
+            safe = redact_secret(str(exc), key)
+            self._record_custom_voice(
+                tag=tag,
+                parent_id=parent_id,
+                labels=labels,
+                success=False,
+                operation=operation,
+                error=type(exc).__name__,
+            )
+            logger.error("custom voice request failed: %s", safe)
+            raise RuntimeError(f"Custom voice request failed: {safe}") from None
+        return response
+
+    def create_custom_voice(
+        self,
+        file: Any = None,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        gender: str | None = None,
+        accent: str | None = None,
+        age: str | None = None,
+        language: str | None = None,
+        use_case: str | None = None,
+        tone: str | None = None,
+        filename: str | None = None,
+        content_type: str | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> CustomVoice:
+        """Create a custom voice with ``POST /v1/custom-voices`` (multipart).
+
+        ``file`` is a path, bytes, or a binary file object. Unset optional
+        fields are omitted. This call is not retried. Timeout is 120 seconds.
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        data, chosen_name, chosen_type, fields = prepare_create(
+            file,
+            name=name,
+            description=description,
+            gender=gender,
+            accent=accent,
+            age=age,
+            language=language,
+            use_case=use_case,
+            tone=tone,
+            filename=filename,
+            content_type=content_type,
+        )
+        request_kwargs: dict[str, Any] = {
+            "files": {"file": (chosen_name, data, chosen_type)},
+        }
+        if fields:
+            request_kwargs["data"] = fields
+        response = self._custom_voice_http(
+            "POST",
+            self._endpoint(XAI_CUSTOM_VOICES_URL),
+            timeout=CUSTOM_VOICE_LONG_TIMEOUT,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            operation=OP_CREATE,
+            retry=False,
+            **request_kwargs,
+        )
+        return self._finish_custom_voice(
+            response,
+            parse_voice,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            operation=OP_CREATE,
+        )
+
+    def list_custom_voices(
+        self,
+        *,
+        limit: int | None = None,
+        pagination_token: str | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> CustomVoicePage:
+        """List custom voices. Omit ``limit`` to use the server default.
+
+        An empty ``voices`` list is a valid page. Timeout is 30 seconds.
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        checked_limit = check_limit(limit)
+        params = list_query(checked_limit, pagination_token)
+        request_kwargs: dict[str, Any] = {}
+        if params is not None:
+            request_kwargs["params"] = params
+        response = self._custom_voice_http(
+            "GET",
+            self._endpoint(XAI_CUSTOM_VOICES_URL),
+            timeout=CUSTOM_VOICE_TIMEOUT,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            operation=OP_LIST,
+            retry=True,
+            **request_kwargs,
+        )
+        return self._finish_custom_voice(
+            response,
+            parse_page,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            operation=OP_LIST,
+        )
+
+    def iter_custom_voices(
+        self,
+        *,
+        limit: int | None = None,
+        pagination_token: str | None = None,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> Iterator[CustomVoice]:
+        """Yield every custom voice, following ``pagination_token`` until it is null."""
+        token = pagination_token
+        while True:
+            page = self.list_custom_voices(
+                limit=limit,
+                pagination_token=token,
+                purpose=purpose,
+                parent_id=parent_id,
+                labels=labels,
+            )
+            yield from page.voices
+            if not page.pagination_token:
+                return
+            token = page.pagination_token
+
+    def get_custom_voice(
+        self,
+        voice_id: str,
+        *,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> CustomVoice:
+        """Fetch one custom voice via ``GET /v1/custom-voices/{voice_id}``."""
+        tag = self._require_purpose_if_metered(purpose)
+        checked = check_voice_id(voice_id)
+        response = self._custom_voice_http(
+            "GET",
+            self._endpoint(item_url(checked)),
+            timeout=CUSTOM_VOICE_TIMEOUT,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            operation=OP_GET,
+            retry=True,
+        )
+        return self._finish_custom_voice(
+            response,
+            parse_voice,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            operation=OP_GET,
+        )
+
+    def update_custom_voice(
+        self,
+        voice_id: str,
+        *,
+        name: Any = UNSET,
+        description: Any = UNSET,
+        gender: Any = UNSET,
+        accent: Any = UNSET,
+        age: Any = UNSET,
+        language: Any = UNSET,
+        use_case: Any = UNSET,
+        tone: Any = UNSET,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> CustomVoice:
+        """PATCH one voice. Omitted fields stay unchanged. ``None`` clears a field.
+
+        An empty string is rejected. A call with no fields is rejected. Both
+        happen before HTTP. Timeout is 30 seconds.
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        checked, body = prepare_update(
+            voice_id,
+            {
+                "name": name,
+                "description": description,
+                "gender": gender,
+                "accent": accent,
+                "age": age,
+                "language": language,
+                "use_case": use_case,
+                "tone": tone,
+            },
+        )
+        response = self._custom_voice_http(
+            "PATCH",
+            self._endpoint(item_url(checked)),
+            timeout=CUSTOM_VOICE_TIMEOUT,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            operation=OP_UPDATE,
+            retry=True,
+            extra_headers={"Content-Type": "application/json"},
+            content=patch_bytes(body),
+        )
+        return self._finish_custom_voice(
+            response,
+            parse_voice,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            operation=OP_UPDATE,
+        )
+
+    def delete_custom_voice(
+        self,
+        voice_id: str,
+        *,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> bool:
+        """Delete one custom voice. Any 2xx response returns ``True``."""
+        tag = self._require_purpose_if_metered(purpose)
+        checked = check_voice_id(voice_id)
+        self._custom_voice_http(
+            "DELETE",
+            self._endpoint(item_url(checked)),
+            timeout=CUSTOM_VOICE_TIMEOUT,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            operation=OP_DELETE,
+            retry=True,
+        )
+        self._record_custom_voice(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+            operation=OP_DELETE,
+        )
+        return True
+
+    def download_custom_voice_audio(
+        self,
+        voice_id: str,
+        *,
+        purpose: str | None = None,
+        parent_id: str | None = None,
+        labels: dict[str, str] | None = None,
+    ) -> tuple[bytes, str]:
+        """Download the original audio. Returns ``(bytes, content_type)``.
+
+        A missing ``Content-Type`` becomes ``application/octet-stream``.
+        Timeout is 120 seconds.
+        """
+        tag = self._require_purpose_if_metered(purpose)
+        checked = check_voice_id(voice_id)
+        response = self._custom_voice_http(
+            "GET",
+            self._endpoint(item_url(checked, audio=True)),
+            timeout=CUSTOM_VOICE_LONG_TIMEOUT,
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            operation=OP_DOWNLOAD,
+            retry=True,
+        )
+        self._record_custom_voice(
+            tag=tag,
+            parent_id=parent_id,
+            labels=labels,
+            success=True,
+            operation=OP_DOWNLOAD,
+        )
+        return response.content, content_type_from_response(response)
 
     def _record_files(
         self,

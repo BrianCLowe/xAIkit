@@ -22,6 +22,19 @@ class XaiTimeoutError(TimeoutError):
     """
 
 
+class CustomVoiceError(XaiKitError, RuntimeError):
+    """An HTTP failure from the custom-voices API.
+
+    ``status_code`` is the response status. The message carries a short server
+    detail (at most 500 characters) with the API key removed. Checks that run
+    before any request raise ``ValueError`` instead.
+    """
+
+    def __init__(self, message: str, *, status_code: int | None = None) -> None:
+        self.status_code = status_code
+        super().__init__(message)
+
+
 class RoleUnavailableOnHost(XaiKitError):
     """An unpinned role has no model on this host.
 

@@ -155,6 +155,7 @@ def rebase_url(url: str, resolved: ResolvedBase) -> str:
 XAI_STT_URL = join_url(DEFAULT_BASE_URL, "stt")
 XAI_TTS_URL = join_url(DEFAULT_BASE_URL, "tts")
 XAI_TTS_VOICES_URL = join_url(DEFAULT_BASE_URL, "tts/voices")
+XAI_CUSTOM_VOICES_URL = join_url(DEFAULT_BASE_URL, "custom-voices")
 XAI_IMAGES_URL = join_url(DEFAULT_BASE_URL, "images/generations")
 XAI_IMAGE_EDITS_URL = join_url(DEFAULT_BASE_URL, "images/edits")
 XAI_FILES_URL = join_url(DEFAULT_BASE_URL, "files")
