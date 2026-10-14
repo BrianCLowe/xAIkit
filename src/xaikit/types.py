@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class CompletionResponse(BaseModel):
@@ -67,6 +67,17 @@ class ModelInfo(BaseModel):
     cached_input_long_per_million: float | None = None
     per_image_usd: float | None = None
     created: int | None = None
+    owned_by: str | None = None
+
+    @field_validator("created", mode="before")
+    @classmethod
+    def _created_unix_seconds(cls, value: Any) -> int | None:
+        """Unix seconds, or null. Strings (including ISO) are not accepted."""
+        if value is None:
+            return None
+        if type(value) is int:
+            return value
+        raise ValueError("created must be a Unix seconds int or null")
 
     @property
     def is_chat(self) -> bool:

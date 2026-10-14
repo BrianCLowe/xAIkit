@@ -13,7 +13,7 @@ import os
 import re
 import threading
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -940,17 +940,52 @@ def _exact_shipped_price(model_id: str) -> Any:
     return default_price_table().models.get(model_id)
 
 
-def describe_listed_id(model_id: str) -> tuple[ModelInfo, str]:
+def _payload_created(value: Any) -> int | None:
+    """Unix seconds from a host catalog row.
+
+    Only a real int counts. Strings (ISO or otherwise), null, bool, and
+    other types stay unset so ranking treats them as oldest.
+    """
+    if type(value) is not int:
+        return None
+    if value == 0:
+        return None
+    return value
+
+
+def _payload_owned_by(value: Any) -> str | None:
+    """Owner string from a host catalog row. Non-strings stay unset."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    return text or None
+
+
+def describe_listed_id(
+    model_id: str,
+    *,
+    row: Mapping[str, Any] | None = None,
+) -> tuple[ModelInfo, str]:
     """One host-listed id as ``(row, role)``.
 
     Role comes from :func:`static_role_for_id`. Prices prefer an injected row
-    for that exact id, then the shipped table's exact row. REST tags are ignored.
+    for that exact id, then the shipped table's exact row. REST tags and
+    payload price fields are ignored. A usable ``created`` or ``owned_by`` on
+    *row* wins. When the host omitted them, the injected row is kept.
     """
     role = static_role_for_id(model_id)
     source = _exact_injected_row(model_id)
     input_rate = source.input_per_million if source is not None else None
     output_rate = source.output_per_million if source is not None else None
     created = source.created if source is not None else None
+    owned_by = source.owned_by if source is not None else None
+    if row is not None:
+        row_created = row.get("created")
+        if row_created is not None:
+            created = row_created
+        row_owner = row.get("owned_by")
+        if row_owner:
+            owned_by = row_owner
     if input_rate is None or output_rate is None:
         price = _exact_shipped_price(model_id)
         if price is not None:
@@ -966,18 +1001,23 @@ def describe_listed_id(model_id: str) -> tuple[ModelInfo, str]:
         input_per_million=input_rate,
         output_per_million=output_rate,
         created=created,
+        owned_by=owned_by,
     )
     return info, role
 
 
-def _model_ids_from_payload(payload: Any) -> list[str]:
-    """Read ``data[].id`` only. Any other field, including a role tag, is ignored."""
+def _model_ids_from_payload(payload: Any) -> list[dict[str, Any]]:
+    """Read each ``data`` row and normalize ``created`` and ``owned_by``.
+
+    Role tags and prices are left on the mapping and are not applied.
+    Rows that are not objects, or that have no id, are skipped.
+    """
     if not isinstance(payload, dict):
         raise RuntimeError("Model catalog returned unexpected payload")
     data = payload.get("data")
     if not isinstance(data, list):
         raise RuntimeError("Model catalog returned unexpected payload")
-    ids: list[str] = []
+    rows: list[dict[str, Any]] = []
     seen: set[str] = set()
     for item in data:
         if not isinstance(item, dict) or "id" not in item:
@@ -986,10 +1026,14 @@ def _model_ids_from_payload(payload: Any) -> list[str]:
         if not mid or mid in seen:
             continue
         seen.add(mid)
-        ids.append(mid)
-    if not ids:
+        kept = dict(item)
+        kept["id"] = mid
+        kept["created"] = _payload_created(item.get("created"))
+        kept["owned_by"] = _payload_owned_by(item.get("owned_by"))
+        rows.append(kept)
+    if not rows:
         raise RuntimeError("Model catalog returned an empty data list")
-    return ids
+    return rows
 
 
 def log_host_catalog_fallback(host: str) -> None:
@@ -1003,8 +1047,9 @@ def log_host_catalog_fallback(host: str) -> None:
 def fetch_host_catalog(api_key: str, base_url: str) -> list[tuple[ModelInfo, str]]:
     """GET ``<base>/models`` and classify each id from the static catalog.
 
-    Raises on HTTP errors, connection failures, timeouts, non-JSON bodies,
-    and a 200 with an empty ``data`` list. Does not cache.
+    Each row keeps ``created`` and ``owned_by``. Role tags and payload prices
+    are ignored. Raises on HTTP errors, connection failures, timeouts,
+    non-JSON bodies, and a 200 with an empty ``data`` list. Does not cache.
     """
     import httpx
 
@@ -1027,15 +1072,19 @@ def fetch_host_catalog(api_key: str, base_url: str) -> list[tuple[ModelInfo, str
         payload = response.json()
     except json.JSONDecodeError as exc:
         raise RuntimeError("Model catalog returned non-JSON response") from exc
-    return [describe_listed_id(mid) for mid in _model_ids_from_payload(payload)]
+    return [
+        describe_listed_id(str(row["id"]), row=row)
+        for row in _model_ids_from_payload(payload)
+    ]
 
 
 def fetch_models_via_rest(api_key: str, base_url: str) -> list[ModelInfo]:
     """GET ``<base>/models`` for a non-default inference base.
 
-    Ids come from ``data[].id``. Each row's role comes from the static catalog.
-    An unknown id is chat. This function does not cache and does not filter
-    the client's later resolve; callers do that.
+    Ids come from ``data[].id``. ``created`` and ``owned_by`` are kept.
+    Each row's role comes from the static catalog. An unknown id is chat.
+    This function does not cache and does not filter the client's later
+    resolve; callers do that.
     """
     return [info for info, _role in fetch_host_catalog(api_key, base_url)]
 
