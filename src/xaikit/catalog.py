@@ -98,6 +98,13 @@ class CatalogSnapshot(BaseModel):
 @dataclass
 class _CatalogState:
     snapshot: CatalogSnapshot | None = None
+    # One latest successful SDK or REST list, shared by every timeout.
+    live: CatalogSnapshot | None = None
+    # Fetch-attempt fallbacks, keyed by the timeout that stored them.
+    fallbacks: dict[float, CatalogSnapshot] = field(default_factory=dict)
+    # None when snapshot is shared (live or caller catalog). A float when
+    # snapshot is that timeout's fallback, published only for catalog_source.
+    snapshot_timeout: float | None = None
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
@@ -111,6 +118,16 @@ def clear_catalog_cache() -> None:
     """Drop in-process catalog cache."""
     with _state.lock:
         _state.snapshot = None
+        _state.live = None
+        _state.snapshot_timeout = None
+        _state.fallbacks.clear()
+
+
+def _published_snapshot() -> CatalogSnapshot | None:
+    """Live list wins so a per-timeout fallback cannot hide a fresher one."""
+    if _state.live is not None:
+        return _state.live
+    return _state.snapshot
 
 
 def find_cached_model(model_id: str) -> ModelInfo | None:
@@ -140,7 +157,7 @@ def cached_catalog() -> list[ModelInfo] | None:
     a price lookup cannot populate the catalog cache.
     """
     with _state.lock:
-        snap = _state.snapshot
+        snap = _published_snapshot()
     if snap is None:
         return None
     return list(snap.models)
@@ -153,6 +170,54 @@ def _live_key_needs_fetch(snap: CatalogSnapshot, key: str | None) -> bool:
     if _injected_models is not None or _test_fetch is not None:
         return False
     return snap.source in {"bootstrap", "persist"}
+
+
+# Successful SDK or REST lists. Every other source is non-live.
+_LIVE_SOURCES = frozenset({"sdk", "rest"})
+# Caller-supplied catalogs. A failed fetch that lands on these is a fallback.
+_CALLER_CATALOG_SOURCES = frozenset({"inject", "fixture", "persist"})
+
+
+def _snapshot_slot(source: str, *, fetch_failed: bool) -> str:
+    """Classify a snapshot as ``live``, ``fallback``, or ``explicit``.
+
+    ``live``: successful SDK or REST list. One shared snapshot. Storing it
+    clears every per-timeout fallback.
+
+    ``fallback``: non-live result of a fetch that failed. That includes
+    persist, fixture, inject, bootstrap, and ``sdk-error``. A deadline keeps
+    ``fresh_for`` of ``CATALOG_TIMEOUT_RETRY_SECONDS`` (60). Any other failure
+    keeps the caller TTL. The entry stays on the timeout that stored it and
+    does not replace a live snapshot. A newer fallback for that timeout
+    replaces the previous entry.
+
+    ``explicit``: caller inject, test fetch, or a fixture, persist, or
+    bootstrap load with no failed fetch. Inject, fixture, and persist replace
+    the one shared snapshot the way the single-slot cache did. Bootstrap
+    replaces that shared snapshot too, and leaves other timeouts' fallbacks
+    in place so an offline list does not drop a deadline window.
+    """
+    if source in _LIVE_SOURCES:
+        return "live"
+    if fetch_failed:
+        return "fallback"
+    return "explicit"
+
+
+def _snapshot_usable(
+    snap: CatalogSnapshot | None,
+    *,
+    ttl_seconds: int,
+    rest_base: str,
+    key: str | None,
+) -> bool:
+    if snap is None:
+        return False
+    if not snap.is_fresh(ttl_seconds) or snap.base_url != rest_base:
+        return False
+    if snap.fresh_for is None and _live_key_needs_fetch(snap, key):
+        return False
+    return True
 
 
 def set_test_fetch(fn: _FetchFn | None) -> None:
@@ -1157,6 +1222,7 @@ def fetch_models_from_sdk(api_key: str, *, timeout: float | None = None) -> list
     the others. If **every** list call fails, raise so ``list_models`` can
     fixture-fallback instead of caching an empty SDK snapshot. When any of
     those failures is a deadline, that deadline is the error raised.
+    ``timeout=None`` uses ``XAI_SDK_TIMEOUT_SECONDS`` when set, otherwise 180.
     """
     from xai_sdk import Client
 
@@ -1264,11 +1330,22 @@ def list_models(
     A fresh bootstrap or persist snapshot does not count when *api_key* is
     set — that call tries the SDK. SDK failure with fallback allowed caches
     the bootstrap pair as ``sdk-error`` for the TTL so a dead list is not
-    retried on every call. An invalid ``sdk_timeout`` raises ``ValueError``
-    before that fetch and does not write the cache. A deadline
+    retried on every call. An invalid ``sdk_timeout``, or an invalid
+    ``XAI_SDK_TIMEOUT_SECONDS`` when ``sdk_timeout`` is omitted, raises
+    ``ValueError`` before that fetch and does not write the cache. A deadline
     (``XaiTimeoutError`` or gRPC ``DEADLINE_EXCEEDED``) uses the same
     persist, fixture, and bootstrap fallbacks, cached for
-    ``CATALOG_TIMEOUT_RETRY_SECONDS`` (60) instead of the full TTL.
+    ``CATALOG_TIMEOUT_RETRY_SECONDS`` (60) on that timeout only, instead of
+    the full TTL. A different timeout does not receive that fallback.
+    One latest live SDK or REST snapshot is shared by every timeout.
+    Each successful live load replaces it and clears every per-timeout
+    fallback. A non-live result of a failed fetch (persist, fixture,
+    inject, bootstrap, or ``sdk-error``, including a deadline) is cached
+    only for that timeout. A deadline keeps the 60 second window. A newer
+    fallback for that timeout replaces the previous one. The fallback does
+    not replace a live snapshot, and a newer live snapshot hides it.
+    Caller inject and an explicit fixture or persist load with no failed
+    fetch still replace the one shared snapshot.
 
     After a successful SDK fetch, if ``persist_path`` is set, write
     ``{models: [...]}`` there (best-effort: disk errors are logged and the
@@ -1277,21 +1354,47 @@ def list_models(
     """
     from xaikit.errors import timeout_for_catalog
 
-    if sdk_timeout is not None:
-        timeout_for_catalog(sdk_timeout)
+    resolved_timeout = timeout_for_catalog(sdk_timeout)
 
     key = (api_key or "").strip() or None
     rest_base = _rest_catalog_base(base_url)
-    with _state.lock:
-        snap = _state.snapshot
-        if (
-            not force_refresh
-            and snap is not None
-            and snap.is_fresh(ttl_seconds)
-            and snap.base_url == rest_base
-            and (snap.fresh_for is not None or not _live_key_needs_fetch(snap, key))
-        ):
-            return list(snap.models)
+    if not force_refresh:
+        with _state.lock:
+            fallback = _state.fallbacks.get(resolved_timeout)
+            live = _state.live
+            live_ok = live is not None and _snapshot_usable(
+                live, ttl_seconds=ttl_seconds, rest_base=rest_base, key=key
+            )
+            fallback_ok = fallback is not None and _snapshot_usable(
+                fallback, ttl_seconds=ttl_seconds, rest_base=rest_base, key=key
+            )
+            # A later live load wins. Equal timestamps keep the fallback:
+            # a failed fetch in the same tick is stored after the live clear.
+            if (
+                live_ok
+                and live is not None
+                and fallback_ok
+                and fallback is not None
+                and live.fetched_at > fallback.fetched_at
+            ):
+                return list(live.models)
+            if fallback_ok and fallback is not None:
+                return list(fallback.models)
+            if live_ok and live is not None:
+                return list(live.models)
+            shared = _state.snapshot
+            own_shared = (
+                _state.snapshot_timeout is None
+                or _state.snapshot_timeout == resolved_timeout
+            )
+            if (
+                shared is not None
+                and own_shared
+                and _snapshot_usable(
+                    shared, ttl_seconds=ttl_seconds, rest_base=rest_base, key=key
+                )
+            ):
+                return list(shared.models)
 
     models: list[ModelInfo] | None = None
     source: str | None = None
@@ -1311,11 +1414,13 @@ def list_models(
                     models = fetch_models_via_rest(key, rest_base)
                     source = "rest"
                 else:
-                    # None means the fetch applies its own 180s default.
+                    # Omit timeout when the caller did not pass one so a
+                    # replacement fetch that only accepts the key still works.
+                    # fetch_models_from_sdk applies the same env default.
                     if sdk_timeout is None:
                         models = fetch_models_from_sdk(key)
                     else:
-                        models = fetch_models_from_sdk(key, timeout=sdk_timeout)
+                        models = fetch_models_from_sdk(key, timeout=resolved_timeout)
                     source = "sdk"
             except Exception as exc:
                 sdk_error = exc
@@ -1365,8 +1470,26 @@ def list_models(
         base_url=rest_base,
         fresh_for=fresh_for,
     )
+    slot = _snapshot_slot(source, fetch_failed=sdk_error is not None)
     with _state.lock:
-        _state.snapshot = snap
+        if slot == "live":
+            _state.live = snap
+            _state.snapshot = snap
+            _state.snapshot_timeout = None
+            _state.fallbacks.clear()
+        elif slot == "fallback":
+            # Replace this timeout's entry so a newer persist, fixture, or
+            # bootstrap body is not hidden by an older sdk-error.
+            _state.fallbacks[resolved_timeout] = snap
+            if _state.live is None:
+                _state.snapshot = snap
+                _state.snapshot_timeout = resolved_timeout
+        else:
+            _state.live = None
+            _state.snapshot = snap
+            _state.snapshot_timeout = None
+            if source in _CALLER_CATALOG_SOURCES:
+                _state.fallbacks.clear()
     return list(models)
 
 
@@ -2034,5 +2157,5 @@ def resolve_model_selection(
 
 def catalog_source() -> str | None:
     with _state.lock:
-        snap = _state.snapshot
+        snap = _published_snapshot()
     return snap.source if snap else None

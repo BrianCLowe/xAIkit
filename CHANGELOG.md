@@ -10,6 +10,7 @@ All notable changes to xaikit-py. Newest entry on top.
 
 ### Fixed
 
+- Direct catalog calls with no timeout honor `XAI_SDK_TIMEOUT_SECONDS`, otherwise 180. A failed fetch stores its persist, fixture, or bootstrap fallback on that timeout, including the 60 second deadline window, and a newer fallback replaces the previous one. One latest live snapshot is shared across timeouts. A successful live load clears every per-timeout fallback. Caller inject and an explicit fixture or persist load still replace the shared snapshot. (XK-CTF-1, XK-CTF-2, XK-CTF-3)
 - Non-default host model lists keep `created` (Unix seconds) and `owned_by` from `GET /v1/models`. Image best and economy on that host use those created times. A missing or non-integer `created` stays unset, payload prices are ignored, and the default host is unchanged. (XK-HCC-1, XK-HCC-2, XK-HCC-3)
 
 ## 0.4.0 (2026-10-14)

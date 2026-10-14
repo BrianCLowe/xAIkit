@@ -63,14 +63,12 @@ def resolve_sdk_timeout(timeout: float | None) -> float:
 
 
 def timeout_for_catalog(timeout: float | None) -> float:
-    """Timeout for a direct catalog SDK fetch.
+    """Timeout for a catalog SDK fetch.
 
-    A caller that already resolved the client knob passes that float.
-    ``None`` is 180 seconds and does not read the environment.
+    An explicit value wins. ``None`` uses ``XAI_SDK_TIMEOUT_SECONDS`` when
+    set, otherwise 180 seconds. Invalid values follow ``resolve_sdk_timeout``.
     """
-    if timeout is None:
-        return DEFAULT_SDK_TIMEOUT_SECONDS
-    return require_positive_seconds(timeout, label="timeout")
+    return resolve_sdk_timeout(timeout)
 
 
 def is_grpc_deadline_exceeded(exc: BaseException) -> bool:
