@@ -496,3 +496,16 @@ def test_hcc_c14_prices_stay_on_shipped_table(monkeypatch: pytest.MonkeyPatch) -
     assert injected.output_per_million == 8.0
     assert injected.created == 1700000000
     assert injected.owned_by == "xai"
+
+
+def test_model_info_created_coerces_like_base() -> None:
+    """ModelInfo.created still accepts the inputs base coerced. Host parsing does not."""
+    cases = (
+        ("1751328000", 1751328000),
+        (1751328000.0, 1751328000),
+        (True, 1),
+    )
+    for raw, expected in cases:
+        info = ModelInfo(id="grok-imagine-image", created=raw)
+        assert info.created == expected
+        assert type(info.created) is int
