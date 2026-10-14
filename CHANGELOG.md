@@ -2,6 +2,12 @@
 
 All notable changes to xaikit-py. Newest entry on top.
 
+## Unreleased
+
+### Fixed
+
+- Non-default host model lists keep `created` (Unix seconds) and `owned_by` from `GET /v1/models`. Image best and economy on that host use those created times. A missing or non-integer `created` stays unset, payload prices are ignored, and the default host is unchanged. (XK-HCC-1, XK-HCC-2, XK-HCC-3)
+
 ## 0.4.0 (2026-10-14)
 
 ### Added

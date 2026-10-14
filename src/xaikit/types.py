@@ -67,6 +67,7 @@ class ModelInfo(BaseModel):
     cached_input_long_per_million: float | None = None
     per_image_usd: float | None = None
     created: int | None = None
+    owned_by: str | None = None
 
     @property
     def is_chat(self) -> bool:
