@@ -26,6 +26,8 @@ from xaikit import (
     default_retry_policy,
 )
 from xaikit.catalog import (
+    BOOTSTRAP_MODEL,
+    CATALOG_TIMEOUT_RETRY_SECONDS,
     cached_catalog,
     catalog_source,
     clear_catalog_cache,
@@ -845,10 +847,11 @@ def test_list_models_invalid_sdk_timeout_is_not_cached(
 
 
 @pytest.mark.parametrize("kind", ["xai", "deadline"])
-def test_list_models_timeout_failure_is_not_cached(
+def test_list_models_deadline_fallback_uses_short_retry_window(
     monkeypatch: pytest.MonkeyPatch, kind: str
 ) -> None:
     calls = {"n": 0}
+    clock = {"t": 1_000_000.0}
     if kind == "xai":
         failure: BaseException = XaiTimeoutError("xAI SDK call timed out")
     else:
@@ -859,17 +862,67 @@ def test_list_models_timeout_failure_is_not_cached(
         calls["n"] += 1
         raise failure
 
+    monkeypatch.setattr("xaikit.catalog.time.time", lambda: clock["t"])
     monkeypatch.setattr("xaikit.catalog.fetch_models_from_sdk", _fetch)
-    with pytest.raises(type(failure)):
-        list_models(api_key=FAKE_KEY, sdk_timeout=1.0, force_refresh=True)
+    rows = list_models(api_key=FAKE_KEY, sdk_timeout=1.0)
+    assert [row.id for row in rows] == [BOOTSTRAP_MODEL, "grok-4.3"]
+    assert catalog_source() == "sdk-error"
     assert calls["n"] == 1
-    assert catalog_source() is None
-    assert cached_catalog() is None
 
-    with pytest.raises(type(failure)):
-        list_models(api_key=FAKE_KEY, sdk_timeout=1.0)
+    again = list_models(api_key=FAKE_KEY, sdk_timeout=1.0)
+    assert [row.id for row in again] == [BOOTSTRAP_MODEL, "grok-4.3"]
+    assert calls["n"] == 1
+
+    clock["t"] += CATALOG_TIMEOUT_RETRY_SECONDS - 1
+    held = list_models(api_key=FAKE_KEY, sdk_timeout=1.0)
+    assert [row.id for row in held] == [BOOTSTRAP_MODEL, "grok-4.3"]
+    assert calls["n"] == 1
+
+    clock["t"] += 1
+    refetched = list_models(api_key=FAKE_KEY, sdk_timeout=1.0)
+    assert [row.id for row in refetched] == [BOOTSTRAP_MODEL, "grok-4.3"]
     assert calls["n"] == 2
-    assert catalog_source() is None
+
+
+def test_second_list_deadline_is_raised_and_uses_short_window(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = {"n": 0}
+    clock = {"t": 1_000_000.0}
+
+    class _Client:
+        def __init__(self, api_key: str, timeout: float | None = None, **kwargs: object) -> None:
+            del api_key, timeout, kwargs
+            calls["n"] += 1
+            self.models = self
+
+        def list_language_models(self) -> list[object]:
+            raise RuntimeError("language down")
+
+        def list_image_generation_models(self) -> list[object]:
+            raise _FakeRpcError("DEADLINE_EXCEEDED", "Deadline Exceeded")
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr("xaikit.catalog.time.time", lambda: clock["t"])
+    monkeypatch.setattr("xai_sdk.Client", _Client)
+    with pytest.raises(_FakeRpcError) as caught:
+        fetch_models_from_sdk(FAKE_KEY, timeout=1.0)
+    assert caught.value.code().name == "DEADLINE_EXCEEDED"
+    assert calls["n"] == 1
+
+    rows = list_models(api_key=FAKE_KEY, sdk_timeout=1.0)
+    assert [row.id for row in rows] == [BOOTSTRAP_MODEL, "grok-4.3"]
+    assert catalog_source() == "sdk-error"
+    assert calls["n"] == 2
+
+    list_models(api_key=FAKE_KEY, sdk_timeout=1.0)
+    assert calls["n"] == 2
+
+    clock["t"] += CATALOG_TIMEOUT_RETRY_SECONDS
+    list_models(api_key=FAKE_KEY, sdk_timeout=1.0)
+    assert calls["n"] == 3
 
 
 def test_long_stream_doc_line() -> None:

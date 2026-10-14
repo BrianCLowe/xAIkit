@@ -10,7 +10,7 @@ All notable changes to xaikit-py. Newest entry on top.
 
 ### Fixed
 
-- `list_models` checks `sdk_timeout` before the fetch. A bad value raises `ValueError` and does not cache. A deadline (`XaiTimeoutError` or gRPC `DEADLINE_EXCEEDED`) is not stored as an sdk-error snapshot, so the next call fetches again.
+- `list_models` checks `sdk_timeout` before the fetch. A bad value raises `ValueError` and does not cache. A deadline (`XaiTimeoutError` or gRPC `DEADLINE_EXCEEDED`) uses the same persist, fixture, and bootstrap fallbacks as any other SDK failure, cached for 60 seconds (`CATALOG_TIMEOUT_RETRY_SECONDS`) instead of the full TTL. If every SDK list fails and any error is a deadline, that deadline is the one raised.
 
 ## 0.3.1 (2026-10-13)
 
