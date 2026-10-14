@@ -932,7 +932,7 @@ def test_long_stream_doc_line() -> None:
     assert "XK-TO-2" in text
     assert "XK-TO-3" in text
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    assert "## Unreleased" in changelog
+    assert "## 0.4.0 (2026-10-14)" in changelog
     assert "XK-TO-1" in changelog
     version = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert 'version = "0.3.1"' in version
+    assert 'version = "0.4.0"' in version

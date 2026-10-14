@@ -2,7 +2,7 @@
 
 All notable changes to xaikit-py. Newest entry on top.
 
-## Unreleased
+## 0.4.0 (2026-10-14)
 
 ### Added
 
