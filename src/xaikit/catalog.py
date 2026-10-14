@@ -98,10 +98,13 @@ class CatalogSnapshot(BaseModel):
 @dataclass
 class _CatalogState:
     snapshot: CatalogSnapshot | None = None
-    # One latest successful list, shared by every timeout.
+    # One latest successful SDK or REST list, shared by every timeout.
     live: CatalogSnapshot | None = None
-    # Deadline and other SDK fallbacks, keyed by the timeout that stored them.
+    # Fetch-attempt fallbacks, keyed by the timeout that stored them.
     fallbacks: dict[float, CatalogSnapshot] = field(default_factory=dict)
+    # None when snapshot is shared (live or caller catalog). A float when
+    # snapshot is that timeout's fallback, published only for catalog_source.
+    snapshot_timeout: float | None = None
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
@@ -116,7 +119,15 @@ def clear_catalog_cache() -> None:
     with _state.lock:
         _state.snapshot = None
         _state.live = None
+        _state.snapshot_timeout = None
         _state.fallbacks.clear()
+
+
+def _published_snapshot() -> CatalogSnapshot | None:
+    """Live list wins so a per-timeout fallback cannot hide a fresher one."""
+    if _state.live is not None:
+        return _state.live
+    return _state.snapshot
 
 
 def find_cached_model(model_id: str) -> ModelInfo | None:
@@ -146,7 +157,7 @@ def cached_catalog() -> list[ModelInfo] | None:
     a price lookup cannot populate the catalog cache.
     """
     with _state.lock:
-        snap = _state.snapshot
+        snap = _published_snapshot()
     if snap is None:
         return None
     return list(snap.models)
@@ -161,9 +172,36 @@ def _live_key_needs_fetch(snap: CatalogSnapshot, key: str | None) -> bool:
     return snap.source in {"bootstrap", "persist"}
 
 
-def _is_shared_live_snapshot(snap: CatalogSnapshot) -> bool:
-    """Successful SDK or REST list. Deadline and other fallbacks stay per timeout."""
-    return snap.fresh_for is None and snap.source in {"sdk", "rest"}
+# Successful SDK or REST lists. Every other source is non-live.
+_LIVE_SOURCES = frozenset({"sdk", "rest"})
+# Caller-supplied catalogs. A failed fetch that lands on these is a fallback.
+_CALLER_CATALOG_SOURCES = frozenset({"inject", "fixture", "persist"})
+
+
+def _snapshot_slot(source: str, *, fetch_failed: bool) -> str:
+    """Classify a snapshot as ``live``, ``fallback``, or ``explicit``.
+
+    ``live``: successful SDK or REST list. One shared snapshot. Storing it
+    clears every per-timeout fallback.
+
+    ``fallback``: non-live result of a fetch that failed. That includes
+    persist, fixture, inject, bootstrap, and ``sdk-error``. A deadline keeps
+    ``fresh_for`` of ``CATALOG_TIMEOUT_RETRY_SECONDS`` (60). Any other failure
+    keeps the caller TTL. The entry stays on the timeout that stored it and
+    does not replace a live snapshot. A newer fallback for that timeout
+    replaces the previous entry.
+
+    ``explicit``: caller inject, test fetch, or a fixture, persist, or
+    bootstrap load with no failed fetch. Inject, fixture, and persist replace
+    the one shared snapshot the way the single-slot cache did. Bootstrap
+    replaces that shared snapshot too, and leaves other timeouts' fallbacks
+    in place so an offline list does not drop a deadline window.
+    """
+    if source in _LIVE_SOURCES:
+        return "live"
+    if fetch_failed:
+        return "fallback"
+    return "explicit"
 
 
 def _snapshot_usable(
@@ -1299,9 +1337,15 @@ def list_models(
     persist, fixture, and bootstrap fallbacks, cached for
     ``CATALOG_TIMEOUT_RETRY_SECONDS`` (60) on that timeout only, instead of
     the full TTL. A different timeout does not receive that fallback.
-    One latest live SDK or REST snapshot is shared by every timeout and
-    replaced by each successful fetch. A fallback does not replace that
-    live snapshot, and it does not hide a newer one.
+    One latest live SDK or REST snapshot is shared by every timeout.
+    Each successful live load replaces it and clears every per-timeout
+    fallback. A non-live result of a failed fetch (persist, fixture,
+    inject, bootstrap, or ``sdk-error``, including a deadline) is cached
+    only for that timeout. A deadline keeps the 60 second window. A newer
+    fallback for that timeout replaces the previous one. The fallback does
+    not replace a live snapshot, and a newer live snapshot hides it.
+    Caller inject and an explicit fixture or persist load with no failed
+    fetch still replace the one shared snapshot.
 
     After a successful SDK fetch, if ``persist_path`` is set, write
     ``{models: [...]}`` there (best-effort: disk errors are logged and the
@@ -1324,12 +1368,14 @@ def list_models(
             fallback_ok = fallback is not None and _snapshot_usable(
                 fallback, ttl_seconds=ttl_seconds, rest_base=rest_base, key=key
             )
+            # A later live load wins. Equal timestamps keep the fallback:
+            # a failed fetch in the same tick is stored after the live clear.
             if (
                 live_ok
                 and live is not None
                 and fallback_ok
                 and fallback is not None
-                and live.fetched_at >= fallback.fetched_at
+                and live.fetched_at > fallback.fetched_at
             ):
                 return list(live.models)
             if fallback_ok and fallback is not None:
@@ -1337,10 +1383,13 @@ def list_models(
             if live_ok and live is not None:
                 return list(live.models)
             shared = _state.snapshot
+            own_shared = (
+                _state.snapshot_timeout is None
+                or _state.snapshot_timeout == resolved_timeout
+            )
             if (
-                live is None
-                and shared is not None
-                and shared.source != "sdk-error"
+                shared is not None
+                and own_shared
                 and _snapshot_usable(
                     shared, ttl_seconds=ttl_seconds, rest_base=rest_base, key=key
                 )
@@ -1421,17 +1470,26 @@ def list_models(
         base_url=rest_base,
         fresh_for=fresh_for,
     )
+    slot = _snapshot_slot(source, fetch_failed=sdk_error is not None)
     with _state.lock:
-        if _is_shared_live_snapshot(snap):
+        if slot == "live":
             _state.live = snap
             _state.snapshot = snap
-            _state.fallbacks.pop(resolved_timeout, None)
-        elif snap.source == "sdk-error":
+            _state.snapshot_timeout = None
+            _state.fallbacks.clear()
+        elif slot == "fallback":
+            # Replace this timeout's entry so a newer persist, fixture, or
+            # bootstrap body is not hidden by an older sdk-error.
             _state.fallbacks[resolved_timeout] = snap
             if _state.live is None:
                 _state.snapshot = snap
-        elif _state.live is None:
+                _state.snapshot_timeout = resolved_timeout
+        else:
+            _state.live = None
             _state.snapshot = snap
+            _state.snapshot_timeout = None
+            if source in _CALLER_CATALOG_SOURCES:
+                _state.fallbacks.clear()
     return list(models)
 
 
@@ -2099,5 +2157,5 @@ def resolve_model_selection(
 
 def catalog_source() -> str | None:
     with _state.lock:
-        snap = _state.snapshot
+        snap = _published_snapshot()
     return snap.source if snap else None
