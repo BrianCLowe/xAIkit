@@ -80,14 +80,19 @@ class CatalogSnapshot(BaseModel):
     fetched_at: float = Field(default_factory=time.time)
     source: str = "unknown"  # sdk | rest | persist | fixture | inject
     base_url: str = ""
+    # When set, caps freshness below the caller TTL. Deadline fallbacks use this.
+    fresh_for: float | None = None
 
     def age_seconds(self) -> float:
         return max(0.0, time.time() - self.fetched_at)
 
     def is_fresh(self, ttl_seconds: int) -> bool:
-        if ttl_seconds <= 0:
+        limit = float(ttl_seconds)
+        if self.fresh_for is not None:
+            limit = min(limit, float(self.fresh_for))
+        if limit <= 0:
             return False
-        return self.age_seconds() < ttl_seconds
+        return self.age_seconds() < limit
 
 
 @dataclass
@@ -1046,17 +1051,20 @@ def static_fallback_models() -> list[ModelInfo]:
     return _bootstrap_offline_models()
 
 
-def fetch_models_from_sdk(api_key: str) -> list[ModelInfo]:
+def fetch_models_from_sdk(api_key: str, *, timeout: float | None = None) -> list[ModelInfo]:
     """Live fetch language + image-generation models via xAI SDK.
 
     Video, voice, and speech-to-text have no list APIs. Those rows are tagged
     by slug when they appear on either list. One list failing does not wipe
     the others. If **every** list call fails, raise so ``list_models`` can
-    fixture-fallback instead of caching an empty SDK snapshot.
+    fixture-fallback instead of caching an empty SDK snapshot. When any of
+    those failures is a deadline, that deadline is the error raised.
     """
     from xai_sdk import Client
 
-    client = Client(api_key=api_key)
+    from xaikit.errors import timeout_for_catalog
+
+    client = Client(api_key=api_key, timeout=timeout_for_catalog(timeout))
     by_id: dict[str, ModelInfo] = {}
     errors: list[BaseException] = []
     any_ok = False
@@ -1081,7 +1089,7 @@ def fetch_models_from_sdk(api_key: str) -> list[ModelInfo]:
                 pass
 
     if not any_ok:
-        raise errors[0] if errors else RuntimeError("Model catalog SDK lists unavailable")
+        raise _preferred_catalog_error(errors)
     return list(by_id.values())
 
 
@@ -1106,6 +1114,28 @@ def _bootstrap_offline_models() -> list[ModelInfo]:
     ]
 
 
+# A deadline fallback is reused for this long, then the SDK is tried again.
+# Other SDK failures keep the caller TTL (one hour by default).
+CATALOG_TIMEOUT_RETRY_SECONDS = 60
+
+
+def _is_catalog_deadline(exc: BaseException) -> bool:
+    """True for ``XaiTimeoutError`` or gRPC ``DEADLINE_EXCEEDED``."""
+    from xaikit.errors import XaiTimeoutError, is_grpc_deadline_exceeded
+
+    return isinstance(exc, XaiTimeoutError) or is_grpc_deadline_exceeded(exc)
+
+
+def _preferred_catalog_error(errors: list[BaseException]) -> BaseException:
+    """Prefer a deadline when every SDK list failed."""
+    for err in errors:
+        if _is_catalog_deadline(err):
+            return err
+    if errors:
+        return errors[0]
+    return RuntimeError("Model catalog SDK lists unavailable")
+
+
 def _rest_catalog_base(base_url: str | None) -> str:
     """Empty string keeps today's gRPC catalog. A non-default base uses REST."""
     if base_url is None or not str(base_url).strip():
@@ -1127,6 +1157,7 @@ def list_models(
     persist_path: Path | str | None = None,
     allow_fixture_fallback: bool = True,
     base_url: str | None = None,
+    sdk_timeout: float | None = None,
 ) -> list[ModelInfo]:
     """Return the model catalog (cached).
 
@@ -1135,13 +1166,22 @@ def list_models(
     A fresh bootstrap or persist snapshot does not count when *api_key* is
     set — that call tries the SDK. SDK failure with fallback allowed caches
     the bootstrap pair as ``sdk-error`` for the TTL so a dead list is not
-    retried on every call.
+    retried on every call. An invalid ``sdk_timeout`` raises ``ValueError``
+    before that fetch and does not write the cache. A deadline
+    (``XaiTimeoutError`` or gRPC ``DEADLINE_EXCEEDED``) uses the same
+    persist, fixture, and bootstrap fallbacks, cached for
+    ``CATALOG_TIMEOUT_RETRY_SECONDS`` (60) instead of the full TTL.
 
     After a successful SDK fetch, if ``persist_path`` is set, write
     ``{models: [...]}`` there (best-effort: disk errors are logged and the
     live list is still returned). No default path — omit to skip disk.
     ``clear_catalog_cache`` drops memory only; it does not delete the file.
     """
+    from xaikit.errors import timeout_for_catalog
+
+    if sdk_timeout is not None:
+        timeout_for_catalog(sdk_timeout)
+
     key = (api_key or "").strip() or None
     rest_base = _rest_catalog_base(base_url)
     with _state.lock:
@@ -1151,7 +1191,7 @@ def list_models(
             and snap is not None
             and snap.is_fresh(ttl_seconds)
             and snap.base_url == rest_base
-            and not _live_key_needs_fetch(snap, key)
+            and (snap.fresh_for is not None or not _live_key_needs_fetch(snap, key))
         ):
             return list(snap.models)
 
@@ -1173,7 +1213,11 @@ def list_models(
                     models = fetch_models_via_rest(key, rest_base)
                     source = "rest"
                 else:
-                    models = fetch_models_from_sdk(key)
+                    # None means the fetch applies its own 180s default.
+                    if sdk_timeout is None:
+                        models = fetch_models_from_sdk(key)
+                    else:
+                        models = fetch_models_from_sdk(key, timeout=sdk_timeout)
                     source = "sdk"
             except Exception as exc:
                 sdk_error = exc
@@ -1213,11 +1257,15 @@ def list_models(
                 exc_info=True,
             )
 
+    fresh_for = None
+    if sdk_error is not None and _is_catalog_deadline(sdk_error):
+        fresh_for = CATALOG_TIMEOUT_RETRY_SECONDS
     snap = CatalogSnapshot(
         models=models,
         fetched_at=time.time(),
         source=source,
         base_url=rest_base,
+        fresh_for=fresh_for,
     )
     with _state.lock:
         _state.snapshot = snap
@@ -1777,6 +1825,7 @@ def resolve_model(
     need: str | Sequence[str] | None = None,
     api_key: str | None = None,
     base_url: str | None = None,
+    sdk_timeout: float | None = None,
 ) -> str:
     """Resolve a model id via the kit policy chain."""
     return resolve_model_selection(
@@ -1791,6 +1840,7 @@ def resolve_model(
         need=need,
         api_key=api_key,
         base_url=base_url,
+        sdk_timeout=sdk_timeout,
     ).model_id
 
 
@@ -1813,6 +1863,7 @@ def resolve_model_selection(
     need: str | Sequence[str] | None = None,
     api_key: str | None = None,
     base_url: str | None = None,
+    sdk_timeout: float | None = None,
 ) -> ModelSelection:
     """pin → need-filter → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap.
 
@@ -1832,7 +1883,7 @@ def resolve_model_selection(
     cat: Sequence[ModelInfo] | None = catalog
     if cat is None:
         try:
-            cat = list_models(api_key=api_key, base_url=base_url)
+            cat = list_models(api_key=api_key, base_url=base_url, sdk_timeout=sdk_timeout)
         except Exception as exc:
             logger.warning("Catalog unavailable (%s)", type(exc).__name__)
             cat = None

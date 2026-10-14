@@ -2,6 +2,16 @@
 
 All notable changes to xaikit-py. Newest entry on top.
 
+## Unreleased
+
+### Added
+
+- `XaiClient` and `AsyncXaiClient` take keyword-only `timeout` (seconds). `XAI_SDK_TIMEOUT_SECONDS` is the fallback, then 180. Every xai-sdk client gets that timeout. A gRPC deadline raises `XaiTimeoutError`. Callers with long streams should raise timeout= on the client. (XK-TO-1, XK-TO-2, XK-TO-3)
+
+### Fixed
+
+- `list_models` checks `sdk_timeout` before the fetch. A bad value raises `ValueError` and does not cache. A deadline (`XaiTimeoutError` or gRPC `DEADLINE_EXCEEDED`) uses the same persist, fixture, and bootstrap fallbacks as any other SDK failure, cached for 60 seconds (`CATALOG_TIMEOUT_RETRY_SECONDS`) instead of the full TTL. If every SDK list fails and any error is a deadline, that deadline is the one raised.
+
 ## 0.3.1 (2026-10-13)
 
 ### Added

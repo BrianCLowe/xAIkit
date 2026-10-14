@@ -1014,8 +1014,9 @@ def _fake_sdk_client(
             return images
 
     class FakeClient:
-        def __init__(self, api_key: str) -> None:
+        def __init__(self, api_key: str, timeout: float | None = None, **kwargs: object) -> None:
             assert api_key == "test-key"
+            del timeout, kwargs
             self.models = FakeModels()
 
         def close(self) -> None:
@@ -1236,7 +1237,8 @@ def test_sdk_failure_with_key_bootstraps_and_does_not_retry_within_ttl(
     calls = {"n": 0}
 
     class _Counting:
-        def __init__(self, api_key: str) -> None:
+        def __init__(self, api_key: str, timeout: float | None = None, **kwargs: object) -> None:
+            del timeout, kwargs
             calls["n"] += 1
             self.models = self
 
