@@ -10,7 +10,7 @@ All notable changes to xaikit-py. Newest entry on top.
 
 ### Fixed
 
-- Direct catalog calls with no timeout honor `XAI_SDK_TIMEOUT_SECONDS`, otherwise 180. A deadline fallback stays cached for the timeout that hit the deadline and is not served to other timeouts. A fresh live snapshot is shared across timeouts, and a successful live fetch replaces the shared snapshot. (XK-CTF-1, XK-CTF-2, XK-CTF-3)
+- Direct catalog calls with no timeout honor `XAI_SDK_TIMEOUT_SECONDS`, otherwise 180. A deadline fallback stays cached for the timeout that hit the deadline and is not served to other timeouts. One latest live snapshot is shared across timeouts, replaced by each successful fetch, and a fallback does not replace it. (XK-CTF-1, XK-CTF-2, XK-CTF-3)
 - Non-default host model lists keep `created` (Unix seconds) and `owned_by` from `GET /v1/models`. Image best and economy on that host use those created times. A missing or non-integer `created` stays unset, payload prices are ignored, and the default host is unchanged. (XK-HCC-1, XK-HCC-2, XK-HCC-3)
 
 ## 0.4.0 (2026-10-14)

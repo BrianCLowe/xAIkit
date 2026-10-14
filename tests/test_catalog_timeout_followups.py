@@ -39,6 +39,7 @@ class FakeClient:
     """Stand-in for xai_sdk.Client. Records timeout and can stall or return one id."""
 
     mode = "healthy"
+    live_name = "grok-live-9"
     inits = 0
     listed_timeouts: list[float] = []
 
@@ -52,6 +53,7 @@ class FakeClient:
     @classmethod
     def reset(cls) -> None:
         cls.mode = "healthy"
+        cls.live_name = "grok-live-9"
         cls.inits = 0
         cls.listed_timeouts = []
 
@@ -64,7 +66,7 @@ class FakeClient:
             type(self).listed_timeouts.append(float(timeout))
         if type(self).mode == "stall":
             raise XaiTimeoutError("xAI SDK call timed out")
-        return [SimpleNamespace(name="grok-live-9")]
+        return [SimpleNamespace(name=type(self).live_name)]
 
     def list_image_generation_models(self) -> list[object]:
         if type(self).mode == "stall":
@@ -293,3 +295,37 @@ def test_successful_fetch_replaces_shared_fallback_snapshot(
     assert "grok-live-9" in _ids(cached)
     assert find_cached_model("grok-live-9") is not None
     assert find_cached_model("grok-4.7") is None
+
+
+def test_refresh_then_other_timeout_sees_latest_live(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A later successful fetch replaces the one live snapshot other timeouts read."""
+    _install(monkeypatch)
+    FakeClient.mode = "healthy"
+    FakeClient.live_name = "grok-live-9"
+    first = list_models(api_key=FAKE_KEY, sdk_timeout=5)
+    assert "grok-live-9" in _ids(first)
+    FakeClient.live_name = "grok-live-10"
+    refreshed = list_models(api_key=FAKE_KEY, sdk_timeout=5, force_refresh=True)
+    assert "grok-live-10" in _ids(refreshed)
+    assert "grok-live-9" not in _ids(refreshed)
+    after = FakeClient.inits
+    other = list_models(api_key=FAKE_KEY, sdk_timeout=1)
+    assert "grok-live-10" in _ids(other)
+    assert "grok-live-9" not in _ids(other)
+    assert FakeClient.inits == after
+    assert catalog_source() == "sdk"
+    cached = cached_catalog()
+    assert cached is not None
+    assert "grok-live-10" in _ids(cached)
+    assert "grok-live-9" not in _ids(cached)
+
+    FakeClient.mode = "stall"
+    stalled = list_models(api_key=FAKE_KEY, sdk_timeout=5, force_refresh=True)
+    assert _ids(stalled) == _BOOTSTRAP_IDS
+    assert catalog_source() == "sdk"
+    assert find_cached_model("grok-live-10") is not None
+    again = list_models(api_key=FAKE_KEY, sdk_timeout=1)
+    assert "grok-live-10" in _ids(again)
+    assert _ids(again) != _BOOTSTRAP_IDS

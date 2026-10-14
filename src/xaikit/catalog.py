@@ -98,9 +98,10 @@ class CatalogSnapshot(BaseModel):
 @dataclass
 class _CatalogState:
     snapshot: CatalogSnapshot | None = None
-    # Deadline fallbacks stay on the timeout that hit them. A live snapshot
-    # for another timeout is left in place.
-    by_timeout: dict[float, CatalogSnapshot] = field(default_factory=dict)
+    # One latest successful list, shared by every timeout.
+    live: CatalogSnapshot | None = None
+    # Deadline and other SDK fallbacks, keyed by the timeout that stored them.
+    fallbacks: dict[float, CatalogSnapshot] = field(default_factory=dict)
     lock: threading.Lock = field(default_factory=threading.Lock)
 
 
@@ -114,7 +115,8 @@ def clear_catalog_cache() -> None:
     """Drop in-process catalog cache."""
     with _state.lock:
         _state.snapshot = None
-        _state.by_timeout.clear()
+        _state.live = None
+        _state.fallbacks.clear()
 
 
 def find_cached_model(model_id: str) -> ModelInfo | None:
@@ -1297,8 +1299,9 @@ def list_models(
     persist, fixture, and bootstrap fallbacks, cached for
     ``CATALOG_TIMEOUT_RETRY_SECONDS`` (60) on that timeout only, instead of
     the full TTL. A different timeout does not receive that fallback.
-    A fresh live SDK or REST snapshot is reused by any timeout. A successful
-    live fetch always updates the shared snapshot.
+    One latest live SDK or REST snapshot is shared by every timeout and
+    replaced by each successful fetch. A fallback does not replace that
+    live snapshot, and it does not hide a newer one.
 
     After a successful SDK fetch, if ``persist_path`` is set, write
     ``{models: [...]}`` there (best-effort: disk errors are logged and the
@@ -1313,18 +1316,36 @@ def list_models(
     rest_base = _rest_catalog_base(base_url)
     if not force_refresh:
         with _state.lock:
-            own = _state.by_timeout.get(resolved_timeout)
-            if own is not None and _snapshot_usable(
-                own, ttl_seconds=ttl_seconds, rest_base=rest_base, key=key
+            fallback = _state.fallbacks.get(resolved_timeout)
+            live = _state.live
+            live_ok = live is not None and _snapshot_usable(
+                live, ttl_seconds=ttl_seconds, rest_base=rest_base, key=key
+            )
+            fallback_ok = fallback is not None and _snapshot_usable(
+                fallback, ttl_seconds=ttl_seconds, rest_base=rest_base, key=key
+            )
+            if (
+                live_ok
+                and live is not None
+                and fallback_ok
+                and fallback is not None
+                and live.fetched_at >= fallback.fetched_at
             ):
-                return list(own.models)
-            for shared in _state.by_timeout.values():
-                if not _is_shared_live_snapshot(shared):
-                    continue
-                if _snapshot_usable(
+                return list(live.models)
+            if fallback_ok and fallback is not None:
+                return list(fallback.models)
+            if live_ok and live is not None:
+                return list(live.models)
+            shared = _state.snapshot
+            if (
+                live is None
+                and shared is not None
+                and shared.source != "sdk-error"
+                and _snapshot_usable(
                     shared, ttl_seconds=ttl_seconds, rest_base=rest_base, key=key
-                ):
-                    return list(shared.models)
+                )
+            ):
+                return list(shared.models)
 
     models: list[ModelInfo] | None = None
     source: str | None = None
@@ -1401,22 +1422,16 @@ def list_models(
         fresh_for=fresh_for,
     )
     with _state.lock:
-        _state.by_timeout[resolved_timeout] = snap
         if _is_shared_live_snapshot(snap):
+            _state.live = snap
             _state.snapshot = snap
-        else:
-            previous = _state.snapshot
-            hides_live = (
-                previous is not None
-                and _is_shared_live_snapshot(previous)
-                and any(
-                    held is previous
-                    for cache_key, held in _state.by_timeout.items()
-                    if cache_key != resolved_timeout
-                )
-            )
-            if not hides_live:
+            _state.fallbacks.pop(resolved_timeout, None)
+        elif snap.source == "sdk-error":
+            _state.fallbacks[resolved_timeout] = snap
+            if _state.live is None:
                 _state.snapshot = snap
+        elif _state.live is None:
+            _state.snapshot = snap
     return list(models)
 
 
