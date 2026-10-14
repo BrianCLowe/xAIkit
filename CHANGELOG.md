@@ -2,6 +2,12 @@
 
 All notable changes to xaikit-py. Newest entry on top.
 
+## Unreleased
+
+### Added
+
+- `XaiClient` and `AsyncXaiClient` wrap the six `/v1/custom-voices` endpoints: `create_custom_voice`, `list_custom_voices`, `iter_custom_voices`, `get_custom_voice`, `update_custom_voice`, `delete_custom_voice`, and `download_custom_voice_audio`. Models are `CustomVoice` and `CustomVoicePage`. HTTP failures raise `CustomVoiceError`. Client checks run before any request. Create is not retried. (XK-CV-AC-1, XK-CV-AC-2, XK-CV-AC-3, XK-CV-AC-4, XK-CV-AC-5, XK-CV-AC-6, XK-CV-AC-7, XK-CV-AC-8, XK-CV-AC-9)
+
 ## 0.4.1 (2026-10-14)
 
 ### Added

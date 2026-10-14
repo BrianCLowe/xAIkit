@@ -1,6 +1,6 @@
 # RealtimeVoice
 
-**Last Updated**: 2026-08-31  
+**Last Updated**: 2026-10-14  
 **Related Understanding**: —  
 
 ---
@@ -22,7 +22,7 @@ Custom `base_url` and `XAI_BASE_URL` for the realtime socket and the client-secr
 ## Architecture / Contract
 
 - **Owns**: session open/close, inbound/outbound audio, optional text, usage `modality="realtime"`; server-side mint helper `create_realtime_client_secret` (wraps documented `POST /v1/realtime/client_secrets`)
-- **Does not own**: REST `transcribe` / `synthesize_speech`; streaming STT-only WS (shipped on [MediaRest](MediaRest.md) as `open_stt_session`); streaming TTS-only WS (shipped on [MediaRest](MediaRest.md) as `open_tts_session`); custom voice **clone** (`POST /v1/custom-voices`) or the TTS voice roster (`GET /v1/tts/voices` — [MediaRest](MediaRest.md)); a recorder UI; ephemeral-token **product login** / User types (ConnectAuth stays stores + OAuth helpers); catalog `role=voice`
+- **Does not own**: REST `transcribe` / `synthesize_speech`; streaming STT-only WS (shipped on [MediaRest](MediaRest.md) as `open_stt_session`); streaming TTS-only WS (shipped on [MediaRest](MediaRest.md) as `open_tts_session`); custom voice clone and the TTS voice roster (both on [MediaRest](MediaRest.md)); a recorder UI; ephemeral-token **product login** / User types (ConnectAuth stays stores + OAuth helpers); catalog `role=voice`
 - **Public API** (frozen 2026-08-13; mint added 2026-08-13):
   - `XaiClient.open_realtime_session(...)` → `RealtimeSession` (context manager)
   - Constructor: optional `voice_model=` (like `video_model=` / `image_model=`)
@@ -33,7 +33,7 @@ Custom `base_url` and `XAI_BASE_URL` for the realtime socket and the client-secr
 
 Constants: `XAI_REALTIME_URL` (`wss://api.x.ai/v1/realtime`), `XAI_REALTIME_CLIENT_SECRETS_URL` (`https://api.x.ai/v1/realtime/client_secrets`), `DEFAULT_VOICE_MODEL` (`grok-voice-latest`). Session tests monkeypatch `connect_realtime_websocket` (no live socket). Mint tests mock `httpx.post`.
 
-Knobs on open (forwarded on `session.update`; omit unset optionals): `voice` (default `eve`; built-in ids **or** an opaque custom `voice_id` — no kit allowlist; empty/whitespace keeps the default), `instructions`, `turn_detection` (default `{"type": "server_vad"}`; pass `None` for manual), `tools`, `audio` (input/output format + transport), `reasoning_effort` (`high` \| `none`), full `session=` overlay. `purpose` / `parent_id` / `labels` like other media. Clone/list custom-voices APIs are not on this stem.
+Knobs on open (forwarded on `session.update`; omit unset optionals): `voice` (default `eve`; built-in ids **or** an opaque custom `voice_id`, no kit allowlist; empty/whitespace keeps the default), `instructions`, `turn_detection` (default `{"type": "server_vad"}`; pass `None` for manual), `tools`, `audio` (input/output format + transport), `reasoning_effort` (`high` \| `none`), full `session=` overlay. `purpose` / `parent_id` / `labels` like other media. Custom voice methods live on [MediaRest](MediaRest.md): `create_custom_voice`, `list_custom_voices`, `iter_custom_voices`, `get_custom_voice`, `update_custom_voice`, `delete_custom_voice`, `download_custom_voice_audio` (XK-CV-AC-1, XK-CV-AC-2, XK-CV-AC-3, XK-CV-AC-4, XK-CV-AC-5, XK-CV-AC-6, XK-CV-AC-7, XK-CV-AC-8, XK-CV-AC-9). A `voice_id` from `create_custom_voice` is forwarded unchanged on `session.voice` (XK-CV-AC-7).
 
 Audio send: `input_audio_buffer.append` (bytes base64-encoded, or a base64 string). Text send: `conversation.item.create` + `response.create`. Receive: JSON events or binary frames; decode audio deltas with `decode_realtime_audio`.
 
@@ -84,6 +84,7 @@ Mint body is documented only: `{"expires_after": {"seconds": N}}`. Default `N=30
 - [x] Offline contract tests; optional live smoke env-gated
 - [x] Server-side ephemeral client-secret mint (`create_realtime_client_secret`); mocked HTTP; no product login
 - [x] Custom `voice_id` on `voice=` forwarded unchanged on `session.update` (no allowlist; clone/roster not this stem)
+- [x] XK-CV-AC-7: `open_realtime_session(voice=created.voice_id)` sends that id unchanged on the first `session.update`
 
 ## Visual references
 
@@ -91,5 +92,5 @@ Mint body is documented only: `{"expires_after": {"seconds": N}}`. Default `N=30
 
 ## Current status
 
-- **Shipped** (library-only): `open_realtime_session` + `RealtimeSession` + meter + default per-minute prices + mocked WS tests; `create_realtime_client_secret` + `realtime_client_secret_protocol` + mocked mint tests; `voice=` accepts built-in ids or custom `voice_id` (no clone wrap)
-- **Last reconciled with code**: 2026-08-13
+- **Shipped** (library-only): `open_realtime_session` + `RealtimeSession` + meter + default per-minute prices + mocked WS tests; `create_realtime_client_secret` + `realtime_client_secret_protocol` + mocked mint tests; `voice=` accepts built-in ids or custom `voice_id`. Clone methods are `create_custom_voice`, `list_custom_voices`, `iter_custom_voices`, `get_custom_voice`, `update_custom_voice`, `delete_custom_voice`, and `download_custom_voice_audio` on [MediaRest](MediaRest.md)
+- **Last reconciled with code**: 2026-10-14 (XK-CV-AC-7 pass-through of a created custom `voice_id`)
