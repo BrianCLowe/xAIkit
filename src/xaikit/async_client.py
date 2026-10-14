@@ -25,7 +25,10 @@ from xaikit.catalog import (
     ROLE_SPEECH_TO_TEXT,
     ROLE_VOICE,
     contract_imagine_aspect_ratio,
+    fetch_host_catalog_async,
     imagine_generate_knobs,
+    log_host_catalog_fallback,
+    regional_host_catalog_timeout,
 )
 from xaikit.errors import RoleUnavailableOnHost, raise_sdk_or_runtime, reraise_mapped_sdk_error
 from xaikit.connect import normalize_api_key
@@ -267,6 +270,61 @@ class AsyncXaiClient(XaiClient):
             management_api_key=management_api_key,
             timeout=self._sdk_timeout,
         )
+
+    async def _ensure_regional_catalog_for(
+        self,
+        explicit: str | None,
+        *,
+        pinned: bool,
+    ) -> None:
+        """Load the host list before a sync property read would.
+
+        A pin (per-call or client) does not fetch. The default host does not
+        fetch. A list already stored on this client is reused.
+        """
+        if pinned or (explicit or "").strip():
+            return
+        await self._ensure_regional_catalog()
+
+    async def _ensure_regional_catalog(self) -> None:
+        """One async host-list fetch for this client, shared by concurrent callers.
+
+        Writes the same ``_regional_models`` / ``_regional_ready`` cache as the
+        sync loader. A failure logs once and stores ``None`` so resolve uses
+        ``static_fallback_models()``.
+        """
+        if not self._uses_regional_catalog() or self._regional_ready:
+            return
+        loop = asyncio.get_running_loop()
+        with self._regional_lock:
+            if self._regional_ready:
+                return
+            lock = getattr(self, "_regional_async_lock", None)
+            bound = getattr(self, "_regional_async_lock_loop", None)
+            if lock is None or bound is not loop:
+                lock = asyncio.Lock()
+                self._regional_async_lock = lock
+                self._regional_async_lock_loop = loop
+        async with lock:
+            if self._regional_ready:
+                return
+            failed = False
+            try:
+                models = await fetch_host_catalog_async(
+                    self._catalog_api_key or self.api_key or "",
+                    self.base_url,
+                    timeout=regional_host_catalog_timeout(self._sdk_timeout),
+                )
+            except Exception:
+                models = None
+                failed = True
+            with self._regional_lock:
+                if self._regional_ready:
+                    return
+                if failed:
+                    log_host_catalog_fallback(self._regional_host())
+                self._regional_models = models
+                self._regional_ready = True
 
     async def __aenter__(self) -> AsyncXaiClient:
         if self._http is None:
@@ -617,6 +675,7 @@ class AsyncXaiClient(XaiClient):
         parallel_tool_calls: bool | None = None,
         service_tier: str | None = None,
     ) -> CompletionResponse:
+        await self._ensure_regional_catalog_for(model, pinned=self._chat_pinned)
         chosen = (model or "").strip() or self.model
         return await self._chat_body(
             messages,
@@ -748,6 +807,7 @@ class AsyncXaiClient(XaiClient):
         service_tier: str | None = None,
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
+        await self._ensure_regional_catalog_for(None, pinned=self._chat_pinned)
         level = self._effective_thought_level(thought_level, effort=effort)
         messages = [{"role": "user", "content": user_prompt}]
         sys = system_prompt or (
@@ -885,6 +945,7 @@ class AsyncXaiClient(XaiClient):
         service_tier: str | None = None,
     ) -> AsyncIterator[StreamChunk]:
         tag = self._require_purpose_if_metered(purpose)
+        await self._ensure_regional_catalog_for(None, pinned=self._chat_pinned)
         level = self._effective_thought_level(thought_level, effort=effort)
         tier = _normalize_service_tier(service_tier)
         usage: dict[str, Any] | None = None
@@ -980,6 +1041,7 @@ class AsyncXaiClient(XaiClient):
         tag = self._require_purpose_if_metered(purpose)
         if not isinstance(messages, list) or not messages:
             raise RuntimeError("Chat messages are empty")
+        await self._ensure_regional_catalog_for(model, pinned=self._chat_pinned)
         pin = (model or "").strip() or (self.model or "").strip()
         if not pin:
             raise RuntimeError("model is required for create_deferred_chat")
@@ -1038,6 +1100,7 @@ class AsyncXaiClient(XaiClient):
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
         url = self._endpoint(_deferred_chat_resource_url(request_id))
+        await self._ensure_regional_catalog_for(None, pinned=self._chat_pinned)
         pin = (self.model or "").strip() or "chat"
         headers = {"Authorization": f"Bearer {self.api_key}"}
         response = await self._rest(
@@ -1089,6 +1152,7 @@ class AsyncXaiClient(XaiClient):
         tag = self._require_purpose_if_metered(purpose)
         if not file_bytes:
             raise RuntimeError("Audio file is empty")
+        await self._ensure_regional_catalog_for(None, pinned=False)
         self._require_regional_role(ROLE_SPEECH_TO_TEXT)
         data = {"format": "true", "language": language}
         files = {
@@ -1160,6 +1224,7 @@ class AsyncXaiClient(XaiClient):
         labels: dict[str, str] | None = None,
     ) -> tuple[bytes, str]:
         tag = self._require_purpose_if_metered(purpose)
+        await self._ensure_regional_catalog_for(None, pinned=self._voice_pinned)
         self._require_regional_role(ROLE_VOICE, pinned=self._voice_pinned)
         body = tts_rest_body(
             text,
@@ -1463,6 +1528,7 @@ class AsyncXaiClient(XaiClient):
         labels: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
+        await self._ensure_regional_catalog_for(model, pinned=self._chat_pinned)
         pin = (model or "").strip() or (self.model or "").strip()
         if not pin:
             raise RuntimeError("model is required for tokenize")
@@ -1511,6 +1577,7 @@ class AsyncXaiClient(XaiClient):
         labels: dict[str, str] | None = None,
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
+        await self._ensure_regional_catalog_for(model, pinned=self._chat_pinned)
         pin = (model or "").strip() or (self.model or "").strip()
         if not pin:
             raise RuntimeError("model is required for create_response")
@@ -1564,6 +1631,7 @@ class AsyncXaiClient(XaiClient):
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
         url = self._endpoint(_response_resource_url(response_id))
+        await self._ensure_regional_catalog_for(None, pinned=self._chat_pinned)
         pin = (self.model or "").strip() or "responses"
         headers = {"Authorization": f"Bearer {self.api_key}"}
         response = await self._rest(
@@ -2105,6 +2173,7 @@ class AsyncXaiClient(XaiClient):
         cleaned = (prompt or "").strip()
         if not cleaned:
             raise RuntimeError("Image prompt is empty")
+        await self._ensure_regional_catalog_for(model, pinned=self._image_pinned)
         image_model = (model or self.image_model or DEFAULT_IMAGE_MODEL).strip()
         body: dict[str, Any] = {
             "model": image_model,
@@ -2151,6 +2220,7 @@ class AsyncXaiClient(XaiClient):
         cleaned = (prompt or "").strip()
         if not cleaned:
             raise RuntimeError("Image prompt is empty")
+        await self._ensure_regional_catalog_for(model, pinned=self._image_pinned)
         image_model = (model or self.image_model or DEFAULT_IMAGE_MODEL).strip()
         body: dict[str, Any] = {
             "model": image_model,
@@ -2201,6 +2271,7 @@ class AsyncXaiClient(XaiClient):
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
         sink = require_video_into(into)
+        await self._ensure_regional_catalog_for(model, pinned=self._video_pinned)
         video_model = self._effective_video_model(model)
         image_obj = _video_media_ref(image, url=image_url, file_id=image_file_id)
         ref_images = _video_reference_images(reference_images)
@@ -2268,6 +2339,7 @@ class AsyncXaiClient(XaiClient):
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
         sink = require_video_into(into)
+        await self._ensure_regional_catalog_for(model, pinned=self._video_pinned)
         video_model = self._effective_video_model(model, need="video_extend")
         cleaned = (prompt or "").strip()
         if not cleaned:
@@ -2344,6 +2416,7 @@ class AsyncXaiClient(XaiClient):
     ) -> AsyncRealtimeSession:
         tag = self._require_purpose_if_metered(purpose)
         key = self._require_realtime_api_key()
+        await self._ensure_regional_catalog_for(model, pinned=self._voice_pinned)
         voice_model = self._effective_voice_model(model)
         url = realtime_session_url(voice_model, base=self._endpoint(XAI_REALTIME_URL))
         headers = {"Authorization": f"Bearer {key}"}
@@ -2451,6 +2524,7 @@ class AsyncXaiClient(XaiClient):
         labels: dict[str, str] | None = None,
     ) -> AsyncSttSession:
         tag = self._require_purpose_if_metered(purpose)
+        await self._ensure_regional_catalog_for(None, pinned=False)
         self._require_regional_role(ROLE_SPEECH_TO_TEXT)
         key = self._require_stt_api_key()
         url = stt_session_url(
@@ -2526,6 +2600,7 @@ class AsyncXaiClient(XaiClient):
         labels: dict[str, str] | None = None,
     ) -> AsyncTtsSession:
         tag = self._require_purpose_if_metered(purpose)
+        await self._ensure_regional_catalog_for(None, pinned=self._voice_pinned)
         self._require_regional_role(ROLE_VOICE, pinned=self._voice_pinned)
         key = self._require_tts_api_key()
         url = tts_session_url(
