@@ -1046,7 +1046,7 @@ def static_fallback_models() -> list[ModelInfo]:
     return _bootstrap_offline_models()
 
 
-def fetch_models_from_sdk(api_key: str) -> list[ModelInfo]:
+def fetch_models_from_sdk(api_key: str, *, timeout: float | None = None) -> list[ModelInfo]:
     """Live fetch language + image-generation models via xAI SDK.
 
     Video, voice, and speech-to-text have no list APIs. Those rows are tagged
@@ -1056,7 +1056,9 @@ def fetch_models_from_sdk(api_key: str) -> list[ModelInfo]:
     """
     from xai_sdk import Client
 
-    client = Client(api_key=api_key)
+    from xaikit.errors import timeout_for_catalog
+
+    client = Client(api_key=api_key, timeout=timeout_for_catalog(timeout))
     by_id: dict[str, ModelInfo] = {}
     errors: list[BaseException] = []
     any_ok = False
@@ -1127,6 +1129,7 @@ def list_models(
     persist_path: Path | str | None = None,
     allow_fixture_fallback: bool = True,
     base_url: str | None = None,
+    sdk_timeout: float | None = None,
 ) -> list[ModelInfo]:
     """Return the model catalog (cached).
 
@@ -1173,7 +1176,11 @@ def list_models(
                     models = fetch_models_via_rest(key, rest_base)
                     source = "rest"
                 else:
-                    models = fetch_models_from_sdk(key)
+                    # None means the fetch applies its own 180s default.
+                    if sdk_timeout is None:
+                        models = fetch_models_from_sdk(key)
+                    else:
+                        models = fetch_models_from_sdk(key, timeout=sdk_timeout)
                     source = "sdk"
             except Exception as exc:
                 sdk_error = exc
@@ -1777,6 +1784,7 @@ def resolve_model(
     need: str | Sequence[str] | None = None,
     api_key: str | None = None,
     base_url: str | None = None,
+    sdk_timeout: float | None = None,
 ) -> str:
     """Resolve a model id via the kit policy chain."""
     return resolve_model_selection(
@@ -1791,6 +1799,7 @@ def resolve_model(
         need=need,
         api_key=api_key,
         base_url=base_url,
+        sdk_timeout=sdk_timeout,
     ).model_id
 
 
@@ -1813,6 +1822,7 @@ def resolve_model_selection(
     need: str | Sequence[str] | None = None,
     api_key: str | None = None,
     base_url: str | None = None,
+    sdk_timeout: float | None = None,
 ) -> ModelSelection:
     """pin → need-filter → intent (cheapest|economy|best) → task hook → prefer_latest → bootstrap.
 
@@ -1832,7 +1842,7 @@ def resolve_model_selection(
     cat: Sequence[ModelInfo] | None = catalog
     if cat is None:
         try:
-            cat = list_models(api_key=api_key, base_url=base_url)
+            cat = list_models(api_key=api_key, base_url=base_url, sdk_timeout=sdk_timeout)
         except Exception as exc:
             logger.warning("Catalog unavailable (%s)", type(exc).__name__)
             cat = None

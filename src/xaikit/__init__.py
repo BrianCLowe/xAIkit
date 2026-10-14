@@ -46,7 +46,7 @@ from xaikit.connect import (
     oauth_is_configured,
 )
 from xaikit.credentials import CredentialStore, DictCredentialStore, EnvCredentialStore
-from xaikit.errors import RoleUnavailableOnHost, XaiKitError
+from xaikit.errors import RoleUnavailableOnHost, XaiKitError, XaiTimeoutError
 from xaikit.gaps import (
     CompositeGapSink,
     GapEvent,
@@ -195,6 +195,7 @@ __all__ = [
     "VideoReceipt",
     "XaiClient",
     "XaiKitError",
+    "XaiTimeoutError",
     "async_call_with_retry",
     "build_completion_tracer",
     "build_gap_log",

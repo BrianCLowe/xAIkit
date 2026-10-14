@@ -1,6 +1,6 @@
 # Catalog
 
-**Last Updated**: 2026-10-13
+**Last Updated**: 2026-10-14
 **Related Understanding**: —  
 
 ---
@@ -33,7 +33,7 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 
 ## Behavior (stable)
 
-- SDK fetch with fallback to empty/offline catalog when allowed
+- SDK fetch with fallback to empty/offline catalog when allowed. `fetch_models_from_sdk` passes `timeout=` to `xai_sdk.Client` (XK-TO-1). A client passes its resolved timeout. A direct call with no timeout uses 180.0 and does not read `XAI_SDK_TIMEOUT_SECONDS`.
 - Fetch unions `list_language_models` + `list_image_generation_models` (best-effort: one list failing does not wipe the others). No video, voice, or speech-to-text list APIs. Tag `grok-imagine-video*` as video, `grok-voice-transcribe*` as speech-to-text, and other `grok-voice*` as voice. Image-generation rows get capability `image` (or video, voice, or speech-to-text when the slug says so)
 - In-process snapshot + TTL freshness. An unpinned `XaiClient` / `AsyncXaiClient` passes its API key into `list_models` and re-resolves chat (and unpinned image/video/voice defaults) when that cache expires (one hour). A pin on the client or the call stays fixed. `BOOTSTRAP_MODEL` is the empty-catalog fallback, not a live pin. Video and voice stay on the role default until a list row exists. Chat newest-sort is integer `(major, minor)`: `grok-5` above `grok-4.10` above `grok-4.7`. `grok-4.20` sorts as minor 2 so it stays older than `grok-4.3`. Every role ranks a stable id (no `-preview` segment) ahead of any `-preview` id before that version or created-date order. A preview is chosen only when that role has no stable candidate. Dashed (`YYYY-MM-DD`) and compact (`YYYYMMDD`) dates are snapshot markers in every role. A snapshot ranks behind the plain id or `-latest` alias of the same family. The date is not a version number. A trailing snapshot date on an undotted chat id (`grok-4-20260530`, `grok-4-2026-05-30`, and the same shapes on `grok-5`) is not that id's minor version, so it does not outrank the plain id or a higher dotted minor such as `grok-4.7`
 - Opt-in disk persist: `list_models(..., persist_path=)` writes `{models: [...]}` after a successful SDK fetch (same shape `save_catalog_snapshot` writes). Writes go to a sibling temp file then `os.replace` so a failed write cannot truncate the last good snapshot. No default cwd/home path. Read order when no inject/test-fetch: fresh memory → SDK if key → persist file if present → `fixture_path` → bootstrap. Disk write errors are logged; the live list is still returned. `clear_catalog_cache` is memory-only (does not delete the file)
@@ -115,6 +115,7 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 - [x] `XK-AC-REGION-2`: an unpinned image, video, voice (TTS and realtime), or speech-to-text role with no listed model raises `RoleUnavailableOnHost` before any request. The error names the role and the host and sets `.role` and `.host`. A failed or empty host list logs one `xaikit.catalog` warning and uses the static catalog on the configured host. The usage meter applies the 10% US endpoint token premium on `us.api.x.ai`
 - [x] `XK-AC-REGION-METER-1`: host `us.api.x.ai` marks up input, cached input, output, and image input token cost by 10% from one host table, on the unrounded amount, rounded once to 8 places. Server `cost_in_usd_ticks` are kept unchanged. Sync and async clients pass the configured host
 - [x] `XK-AC-REGION-METER-2`: the default host and unknown hosts, including lookalikes and proxies, keep the base token price. Per-image, per-second, and per-minute fees on a US client stay at the base rate. `UsageMeter.record` without `host` stays at the base price
+- [x] XK-TO-1: `fetch_models_from_sdk` builds its xai-sdk client with an explicit `timeout`. The client's resolved knob is used when the client fetches. Otherwise the timeout is 180 seconds.
 
 ## Visual references
 

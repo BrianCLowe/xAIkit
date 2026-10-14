@@ -1,6 +1,6 @@
 # ClientChat
 
-**Last Updated**: 2026-10-13 *(custom base_url)*
+**Last Updated**: 2026-10-14 *(xai-sdk timeout)*
 **Related Understanding**: —  
 
 ---
@@ -35,11 +35,13 @@ Chat on a base whose path is empty or `/v1` stays on the SDK gRPC channel. The g
 
 Public `XAI_*_URL` constants stay exported with their current default values. They are derived from one default constant.
 
+`XaiClient` and `AsyncXaiClient` take keyword-only `timeout` (seconds) for every xai-sdk client they build: the shared client, the regional chat client, and the catalog live fetch when this client asks for it. Precedence is the constructor value, then `XAI_SDK_TIMEOUT_SECONDS`, then 180. `None` means that default. `0` and any negative value raise `ValueError` before a client is built. The number passed to `xai_sdk` is always a positive float. The timeout applies per RPC attempt. Batch, collections, and `upload_document` use the same knob. REST and websocket calls keep their existing timeouts. Callers with long streams should raise timeout= on the client. A gRPC `DEADLINE_EXCEEDED` raises `XaiTimeoutError`, a subclass of `TimeoutError`, on sync and async chat and stream calls, and on batch and collections. Other errors stay wrapped as `RuntimeError`.
+
 When a `UsageMeter` is attached, `purpose` is required. Without a meter, purpose is optional.
 
 ## Behavior (stable)
 
-- `chat` records usage/trace on success and failure; wraps provider errors as `RuntimeError`.
+- `chat` records usage/trace on success and failure. Provider errors are wrapped as `RuntimeError`, except a gRPC deadline, which raises `XaiTimeoutError`.
 - `chat_json` forces a JSON-only system prompt (overridable), default temperature `0.3`, parses object JSON (strips fences); non-object JSON fails. When `schema=` or `response_format=` is set, that knob is passed through to xAI `response_format`; fence-stripping remains the fallback if the model still returns fenced JSON.
 - `chat_stream` retries only **opening** the iterator; mid-stream failures are not retried; usage recorded once when the stream completes (not on `GeneratorExit`).
 - Client default `thought_level` applies unless the call passes `thought_level` or `effort`.
@@ -68,6 +70,7 @@ When a `UsageMeter` is attached, `purpose` is required. Without a meter, purpose
 | 2026-10-13 | Path-prefix `chat` and `chat_stream` use REST with the SDK kit-to-wire adapters. An injected provider wins over that REST route. Batch and collections use an SDK client left on the default hosts, separate from a custom gRPC chat host. | Bugbot on the same cut. Q9 keeps collections and batch off `base_url`. |
 | 2026-10-13 | Non-default host model choice follows [Catalog.md](Catalog.md) XK-AC-REGION-1 and XK-AC-REGION-2. The usage meter applies the 10% US token premium per [Catalog.md](Catalog.md) XK-AC-REGION-METER-1 and XK-AC-REGION-METER-2. | Host list is a catalog rule. Client chat, image, video, TTS, STT, and realtime call it before the request. |
 | 2026-10-13 | REST content parts are built from the kit part fields, not by reading SDK protos back. Inline file bytes and `video_url` stay on the wire. | Proto round-trip dropped file `data` and rewrote `video_url` as `file`. |
+| 2026-10-14 | xai-sdk clients get an explicit timeout: constructor `timeout=`, then `XAI_SDK_TIMEOUT_SECONDS`, then 180 seconds. `None` means 180. `0` and negative raise `ValueError`. Deadline exceeded raises `XaiTimeoutError`. The timeout is per attempt and covers batch, collections, and upload. Callers with long streams should raise timeout= on the client. | CUT-2026-10-14-xk-sdk-timeout (XK-TO-1, XK-TO-2, XK-TO-3). The SDK maps `None` and `0` to 1620 seconds, so those values are never passed through. |
 
 ## Dependencies
 
@@ -91,6 +94,9 @@ When a `UsageMeter` is attached, `purpose` is required. Without a meter, purpose
 - [x] Async twin `AsyncXaiClient` with the same chat method names (`chat` / `chat_json` / `chat_stream`)
 - [x] XK-AC-URL-1: `base_url` on `XaiClient` and `AsyncXaiClient`, then `XAI_BASE_URL`, then `https://api.x.ai/v1`. Every REST call and the stt, tts, and realtime websockets derive from it.
 - [x] XK-AC-URL-2: Any host is accepted. With no `base_url` and no env, URLs, methods, headers, and bodies stay as they are today. Auth stays `Authorization: Bearer`.
+- [x] XK-TO-1: Every xai-sdk client (shared and regional, sync and async, plus the catalog live fetch) receives an explicit `timeout`. Constructor `timeout=` beats `XAI_SDK_TIMEOUT_SECONDS`, which beats 180 seconds. `None` means 180. `0` and negative raise `ValueError`. `None` and `0` are never passed to the SDK.
+- [x] XK-TO-2: A call that exceeds the timeout raises `XaiTimeoutError` (a `TimeoutError` subclass) for gRPC `DEADLINE_EXCEEDED` on sync and async chat, stream, batch, and collections. The timeout is per attempt.
+- [x] XK-TO-3: Existing callers are otherwise unchanged. REST and websocket timeouts keep their constants. `chat.create` does not receive `timeout`. An injected provider builds no SDK client.
 
 ## Visual references
 
@@ -99,4 +105,4 @@ When a `UsageMeter` is attached, `purpose` is required. Without a meter, purpose
 ## Current status
 
 - **In progress**: none on chat path (async twin shipped)
-- **Last reconciled with code**: 2026-10-13
+- **Last reconciled with code**: 2026-10-14 (XK-TO-1, XK-TO-2, XK-TO-3: xai-sdk timeout defaults to 180 seconds and deadline exceeded raises `XaiTimeoutError`)

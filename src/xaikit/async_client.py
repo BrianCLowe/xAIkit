@@ -27,7 +27,7 @@ from xaikit.catalog import (
     contract_imagine_aspect_ratio,
     imagine_generate_knobs,
 )
-from xaikit.errors import RoleUnavailableOnHost
+from xaikit.errors import RoleUnavailableOnHost, raise_sdk_or_runtime, reraise_mapped_sdk_error
 from xaikit.connect import normalize_api_key
 from xaikit.client import (
     DEFAULT_FILE_PURPOSE,
@@ -182,7 +182,9 @@ class AsyncXaiClient(XaiClient):
         bootstrap_model: str = BOOTSTRAP_MODEL,
         completion_tracer: CompletionTracer | None = None,
         base_url: str | None = None,
+        timeout: float | None = None,
     ) -> None:
+        self._bind_sdk_timeout(timeout)
         self._apply_base_url(base_url)
         self._injected_provider = provider is not None
         self._chat_sdk = None
@@ -258,10 +260,12 @@ class AsyncXaiClient(XaiClient):
                 management_api_key=management_api_key,
                 api_host=self._resolved.grpc_api_host,
                 use_insecure_channel=self._resolved.grpc_insecure,
+                timeout=self._sdk_timeout,
             )
         return AsyncClient(
             api_key=key,
             management_api_key=management_api_key,
+            timeout=self._sdk_timeout,
         )
 
     async def __aenter__(self) -> AsyncXaiClient:
@@ -521,19 +525,22 @@ class AsyncXaiClient(XaiClient):
                     service_tier=service_tier,
                     model=chosen,
                 )
-            return await self._provider_complete(
-                messages=messages,
-                model=chosen,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                thought_level=thought_level,
-                system_prompt=system_prompt,
-                tools=tools,
-                tool_choice=tool_choice,
-                parallel_tool_calls=parallel_tool_calls,
-                response_format=response_format,
-                service_tier=service_tier,
-            )
+            try:
+                return await self._provider_complete(
+                    messages=messages,
+                    model=chosen,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    thought_level=thought_level,
+                    system_prompt=system_prompt,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    parallel_tool_calls=parallel_tool_calls,
+                    response_format=response_format,
+                    service_tier=service_tier,
+                )
+            except Exception as exc:
+                reraise_mapped_sdk_error(exc)
 
         return await async_call_with_retry(
             _call,
@@ -569,19 +576,22 @@ class AsyncXaiClient(XaiClient):
                     response_format=response_format,
                     service_tier=service_tier,
                 )
-            return self._provider_stream(
-                messages=messages,
-                model=self.model,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                thought_level=thought_level,
-                system_prompt=system_prompt,
-                tools=tools,
-                tool_choice=tool_choice,
-                parallel_tool_calls=parallel_tool_calls,
-                response_format=response_format,
-                service_tier=service_tier,
-            )
+            try:
+                return self._provider_stream(
+                    messages=messages,
+                    model=self.model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    thought_level=thought_level,
+                    system_prompt=system_prompt,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    parallel_tool_calls=parallel_tool_calls,
+                    response_format=response_format,
+                    service_tier=service_tier,
+                )
+            except Exception as exc:
+                reraise_mapped_sdk_error(exc)
 
         return await async_call_with_retry(
             _call,
@@ -720,7 +730,7 @@ class AsyncXaiClient(XaiClient):
                 model=model,
             )
             logger.exception("xAI chat call failed")
-            raise RuntimeError(f"xAI request failed: {exc}") from exc
+            raise_sdk_or_runtime(exc, f"xAI request failed: {exc}")
 
     async def chat_json(
         self,
@@ -855,7 +865,7 @@ class AsyncXaiClient(XaiClient):
                 labels=labels,
             )
             logger.exception("xAI JSON call failed")
-            raise RuntimeError(f"JSON xAI request failed: {exc}") from exc
+            raise_sdk_or_runtime(exc, f"JSON xAI request failed: {exc}")
 
     async def chat_stream(
         self,
@@ -950,7 +960,7 @@ class AsyncXaiClient(XaiClient):
                 labels=labels,
             )
             logger.exception("xAI chat stream failed")
-            raise RuntimeError(f"xAI stream request failed: {exc}") from exc
+            raise_sdk_or_runtime(exc, f"xAI stream request failed: {exc}")
 
     async def create_deferred_chat(
         self,
@@ -1602,7 +1612,7 @@ class AsyncXaiClient(XaiClient):
                 tag=tag, parent_id=parent_id, labels=labels, success=False, error=_error_class(exc)
             )
             logger.exception("xAI batch %s failed", operation)
-            raise RuntimeError(f"{failed}: {exc}") from exc
+            raise_sdk_or_runtime(exc, f"{failed}: {exc}")
 
     async def create_batch(
         self,
@@ -1814,7 +1824,7 @@ class AsyncXaiClient(XaiClient):
                 tag=tag, parent_id=parent_id, labels=labels, success=False, error=_error_class(exc)
             )
             logger.exception("xAI collections %s failed", operation)
-            raise RuntimeError(f"{failed}: {exc}") from exc
+            raise_sdk_or_runtime(exc, f"{failed}: {exc}")
 
     async def create_collection(
         self,

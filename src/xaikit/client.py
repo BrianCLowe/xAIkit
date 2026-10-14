@@ -62,7 +62,12 @@ from xaikit.catalog import (
     resolve_model_selection,
     static_fallback_models,
 )
-from xaikit.errors import RoleUnavailableOnHost
+from xaikit.errors import (
+    RoleUnavailableOnHost,
+    raise_sdk_or_runtime,
+    reraise_mapped_sdk_error,
+    resolve_sdk_timeout,
+)
 from xaikit.collections import (
     call_collections_rpc,
     collection_to_dict,
@@ -208,8 +213,10 @@ class XaiClient:
         bootstrap_model: str = BOOTSTRAP_MODEL,
         completion_tracer: CompletionTracer | None = None,
         base_url: str | None = None,
+        timeout: float | None = None,
     ) -> None:
         # effort is an alias for thought_level → reasoning_effort on the wire
+        self._bind_sdk_timeout(timeout)
         self._apply_base_url(base_url)
         self._injected_provider = provider is not None
         self._chat_sdk = None
@@ -267,6 +274,10 @@ class XaiClient:
         base = getattr(self, "base_url", None)
         return f"{type(self).__name__}(base_url={base!r})"
 
+    def _bind_sdk_timeout(self, timeout: float | None) -> None:
+        """Store a positive SDK timeout. Never ``None`` or ``0`` (the SDK maps both to 1620s)."""
+        self._sdk_timeout = resolve_sdk_timeout(timeout)
+
     def _apply_base_url(self, base_url: str | None) -> None:
         """Resolve once. Later env changes do not move this client."""
         explicit = (
@@ -314,10 +325,12 @@ class XaiClient:
                 management_api_key=management_api_key,
                 api_host=self._resolved.grpc_api_host,
                 use_insecure_channel=self._resolved.grpc_insecure,
+                timeout=self._sdk_timeout,
             )
         return Client(
             api_key=key,
             management_api_key=management_api_key,
+            timeout=self._sdk_timeout,
         )
 
     def _remember_role_pins(
@@ -436,6 +449,7 @@ class XaiClient:
                 role=role,
                 api_key=self._catalog_api_key,
                 base_url=self.base_url,
+                sdk_timeout=self._sdk_timeout,
             )
         except RoleUnavailableOnHost:
             raise
@@ -765,19 +779,22 @@ class XaiClient:
                     service_tier=service_tier,
                     model=chosen,
                 )
-            return self._provider.complete(
-                messages,
-                model=chosen,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                thought_level=thought_level,
-                system_prompt=system_prompt,
-                tools=tools,
-                tool_choice=tool_choice,
-                parallel_tool_calls=parallel_tool_calls,
-                response_format=response_format,
-                service_tier=service_tier,
-            )
+            try:
+                return self._provider.complete(
+                    messages,
+                    model=chosen,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    thought_level=thought_level,
+                    system_prompt=system_prompt,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    parallel_tool_calls=parallel_tool_calls,
+                    response_format=response_format,
+                    service_tier=service_tier,
+                )
+            except Exception as exc:
+                reraise_mapped_sdk_error(exc)
 
         return call_with_retry(
             _call,
@@ -813,19 +830,22 @@ class XaiClient:
                     response_format=response_format,
                     service_tier=service_tier,
                 )
-            return self._provider.stream(
-                messages,
-                model=self.model,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                thought_level=thought_level,
-                system_prompt=system_prompt,
-                tools=tools,
-                tool_choice=tool_choice,
-                parallel_tool_calls=parallel_tool_calls,
-                response_format=response_format,
-                service_tier=service_tier,
-            )
+            try:
+                return self._provider.stream(
+                    messages,
+                    model=self.model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    thought_level=thought_level,
+                    system_prompt=system_prompt,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    parallel_tool_calls=parallel_tool_calls,
+                    response_format=response_format,
+                    service_tier=service_tier,
+                )
+            except Exception as exc:
+                reraise_mapped_sdk_error(exc)
 
         # Retry only opening the iterator — mid-stream failures are not retried.
         return call_with_retry(
@@ -1044,7 +1064,7 @@ class XaiClient:
                 model=model,
             )
             logger.exception("xAI chat call failed")
-            raise RuntimeError(f"xAI request failed: {exc}") from exc
+            raise_sdk_or_runtime(exc, f"xAI request failed: {exc}")
 
     def chat_json(
         self,
@@ -1186,7 +1206,7 @@ class XaiClient:
                 labels=labels,
             )
             logger.exception("xAI JSON call failed")
-            raise RuntimeError(f"JSON xAI request failed: {exc}") from exc
+            raise_sdk_or_runtime(exc, f"JSON xAI request failed: {exc}")
 
     def chat_stream(
         self,
@@ -1289,7 +1309,7 @@ class XaiClient:
                 labels=labels,
             )
             logger.exception("xAI chat stream failed")
-            raise RuntimeError(f"xAI stream request failed: {exc}") from exc
+            raise_sdk_or_runtime(exc, f"xAI stream request failed: {exc}")
 
     def _record_deferred_chat(
         self,
@@ -2453,7 +2473,7 @@ class XaiClient:
                 error=_error_class(exc),
             )
             logger.exception("xAI batch %s failed", operation)
-            raise RuntimeError(f"{failed}: {exc}") from exc
+            raise_sdk_or_runtime(exc, f"{failed}: {exc}")
 
     def create_batch(
         self,
@@ -2763,7 +2783,7 @@ class XaiClient:
                 error=_error_class(exc),
             )
             logger.exception("xAI collections %s failed", operation)
-            raise RuntimeError(f"{failed}: {exc}") from exc
+            raise_sdk_or_runtime(exc, f"{failed}: {exc}")
 
     def create_collection(
         self,
