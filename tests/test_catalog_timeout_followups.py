@@ -13,8 +13,11 @@ import pytest
 from xaikit import XaiClient
 from xaikit.catalog import (
     BOOTSTRAP_MODEL,
+    cached_catalog,
+    catalog_source,
     clear_catalog_cache,
     fetch_models_from_sdk,
+    find_cached_model,
     inject_catalog,
     list_models,
     resolve_model,
@@ -253,3 +256,40 @@ def test_ctf_c13_existing_timeout_tests_stay_in_place() -> None:
 
 def test_ctf_c14_default_constant_stays_180() -> None:
     assert DEFAULT_SDK_TIMEOUT_SECONDS == 180.0
+
+
+def test_fresh_live_snapshot_is_shared_across_timeouts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A fresh live list is reused by another timeout, including when that fetch would stall."""
+    _install(monkeypatch)
+    FakeClient.mode = "healthy"
+    live = list_models(api_key=FAKE_KEY)
+    assert "grok-live-9" in _ids(live)
+    after_live = FakeClient.inits
+    FakeClient.mode = "stall"
+    reused = list_models(api_key=FAKE_KEY, sdk_timeout=1)
+    assert "grok-live-9" in _ids(reused)
+    assert _ids(reused) != _BOOTSTRAP_IDS
+    assert FakeClient.inits == after_live
+
+
+def test_successful_fetch_replaces_shared_fallback_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A later live fetch replaces the shared snapshot left by another timeout's deadline."""
+    _install(monkeypatch)
+    FakeClient.mode = "stall"
+    stalled = list_models(api_key=FAKE_KEY, sdk_timeout=1)
+    assert _ids(stalled) == _BOOTSTRAP_IDS
+    assert catalog_source() == "sdk-error"
+    assert find_cached_model("grok-4.7") is not None
+    FakeClient.mode = "healthy"
+    live = list_models(api_key=FAKE_KEY)
+    assert "grok-live-9" in _ids(live)
+    assert catalog_source() == "sdk"
+    cached = cached_catalog()
+    assert cached is not None
+    assert "grok-live-9" in _ids(cached)
+    assert find_cached_model("grok-live-9") is not None
+    assert find_cached_model("grok-4.7") is None

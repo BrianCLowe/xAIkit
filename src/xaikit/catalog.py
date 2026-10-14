@@ -159,6 +159,27 @@ def _live_key_needs_fetch(snap: CatalogSnapshot, key: str | None) -> bool:
     return snap.source in {"bootstrap", "persist"}
 
 
+def _is_shared_live_snapshot(snap: CatalogSnapshot) -> bool:
+    """Successful SDK or REST list. Deadline and other fallbacks stay per timeout."""
+    return snap.fresh_for is None and snap.source in {"sdk", "rest"}
+
+
+def _snapshot_usable(
+    snap: CatalogSnapshot | None,
+    *,
+    ttl_seconds: int,
+    rest_base: str,
+    key: str | None,
+) -> bool:
+    if snap is None:
+        return False
+    if not snap.is_fresh(ttl_seconds) or snap.base_url != rest_base:
+        return False
+    if snap.fresh_for is None and _live_key_needs_fetch(snap, key):
+        return False
+    return True
+
+
 def set_test_fetch(fn: _FetchFn | None) -> None:
     """Inject or clear a test fetch function (bypasses SDK)."""
     global _test_fetch
@@ -1276,6 +1297,8 @@ def list_models(
     persist, fixture, and bootstrap fallbacks, cached for
     ``CATALOG_TIMEOUT_RETRY_SECONDS`` (60) on that timeout only, instead of
     the full TTL. A different timeout does not receive that fallback.
+    A fresh live SDK or REST snapshot is reused by any timeout. A successful
+    live fetch always updates the shared snapshot.
 
     After a successful SDK fetch, if ``persist_path`` is set, write
     ``{models: [...]}`` there (best-effort: disk errors are logged and the
@@ -1288,16 +1311,20 @@ def list_models(
 
     key = (api_key or "").strip() or None
     rest_base = _rest_catalog_base(base_url)
-    with _state.lock:
-        snap = _state.by_timeout.get(resolved_timeout)
-        if (
-            not force_refresh
-            and snap is not None
-            and snap.is_fresh(ttl_seconds)
-            and snap.base_url == rest_base
-            and (snap.fresh_for is not None or not _live_key_needs_fetch(snap, key))
-        ):
-            return list(snap.models)
+    if not force_refresh:
+        with _state.lock:
+            own = _state.by_timeout.get(resolved_timeout)
+            if own is not None and _snapshot_usable(
+                own, ttl_seconds=ttl_seconds, rest_base=rest_base, key=key
+            ):
+                return list(own.models)
+            for shared in _state.by_timeout.values():
+                if not _is_shared_live_snapshot(shared):
+                    continue
+                if _snapshot_usable(
+                    shared, ttl_seconds=ttl_seconds, rest_base=rest_base, key=key
+                ):
+                    return list(shared.models)
 
     models: list[ModelInfo] | None = None
     source: str | None = None
@@ -1375,16 +1402,21 @@ def list_models(
     )
     with _state.lock:
         _state.by_timeout[resolved_timeout] = snap
-        previous = _state.snapshot
-        # Keep a live snapshot when this deadline belongs to another timeout.
-        # The same timeout still replaces its own slot, including catalog_source.
-        other_holds_previous = previous is not None and any(
-            held is previous
-            for key, held in _state.by_timeout.items()
-            if key != resolved_timeout
-        )
-        if not other_holds_previous:
+        if _is_shared_live_snapshot(snap):
             _state.snapshot = snap
+        else:
+            previous = _state.snapshot
+            hides_live = (
+                previous is not None
+                and _is_shared_live_snapshot(previous)
+                and any(
+                    held is previous
+                    for cache_key, held in _state.by_timeout.items()
+                    if cache_key != resolved_timeout
+                )
+            )
+            if not hides_live:
+                _state.snapshot = snap
     return list(models)
 
 
