@@ -195,7 +195,7 @@ _DEFAULT_STT_MODELS: dict[str, dict[str, Any]] = {
 }
 
 # Public Voice / speech-to-speech list rates (USD / audio minute). Estimates, not a billing authority.
-# grok-voice-latest is the documented alias for grok-voice-think-fast-2.0.
+# grok-voice-latest is the xAI alias. Voice best uses normal ranking.
 # Text-input $0.004 on the public table has no documented unit — not estimated here.
 _DEFAULT_VOICE_MODELS: dict[str, dict[str, Any]] = {
     "grok-voice-latest": {
