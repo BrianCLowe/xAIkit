@@ -1,8 +1,8 @@
 """CAT-AC-LITE-ALL and CAT-AC-EXTRAS-1 (offline).
 
 Lite ranks last for best in every role. Quality video extras stay on the
-unversioned Imagine id. Watch-id feature_options stay on the 8ef89b3 baseline
-(62 slugs).
+unversioned Imagine id. Watch-id feature_options stay on the 8ef89b3 map.
+The baseline also lists grok-voice-2.0 and grok-voice-3.0, which have empty extras.
 """
 
 from __future__ import annotations
@@ -87,8 +87,8 @@ def _assert_best(catalog: list[ModelInfo], role: str, want: str) -> None:
 def _watch_slugs() -> list[str]:
     payload = json.loads(_WATCH_PATH.read_text(encoding="utf-8"))
     slugs = [str(slug) for slug in payload["slugs"]]
-    assert len(slugs) == 62
-    assert len(set(slugs)) == 62
+    assert len(slugs) == 64
+    assert len(set(slugs)) == 64
     return slugs
 
 
@@ -410,7 +410,7 @@ def test_e2_versioned_unknown_ids_have_empty_extras() -> None:
 
 
 def test_e3_watch_slug_feature_options_match_8ef89b3() -> None:
-    """CAT-AC-EXTRAS-1 E-3. 62 watch slugs, including the 1.5 family."""
+    """CAT-AC-EXTRAS-1 E-3. Watch slugs, including the 1.5 family."""
     slugs = _watch_slugs()
     assert "grok-imagine-video-1.5" in slugs
     assert "grok-imagine-video-1.5-lite" in slugs

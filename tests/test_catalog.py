@@ -15,6 +15,7 @@ from xaikit.catalog import (
     DEFAULT_IMAGE_MODEL,
     DEFAULT_VIDEO_MODEL,
     DEFAULT_VOICE_MODEL,
+    ROLE_CHAT,
     ModelInfo,
     best_model,
     catalog_source,
@@ -36,6 +37,7 @@ from xaikit.catalog import (
     resolve_model,
     resolve_model_selection,
     save_catalog_snapshot,
+    static_role_for_id,
 )
 from xaikit.pricing import default_price_table
 
@@ -1441,3 +1443,37 @@ def test_list_models_persist_write_failure_still_returns(
     assert [m.id for m in models] == ["live-ok"]
     assert catalog_source() == "sdk"
     clear_catalog_cache()
+
+
+def test_voice_best_and_latest_stay_on_grok_voice_latest() -> None:
+    """Voice best stays grok-voice-latest. Latest stays the xAI alias.
+
+    grok-voice-2.0 and grok-voice-3.0 are on the watch baseline only.
+    They are not shipped voice catalog rows.
+    """
+    rows = [
+        ModelInfo(id="grok-voice-think-fast-1.0", capabilities=["voice"], created=1),
+        ModelInfo(id="grok-voice-think-fast-2.0", capabilities=["voice"], created=2),
+        ModelInfo(id="grok-voice-latest", capabilities=["voice"], created=3),
+    ]
+    voice_best = resolve_model_selection(intent="best", role="voice", catalog=rows)
+    assert voice_best.model_id == "grok-voice-latest"
+    assert voice_best.source == "intent:best"
+    assert resolve_model(role="voice", catalog=rows) == "grok-voice-latest"
+    assert DEFAULT_VOICE_MODEL == "grok-voice-latest"
+
+    empty = resolve_model_selection(intent="best", role="voice", catalog=[])
+    assert empty.model_id == "grok-voice-latest"
+    assert empty.source == "bootstrap"
+    assert resolve_model(role="voice", catalog=[]) == DEFAULT_VOICE_MODEL
+
+    assert static_role_for_id("grok-voice-latest") == "voice"
+    assert static_role_for_id("grok-voice-2.0") == ROLE_CHAT
+    assert static_role_for_id("grok-voice-3.0") == ROLE_CHAT
+    table = default_price_table()
+    assert table.price_for("grok-voice-2.0") is None
+    assert table.price_for("grok-voice-3.0") is None
+
+    payload = json.loads(_WATCH_SLUGS_PATH.read_text(encoding="utf-8"))
+    assert "grok-voice-2.0" in payload["slugs"]
+    assert "grok-voice-3.0" in payload["slugs"]
