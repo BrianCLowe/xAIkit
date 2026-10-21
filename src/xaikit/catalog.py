@@ -366,6 +366,53 @@ def contract_model_for_need(
     return resolve_model(intent=INTENT_BEST, role=role, need=need, catalog=catalog)
 
 
+def contract_listed_model_for_need(
+    model: str | None,
+    need: str | Sequence[str],
+    *,
+    role: str | None = None,
+    catalog: Sequence[ModelInfo],
+) -> str | None:
+    """Remap ``model`` for ``need`` using only ids in ``catalog``.
+
+    Same keep rules as :func:`contract_model_for_need`: an unknown SKU stays
+    pinned, and a known SKU that already has the extra stays. A remap calls
+    ``resolve_model(intent=best, need=...)`` on listed ids whose
+    :func:`static_role_for_id` is ``role`` and whose :func:`feature_options`
+    include ``need``. Returns None when that set is empty. Does not bootstrap
+    to an id outside the list.
+    """
+    needed = _normalize_need(need)
+    slug = (model or "").strip()
+    if not needed:
+        return slug
+    extras = feature_options(slug) if slug else []
+    known = bool(slug) and _known_feature_sku(slug)
+    if slug and not extras and not known:
+        return slug
+    if slug and needed <= set(extras):
+        return slug
+    role_n = normalize_role(role)
+    qualifying = [
+        row
+        for row in catalog
+        if (row.id or "").strip()
+        and static_role_for_id(row.id) == role_n
+        and needed <= set(feature_options(row.id))
+    ]
+    if not qualifying:
+        return None
+    chosen = resolve_model(
+        intent=INTENT_BEST,
+        role=role_n,
+        need=need,
+        catalog=qualifying,
+    )
+    if chosen not in {row.id for row in qualifying}:
+        return None
+    return chosen
+
+
 def _is_chat_4_5(slug: str) -> bool:
     if "imagine" in slug or "voice" in slug:
         return False

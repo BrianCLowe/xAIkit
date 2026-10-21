@@ -54,6 +54,7 @@ from xaikit.catalog import (
     ROLE_VIDEO,
     ROLE_VOICE,
     contract_imagine_aspect_ratio,
+    contract_listed_model_for_need,
     contract_model_for_need,
     contract_thought_level,
     fetch_host_catalog,
@@ -445,6 +446,37 @@ class XaiClient:
         if any(listed_role == role for _info, listed_role in loaded):
             return
         raise RoleUnavailableOnHost(role, self._regional_host())
+
+    def _listed_models_for_role(self, role: str) -> list[Any] | None:
+        """Listed rows for ``role``, or None to keep the static catalog.
+
+        None is the default host and a failed host list. An empty list means
+        the host answered and listed no id for this role.
+        """
+        if not self._uses_regional_catalog():
+            return None
+        loaded = self._load_regional_models()
+        if loaded is None:
+            return None
+        return [info for info, listed_role in loaded if listed_role == role]
+
+    def _model_for_need(self, model: str | None, need: str, *, role: str) -> str:
+        """Keep or remap ``model`` for ``need``.
+
+        A non-default host with a usable list remaps only to ids that host
+        lists for ``role``. No qualifying id raises ``RoleUnavailableOnHost``
+        before any request. The default host, and a failed host list, keep
+        the static remap.
+        """
+        listed = self._listed_models_for_role(role)
+        if listed is None:
+            return contract_model_for_need(model, need, role=role)
+        chosen = contract_listed_model_for_need(
+            model, need, role=role, catalog=listed
+        )
+        if chosen is None:
+            raise RoleUnavailableOnHost(role, self._regional_host())
+        return chosen
 
     def _selection_for(self, role: str):
         try:
@@ -2953,11 +2985,27 @@ class XaiClient:
     def _contract_batch_requests(
         self, requests: list[dict[str, Any]]
     ) -> list[dict[str, Any]]:
-        fallback = contract_model_for_need(self.model, "batch", role="chat")
-        normalized = normalize_batch_requests(requests, default_model=fallback)
-        for row in normalized:
-            row["model"] = contract_model_for_need(row.get("model"), "batch", role="chat")
-        return normalized
+        # Placeholder only. Omitted rows are replaced below; a row pin is
+        # contracted on its own so an unknown pin does not depend on the
+        # client model having a listed batch id.
+        drafted = normalize_batch_requests(requests, default_model="pending")
+        fallback: str | None = None
+
+        def _fallback() -> str:
+            nonlocal fallback
+            if fallback is None:
+                fallback = self._model_for_need(self.model, "batch", role=ROLE_CHAT)
+            return fallback
+
+        for source, row in zip(requests, drafted):
+            explicit = ""
+            if isinstance(source, dict):
+                explicit = str(source.get("model") or "").strip()
+            if explicit:
+                row["model"] = self._model_for_need(explicit, "batch", role=ROLE_CHAT)
+            else:
+                row["model"] = _fallback()
+        return drafted
 
     def add_batch_requests(
         self,
@@ -2973,7 +3021,9 @@ class XaiClient:
         Live Batch rejects ``grok-4.6`` / ``grok-4.5``. ``grok-4.7`` is documented
         Batch API not supported (same 4.6+ extras family). Omitted model and those
         known SKUs remap via ``need=batch`` (official examples use ``grok-4.3``).
-        Unknown pins stay.
+        Unknown pins stay. On a non-default host the remap uses only listed
+        chat ids. When none include ``batch``, this raises
+        ``RoleUnavailableOnHost`` and does not call the batch RPC.
         """
         tag = self._require_purpose_if_metered(purpose)
         bid = (batch_id or "").strip()
@@ -3696,7 +3746,7 @@ class XaiClient:
         slug = (model or self.video_model or DEFAULT_VIDEO_MODEL).strip()
         if not need:
             return slug
-        return contract_model_for_need(slug, need, role="video")
+        return self._model_for_need(slug, need, role=ROLE_VIDEO)
 
     def _record_video_failed(
         self,
@@ -3833,6 +3883,9 @@ class XaiClient:
 
         ``1.5`` and ``1.5-lite`` cannot extend. Omitted model or a known SKU
         missing ``video_extend`` remaps to the job's ``best`` (quality).
+        On a non-default host that remap reads listed ids whose static role
+        is video. When none include ``video_extend``, this raises
+        ``RoleUnavailableOnHost`` and does not POST.
         """
         tag = self._require_purpose_if_metered(purpose)
         sink = require_video_into(into)
