@@ -383,5 +383,5 @@ def test_xk_ac_doc_2_readme_and_issue_config_say_current_version() -> None:
     config = (_ROOT / ".github/ISSUE_TEMPLATE/config.yml").read_text(encoding="utf-8")
     assert "0.1.3" not in readme
     assert "0.1.3" not in config
-    assert "git+https://github.com/BrianCLowe/xAIkit@v0.4.1" in readme
-    assert "This repo's version is 0.4.1." in config
+    assert "git+https://github.com/BrianCLowe/xAIkit@v0.5.0" in readme
+    assert "This repo's version is 0.5.0." in config
