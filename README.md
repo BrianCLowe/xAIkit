@@ -193,7 +193,7 @@ voice_id = resolve_model(intent="economy", role="voice")
 extend_id = resolve_model(intent="best", role="video", need="video_extend")
 ```
 
-`role` is `chat` | `image` | `video` | `voice` | `speech-to-text`. Offline tests inject fixtures with `inject_catalog` — do not hit the network.
+`role` is `chat` | `image` | `video` | `voice` | `speech-to-text`. Offline tests inject fixtures with `inject_catalog`, so they never hit the network.
 
 `feature_options(model=)` lists extra capabilities for settings UIs (not role tags). No model → Grok 4.7 chat extras, the same set as Grok 4.6+ (`web_search`, `x_search`, `code_execution`, `file_attachments`, `collections_search`, `image_understanding`, `x_video_understanding`, `mcp`). Imagine quality (`grok-imagine-video`) reports `video_extend` / `video_edit` / `r2v`; `grok-imagine-video-1.5` reports `1080p` / `r2v` and not extend; `grok-imagine-video-1.5-lite` reports `1080p` only. Unknown or older SKUs return `[]`. Pass the same ids as `need=` on resolve so `best` is best for that job (quality over 1.5 when the job is extend). Video `best` stays on `grok-imagine-video-1.5` even when a dated lite id is newer; `cheapest` can pick the lite SKU when it is on the list.
 
