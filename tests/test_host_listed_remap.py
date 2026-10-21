@@ -26,6 +26,7 @@ from xaikit.catalog import (
     contract_listed_model_for_need,
     describe_listed_id,
     feature_options,
+    fetch_host_catalog_async,
     inject_catalog,
     static_role_for_id,
 )
@@ -564,3 +565,84 @@ def test_hr_c16_posted_models_are_ids_the_host_lists(
         assert set(http_models) <= set(batch_ids)
     finally:
         _stop(batch_host)
+
+
+def test_hr_async_remap_loads_host_list_without_sync_fetch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Async extend and batch repair preload the host list.
+
+    Unpinned extend, a per-call pin, a client video pin, omitted batch
+    repair, and a batch row pin all use the async fetch. The sync host
+    list fetch is not called.
+    """
+    sync_calls: list[str] = []
+    async_calls: list[str] = []
+
+    def _sync_fetch(*args: Any, **kwargs: Any) -> Any:
+        sync_calls.append("sync")
+        raise AssertionError("sync host-list fetch on AsyncXaiClient")
+
+    async def _async_fetch(*args: Any, **kwargs: Any) -> Any:
+        async_calls.append("async")
+        return await fetch_host_catalog_async(*args, **kwargs)
+
+    monkeypatch.setattr("xaikit.client.fetch_host_catalog", _sync_fetch)
+    monkeypatch.setattr("xaikit.async_client.fetch_host_catalog_async", _async_fetch)
+    capture = _BatchCapture()
+    capture.install(monkeypatch)
+
+    def _no_sync() -> None:
+        assert sync_calls == []
+
+    five = _open(FIVE_IDS)
+    try:
+        unpinned = _client(AsyncXaiClient, five)
+        with pytest.raises(RoleUnavailableOnHost) as unpinned_err:
+            _extend(unpinned)
+        assert unpinned_err.value.role == "video"
+        _no_sync()
+
+        per_call = _client(AsyncXaiClient, five)
+        with pytest.raises(RoleUnavailableOnHost) as per_call_err:
+            _extend(per_call, model=VIDEO_STABLE)
+        assert per_call_err.value.role == "video"
+        _no_sync()
+
+        client_pin = _client(AsyncXaiClient, five, video_model=VIDEO_STABLE)
+        with pytest.raises(RoleUnavailableOnHost) as client_pin_err:
+            _extend(client_pin)
+        assert client_pin_err.value.role == "video"
+        _no_sync()
+    finally:
+        _stop(five)
+
+    only_47 = _open((CHAT_47,))
+    try:
+        omitted = _client(AsyncXaiClient, only_47)
+        with pytest.raises(RoleUnavailableOnHost) as omitted_err:
+            _add(omitted, [_row()])
+        assert omitted_err.value.role == "chat"
+        _no_sync()
+
+        row_pin = _client(AsyncXaiClient, only_47, model=CHAT_47)
+        with pytest.raises(RoleUnavailableOnHost) as row_err:
+            _add(row_pin, [_row(CHAT_47)])
+        assert row_err.value.role == "chat"
+        assert capture.calls == []
+        _no_sync()
+    finally:
+        _stop(only_47)
+
+    both = _open((CHAT_47, CHAT_43))
+    try:
+        repair = _client(AsyncXaiClient, both, model=CHAT_47)
+        _add(repair, [_row()])
+        _add(repair, [_row(CHAT_47)])
+        assert capture.models() == [CHAT_43, CHAT_43]
+        _no_sync()
+    finally:
+        _stop(both)
+
+    assert async_calls == ["async"] * 6
+    assert sync_calls == []
