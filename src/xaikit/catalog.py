@@ -1036,12 +1036,14 @@ def static_role_for_id(model_id: str) -> str:
     """Role of a listed id from the static catalog.
 
     Exact role-map ids win. An unknown id is chat, except a dated image or
-    video snapshot: the longest known image or video id it starts with, then
-    a hyphen and one calendar date. The date is dashed ``YYYY-MM-DD`` or
-    compact ``YYYYMMDD``, checked with :func:`_ymd_in_range`. ``-latest`` is
-    not a date. Text, voice, and speech-to-text ids are not families here.
-    The REST ``/v1/models`` payload is not consulted: that list tags every
-    model as chat.
+    video snapshot: the longest date-match family it starts with, then a
+    hyphen and one calendar date. Families are the shipped image and video
+    price-table ids plus undated image and video role-map ids. Already-dated
+    ids and ``-latest`` aliases are not families. The date is dashed
+    ``YYYY-MM-DD`` or compact ``YYYYMMDD``, checked with
+    :func:`_ymd_in_range`. ``-latest`` is not a date. Text, voice, and
+    speech-to-text ids are not families here. The REST ``/v1/models``
+    payload is not consulted: that list tags every model as chat.
     """
     key = (model_id or "").strip()
     if not key:
@@ -1050,26 +1052,42 @@ def static_role_for_id(model_id: str) -> str:
     exact = roles.get(key)
     if exact is not None:
         return exact
-    dated = _dated_image_or_video_family_role(key, roles)
-    if dated is not None:
-        return dated
+    family = _dated_image_or_video_family(key, roles)
+    if family is not None:
+        return roles[family]
     return ROLE_CHAT
 
 
-def _dated_image_or_video_family_role(
-    model_id: str, roles: Mapping[str, str]
-) -> str | None:
-    """Role of the longest image or video id plus one calendar date suffix.
+def _date_match_families(roles: Mapping[str, str]) -> dict[str, str]:
+    """Image and video ids a dated snapshot may extend.
 
-    The remainder after ``{family}-`` must be exactly ``YYYY-MM-DD`` or
-    ``YYYYMMDD``. ``-latest`` is not a date. Chat, voice, and speech-to-text
-    keys are ignored.
+    Shipped price-table ids plus undated role-map ids such as
+    ``grok-imagine-video-1.5-preview``. An id that already contains a
+    calendar date, and a ``-latest`` alias, are not families.
     """
-    best_len = -1
-    best_role: str | None = None
+    found: dict[str, str] = {}
     for family, role in roles.items():
         if role not in (ROLE_IMAGE, ROLE_VIDEO) or not family:
             continue
+        if family.endswith("-latest"):
+            continue
+        if _is_snapshot_id(family):
+            continue
+        found[family] = role
+    return found
+
+
+def _dated_image_or_video_family(
+    model_id: str, roles: Mapping[str, str]
+) -> str | None:
+    """Longest date-match family whose id plus one calendar date is ``model_id``.
+
+    The remainder after ``{family}-`` must be exactly ``YYYY-MM-DD`` or
+    ``YYYYMMDD``. ``-latest`` is not a date. Returns the family id, or None.
+    """
+    best_len = -1
+    best_family: str | None = None
+    for family in _date_match_families(roles):
         if len(family) <= best_len:
             continue
         prefix = f"{family}-"
@@ -1078,8 +1096,8 @@ def _dated_image_or_video_family_role(
         if not _is_calendar_date_suffix(model_id[len(prefix) :]):
             continue
         best_len = len(family)
-        best_role = role
-    return best_role
+        best_family = family
+    return best_family
 
 
 def _exact_injected_row(model_id: str) -> ModelInfo | None:
