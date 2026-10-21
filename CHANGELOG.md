@@ -9,6 +9,10 @@ All notable changes to xaikit-py. Newest entry on top.
 - `XaiClient` and `AsyncXaiClient` wrap the six `/v1/custom-voices` endpoints: `create_custom_voice`, `list_custom_voices`, `iter_custom_voices`, `get_custom_voice`, `update_custom_voice`, `delete_custom_voice`, and `download_custom_voice_audio`. Models are `CustomVoice` and `CustomVoicePage`. HTTP failures raise `CustomVoiceError`. Client checks run before any request. Create is not retried. (XK-CV-AC-1, XK-CV-AC-2, XK-CV-AC-3, XK-CV-AC-4, XK-CV-AC-5, XK-CV-AC-6, XK-CV-AC-7, XK-CV-AC-8, XK-CV-AC-9)
 - Static role map includes exact image ids `grok-imagine-image-quality-latest`, `grok-imagine-image-2026-03-02`, and `grok-imagine-image-quality-20260403`, and exact video ids `grok-imagine-video-1.5-2026-05-30` and `grok-imagine-video-1.5-preview`. Lookup stays an exact id plus strip. A host that lists only those ids resolves image and video. (MR-AC-1, MR-AC-2)
 
+### Fixed
+
+- Image best, economy, and cheapest skip a dated-only family when it is strictly cheaper than a family in the same pool that has a plain id or a `-latest` alias. On a host that lists `grok-imagine-image-quality-latest`, `grok-imagine-image-2026-03-02`, and `grok-imagine-image-quality-20260403`, all three intents resolve to `grok-imagine-image-quality-latest`. A dated-only image pool is unchanged. (IB-AC-1)
+
 ## 0.4.1 (2026-10-14)
 
 ### Added
