@@ -87,6 +87,7 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 | 2026-10-14 | `XK-HCC-1` / `XK-HCC-2` / `XK-HCC-3` | A non-default host `GET /v1/models` row keeps `created` (Unix seconds int) and `owned_by` on `ModelInfo`. Missing, non-integer, and ISO `created` values stay unset and rank as oldest. Prices still come from the injected row, then the shipped table, never the payload. With created dates on `grok-imagine-image`, `grok-imagine-image-quality`, and `grok-imagine-image-2.0`, image best is `grok-imagine-image-2.0` and economy is `grok-imagine-image-quality`, because the shipped per-call rates put quality strictly below 2.0. A shipped price edit can change that economy pick. The default host `https://api.x.ai/v1` still uses the SDK catalog and does not read this REST payload. |
 | 2026-10-14 | `XK-AHC-1` / `XK-AHC-2` / `XK-AHC-3` | Async regional host catalog fetch uses `httpx.AsyncClient` inside awaited calls so the event loop is not blocked. Timeout is `min(resolved SDK timeout, HOST_MODELS_TIMEOUT_SECONDS)`. Sync `XaiClient` stays on the sync fetch and the 30 second host timeout. Failure fallback and the one warning text match the sync path. |
 | 2026-10-14 | `XK-CTF-1` / `XK-CTF-2` / `XK-CTF-3` | A direct catalog call with no timeout (`fetch_models_from_sdk`, `list_models`, `resolve_model`, `resolve_model_selection`) uses `XAI_SDK_TIMEOUT_SECONDS` when set, otherwise 180. Invalid env values use the same rules as `resolve_sdk_timeout`. An explicit `sdk_timeout` and a client constructor timeout still win. A failed fetch stores persist, fixture, or sdk-error on that timeout only, including the 60 second deadline window, and a newer fallback for that timeout replaces the previous one. One latest live snapshot is shared across timeouts. A successful live load clears every per-timeout fallback. Caller inject and an explicit fixture or persist load still replace the shared snapshot. |
+| 2026-10-21 | `MR-AC-1` / `MR-AC-2` | Static role lookup adds exact image ids `grok-imagine-image-quality-latest`, `grok-imagine-image-2026-03-02`, `grok-imagine-image-quality-20260403` and exact video ids `grok-imagine-video-1.5-2026-05-30`, `grok-imagine-video-1.5-preview`. Other ids stay as they were. `price_for` is unchanged. Ranking is unchanged. |
 
 ## Dependencies
 
@@ -128,6 +129,7 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 - [x] `XK-CTF-1`: a direct catalog call with no timeout honors `XAI_SDK_TIMEOUT_SECONDS` when set, otherwise 180. An explicit timeout and a client constructor timeout still win. Invalid env values match `resolve_sdk_timeout`.
 - [x] `XK-CTF-2`: a deadline hit by one timeout does not give a different timeout the fallback list. The deadline caller keeps the 60 second retry window, including when that fallback is a persist or fixture body. A live snapshot for another timeout stays available to that timeout. A successful live load clears every per-timeout fallback.
 - [x] `XK-CTF-3`: existing timeout tests stay green, and `DEFAULT_SDK_TIMEOUT_SECONDS` stays 180.0.
+- [x] `MR-AC-1` / `MR-AC-2`: exact ids `grok-imagine-image-quality-latest`, `grok-imagine-image-2026-03-02`, `grok-imagine-image-quality-20260403` are image, and `grok-imagine-video-1.5-2026-05-30`, `grok-imagine-video-1.5-preview` are video. A host listing only those ids resolves image and video. Near ids stay chat. Voice, speech-to-text, and chat do not take those ids.
 
 ## Visual references
 
@@ -136,4 +138,4 @@ Resolve chain: **pin → need-filter → intent (`cheapest`\|`economy`\|`best`) 
 ## Current status
 
 - **In progress**: none — High / Medium / Low drained. Feature map + `need=` shipped
-- **Last reconciled with code**: 2026-10-14 (fetch fallbacks are per timeout and a live load clears them; explicit inject and fixture stay shared; XK-CTF-1, XK-CTF-2, XK-CTF-3)
+- **Last reconciled with code**: 2026-10-21 (exact Imagine image and video ids on the static role map; MR-AC-1, MR-AC-2)
