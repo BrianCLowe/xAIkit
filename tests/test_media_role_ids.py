@@ -72,11 +72,11 @@ IMAGE_ROLE = {
     VIDEO_PREVIEW: "video",
 }
 NEAR_IDS = (
-    "grok-imagine-image-quality-20990101",
-    "grok-imagine-image-2099-01-01",
-    "grok-imagine-video-1.5-2099-01-01",
-    "grok-imagine-video-2.0-preview",
-    "grok-imagine-image-quality-latest-x",
+    ("grok-imagine-image-quality-20990101", "image"),
+    ("grok-imagine-image-2099-01-01", "image"),
+    ("grok-imagine-video-1.5-2099-01-01", "video"),
+    ("grok-imagine-video-2.0-preview", "chat"),
+    ("grok-imagine-image-quality-latest-x", "chat"),
 )
 
 
@@ -199,8 +199,8 @@ def test_mr_c06_describe_listed_id_role_and_capabilities() -> None:
 
 
 def test_mr_c07_near_ids_stay_chat_and_strip_is_exact() -> None:
-    for mid in NEAR_IDS:
-        assert static_role_for_id(mid) == "chat"
+    for mid, role in NEAR_IDS:
+        assert static_role_for_id(mid) == role
     padded = " grok-imagine-image-quality-latest"
     assert static_role_for_id(padded) == "image"
     assert static_role_for_id(padded) == static_role_for_id(padded.strip())
