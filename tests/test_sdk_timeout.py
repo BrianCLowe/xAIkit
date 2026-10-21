@@ -935,4 +935,4 @@ def test_long_stream_doc_line() -> None:
     assert "## 0.4.0 (2026-10-14)" in changelog
     assert "XK-TO-1" in changelog
     version = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-    assert 'version = "0.5.0"' in version
+    assert 'version = "0.5.1"' in version
