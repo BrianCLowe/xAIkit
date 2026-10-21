@@ -52,9 +52,11 @@ jobs:
           count_re = re.compile(
               r"(\d+) (failed|passed|skipped|error|errors|xfailed|xpassed|warnings|deselected)"
           )
-          collect_re = re.compile(r"^(tests/\S+::\S+)\s*$")
-          status_re = re.compile(r"\b(PASSED|FAILED|SKIPPED|ERROR|XFAIL|XPASS)\b")
-          node_re = re.compile(r"(tests/\S+::\S+)")
+          status = r"PASSED|FAILED|SKIPPED|ERROR|XFAIL|XPASS"
+          serial_line = re.compile(rf"^(tests/.+?) (?:{status})\b")
+          xdist_line = re.compile(
+              rf"^\[gw\d+\](?: \[[^\]]+\])? (?:{status}) (tests/.+?)\s*$"
+          )
           tally_names = ("failed", "passed", "skipped", "error", "xfailed", "xpassed")
 
           def run(args: list[str]) -> subprocess.CompletedProcess[str]:
@@ -65,18 +67,22 @@ jobs:
           def collected_ids(proc: subprocess.CompletedProcess[str]) -> list[str]:
               ids: list[str] = []
               for line in proc.stdout.splitlines():
-                  match = collect_re.match(line.strip())
-                  if match:
-                      ids.append(match.group(1))
+                  line = line.strip()
+                  if line.startswith("tests/") and "::" in line:
+                      ids.append(line)
               return ids
 
           def executed_ids(proc: subprocess.CompletedProcess[str]) -> set[str]:
               found: set[str] = set()
-              for line in (proc.stdout + "\n" + proc.stderr).splitlines():
-                  if status_re.search(line) is None:
+              for raw in (proc.stdout + "\n" + proc.stderr).splitlines():
+                  line = raw.strip()
+                  serial = serial_line.match(line)
+                  if serial:
+                      found.add(serial.group(1).strip())
                       continue
-                  for match in node_re.finditer(line):
-                      found.add(match.group(1).rstrip("."))
+                  xdist = xdist_line.match(line)
+                  if xdist:
+                      found.add(xdist.group(1).strip())
               return found
 
           def counts(proc: subprocess.CompletedProcess[str]) -> dict[str, str]:
