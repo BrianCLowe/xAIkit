@@ -995,7 +995,7 @@ def _shipped_role_map() -> dict[str, str]:
 
     Most ids come from the shipped price table and speech-to-text defaults.
     Five Imagine image and video ids below are exact keys only.
-    Lookup is by id only. A prefix or an id pattern is not a role.
+    Keys stay exact. A dated snapshot is not stored here.
     """
     global _shipped_roles
     if _shipped_roles is not None:
@@ -1035,13 +1035,69 @@ def _shipped_role_map() -> dict[str, str]:
 def static_role_for_id(model_id: str) -> str:
     """Role of a listed id from the static catalog.
 
-    An id the static catalog does not know is chat. The REST ``/v1/models``
+    Exact role-map ids win. An unknown id is chat, except a dated image or
+    video snapshot: the longest date-match family it starts with, then a
+    hyphen and one calendar date. Families are the shipped image and video
+    price-table ids plus undated image and video role-map ids. Already-dated
+    ids and ``-latest`` aliases are not families. The date is dashed
+    ``YYYY-MM-DD`` or compact ``YYYYMMDD``, checked with
+    :func:`_ymd_in_range`. ``-latest`` is not a date. Text, voice, and
+    speech-to-text ids are not families here. The REST ``/v1/models``
     payload is not consulted: that list tags every model as chat.
     """
     key = (model_id or "").strip()
     if not key:
         return ROLE_CHAT
-    return _shipped_role_map().get(key, ROLE_CHAT)
+    roles = _shipped_role_map()
+    exact = roles.get(key)
+    if exact is not None:
+        return exact
+    family = _dated_image_or_video_family(key, roles)
+    if family is not None:
+        return roles[family]
+    return ROLE_CHAT
+
+
+def _date_match_families(roles: Mapping[str, str]) -> dict[str, str]:
+    """Image and video ids a dated snapshot may extend.
+
+    Shipped price-table ids plus undated role-map ids such as
+    ``grok-imagine-video-1.5-preview``. An id that already contains a
+    calendar date, and a ``-latest`` alias, are not families.
+    """
+    found: dict[str, str] = {}
+    for family, role in roles.items():
+        if role not in (ROLE_IMAGE, ROLE_VIDEO) or not family:
+            continue
+        if family.endswith("-latest"):
+            continue
+        if _is_snapshot_id(family):
+            continue
+        found[family] = role
+    return found
+
+
+def _dated_image_or_video_family(
+    model_id: str, roles: Mapping[str, str]
+) -> str | None:
+    """Longest date-match family whose id plus one calendar date is ``model_id``.
+
+    The remainder after ``{family}-`` must be exactly ``YYYY-MM-DD`` or
+    ``YYYYMMDD``. ``-latest`` is not a date. Returns the family id, or None.
+    """
+    best_len = -1
+    best_family: str | None = None
+    for family in _date_match_families(roles):
+        if len(family) <= best_len:
+            continue
+        prefix = f"{family}-"
+        if not model_id.startswith(prefix):
+            continue
+        if not _is_calendar_date_suffix(model_id[len(prefix) :]):
+            continue
+        best_len = len(family)
+        best_family = family
+    return best_family
 
 
 def _exact_injected_row(model_id: str) -> ModelInfo | None:
@@ -1692,6 +1748,29 @@ def _norm_model_id(model_id: str) -> str:
 
 def _ymd_in_range(year: int, month: int, day: int) -> bool:
     return 2000 <= year <= 2099 and 1 <= month <= 12 and 1 <= day <= 31
+
+
+# A role-map date suffix is the whole remainder, not a date buried in the id.
+_ROLE_DATE_DASHED = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
+_ROLE_DATE_COMPACT = re.compile(r"(\d{8})")
+
+
+def _is_calendar_date_suffix(text: str) -> bool:
+    """True when ``text`` is one dashed or compact calendar date.
+
+    ``latest`` and any extra tail fail. The range check is
+    :func:`_ymd_in_range`, so day 31 is allowed in every month.
+    """
+    dashed = _ROLE_DATE_DASHED.fullmatch(text)
+    if dashed is not None:
+        year, month, day = (int(dashed.group(index)) for index in (1, 2, 3))
+        return _ymd_in_range(year, month, day)
+    compact = _ROLE_DATE_COMPACT.fullmatch(text)
+    if compact is None:
+        return False
+    raw = compact.group(1)
+    year, month, day = int(raw[0:4]), int(raw[4:6]), int(raw[6:8])
+    return _ymd_in_range(year, month, day)
 
 
 def _snapshot_dates(model_id: str) -> tuple[tuple[int, int, int], ...]:

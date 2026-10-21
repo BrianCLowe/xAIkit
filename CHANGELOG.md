@@ -2,6 +2,12 @@
 
 All notable changes to xaikit-py. Newest entry on top.
 
+## Unreleased
+
+### Added
+
+- Static role lookup treats an unknown dated image or video snapshot as its family. An exact role-map id still wins. Families are only the shipped image and video price-table ids plus undated role-map ids such as `grok-imagine-video-1.5-preview`. Already-dated ids and `-latest` aliases are not families. Otherwise the longest such family that the candidate starts with, plus a dashed (`YYYY-MM-DD`) or compact (`YYYYMMDD`) calendar date, supplies that family's role on the sync and async clients. A prefix with no date suffix stays chat. `-latest` is not a date. The role map keys are unchanged. Ranking is unchanged. (DS-AC-1, DS-AC-2)
+
 ## 0.5.0 (2026-10-21)
 
 ### Added
