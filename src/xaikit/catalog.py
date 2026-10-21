@@ -1822,6 +1822,55 @@ def _family_representatives(pool: Sequence[ModelInfo], role: str) -> list[ModelI
     return chosen
 
 
+def _image_pool_drop_cheaper_dated_only(pool: Sequence[ModelInfo]) -> list[ModelInfo]:
+    """Drop a cheaper dated-only image family when a plain or ``-latest`` family exists.
+
+    Family matching is unchanged. A family of only snapshot ids yields when its
+    lowest ranking price is strictly below a family in this pool that has a
+    plain id or a ``-latest`` alias. A dated-only family that is not cheaper
+    stays, so a newer dated snapshot can still beat an older plain id. When
+    every family is dated-only, the pool is unchanged. Callers use this for
+    the image role only.
+    """
+    groups: dict[str, list[ModelInfo]] = {}
+    for model in pool:
+        groups.setdefault(_snapshot_family(model.id), []).append(model)
+    anchored_prices: list[float] = []
+    dated_only: list[tuple[float, list[ModelInfo]]] = []
+    for members in groups.values():
+        plain = [model for model in members if not _is_snapshot_id(model.id)]
+        if plain:
+            anchored_prices.append(
+                min(_ranking_price(model, ROLE_IMAGE) for model in plain)
+            )
+        else:
+            dated_only.append(
+                (
+                    min(_ranking_price(model, ROLE_IMAGE) for model in members),
+                    members,
+                )
+            )
+    if not anchored_prices:
+        return list(pool)
+    ceiling = max(anchored_prices)
+    drop = {
+        model.id
+        for price, members in dated_only
+        if price < ceiling
+        for model in members
+    }
+    if not drop:
+        return list(pool)
+    return [model for model in pool if model.id not in drop]
+
+
+def _pool_for_role_intent(pool: list[ModelInfo], role: str) -> list[ModelInfo]:
+    """Image intents skip a cheaper dated-only family. Other roles stay as passed."""
+    if role != ROLE_IMAGE:
+        return pool
+    return _image_pool_drop_cheaper_dated_only(pool)
+
+
 def _pick_latest(pool: Sequence[ModelInfo], role: str) -> ModelInfo:
     """Highest row for ``role``. Generic roles drop dominated snapshots first."""
     rows = list(pool)
@@ -1862,11 +1911,16 @@ def prefer_latest_model(
     or created date, and a stable id then beats any ``-preview`` id. Preview
     is returned only when those candidates have no stable non-lite model.
     Lite is returned only when the pool has no non-lite id. A snapshot ranks
-    behind the plain id or ``-latest`` alias of the same family. Chat skips
-    coding SKUs when other chat rows exist.
+    behind the plain id or ``-latest`` alias of the same family. For image, a
+    dated-only family yields when it is strictly cheaper than a plain or
+    ``-latest`` family in the same pool. Other roles do not yield that way.
+    Chat skips coding SKUs when other chat rows exist.
     """
     role_n = normalize_role(role)
     pool = models_for_role(catalog, role_n)
+    if not pool:
+        return None
+    pool = _pool_for_role_intent(pool, role_n)
     if not pool:
         return None
     return _pick_latest(pool, role_n).id
@@ -1938,10 +1992,15 @@ def cheapest_model(
     Chat uses ``input_per_million``. For image, video, and voice, the public
     list rate wins over ``input_per_million`` when one exists. One price band
     picks the flagship. Multiple bands pick the oldest / non-reasoning model
-    in the cheapest band.
+    in the cheapest band. For image, a dated-only family that is strictly
+    cheaper than a plain or ``-latest`` family in the same pool is set aside
+    before those bands.
     """
     role_n = normalize_role(role)
     pool = models_for_role(catalog, role_n)
+    if not pool:
+        return None
+    pool = _pool_for_role_intent(pool, role_n)
     if not pool:
         return None
     priced = [m for m in pool if _has_ranking_price(m, role_n)]
@@ -1967,7 +2026,9 @@ def best_model(
     Lite is returned only when the pool has no non-lite id. A snapshot ranks
     behind the plain id or ``-latest`` alias of the same family. The date is
     not a version number, including the minor of an undotted id such as
-    ``grok-4`` or ``grok-5``. Lite can still win economy and cheapest.
+    ``grok-4`` or ``grok-5``. For image, a dated-only family yields when it is
+    strictly cheaper than a plain or ``-latest`` family in the same pool.
+    Lite can still win economy and cheapest.
     """
     return prefer_latest_model(catalog, role=role)
 
@@ -1984,11 +2045,16 @@ def economy_model(
     band is a single price, and overlaps ``best`` when nothing is cheaper
     than the flagship. The same snapshot rule as ``best`` applies inside
     the cheaper band: a dated id does not beat the plain id of its family.
-    Lite-last is not applied by dropping lite rows here, so a lone ``-lite``
-    id in that cheaper band still wins economy.
+    For image, a cheaper dated-only family yields to a plain or ``-latest``
+    family in the same pool before that band is chosen. Lite-last is not
+    applied by dropping lite rows here, so a lone ``-lite`` id in that
+    cheaper band still wins economy.
     """
     role_n = normalize_role(role)
     pool = models_for_role(catalog, role_n)
+    if not pool:
+        return None
+    pool = _pool_for_role_intent(pool, role_n)
     if not pool:
         return None
     flagship_id = prefer_latest_model(pool, role=role_n)

@@ -290,7 +290,7 @@ def test_mr_c20_best_follows_unchanged_ranking() -> None:
     rows = [
         ModelInfo(id=mid, capabilities=["image"], created=created[mid]) for mid in IMAGE_IDS
     ]
-    assert best_model(rows, role="image") == IMAGE_MARCH
+    assert best_model(rows, role="image") == IMAGE_LATEST
 
     dated_only = [
         ModelInfo(id=IMAGE_MARCH, capabilities=["image"], created=200),
@@ -312,7 +312,7 @@ def test_mr_c20_best_follows_unchanged_ranking() -> None:
     try:
         client = _client(XaiClient, host)
         assert client.image_model == best_model(rows, role="image")
-        assert client.image_model == IMAGE_MARCH
+        assert client.image_model == IMAGE_LATEST
         pinned = _client(XaiClient, host, image_model=IMAGE_LATEST)
         pinned.generate_image("cat")
         assert _posted_models(host["records"], "/images/generations") == [IMAGE_LATEST]
