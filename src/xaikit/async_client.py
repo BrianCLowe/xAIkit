@@ -2108,6 +2108,9 @@ class AsyncXaiClient(XaiClient):
         bid = (batch_id or "").strip()
         if not bid:
             raise RuntimeError("Batch id is empty")
+        # Batch repair reads the cached host list. Load it here so the sync
+        # remap does not fetch on this event loop.
+        await self._ensure_regional_catalog()
         normalized = self._contract_batch_requests(requests)
         raw = await self._batch_rpc(
             "add",
@@ -2719,7 +2722,9 @@ class AsyncXaiClient(XaiClient):
     ) -> dict[str, Any]:
         tag = self._require_purpose_if_metered(purpose)
         sink = require_video_into(into)
-        await self._ensure_regional_catalog_for(model, pinned=self._video_pinned)
+        # Extend remap reads the cached host list for a pin and for an
+        # omitted model. Load it here so the sync remap does not fetch.
+        await self._ensure_regional_catalog()
         video_model = self._effective_video_model(model, need="video_extend")
         cleaned = (prompt or "").strip()
         if not cleaned:
