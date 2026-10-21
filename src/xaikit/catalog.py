@@ -944,8 +944,10 @@ _shipped_roles: dict[str, str] | None = None
 
 
 def _shipped_role_map() -> dict[str, str]:
-    """Exact ids the shipped price table and speech-to-text defaults already know.
+    """Exact ids the static catalog already knows.
 
+    Most ids come from the shipped price table and speech-to-text defaults.
+    Five Imagine image and video ids below are exact keys only.
     Lookup is by id only. A prefix or an id pattern is not a role.
     """
     global _shipped_roles
@@ -973,6 +975,12 @@ def _shipped_role_map() -> dict[str, str]:
         roles[mid] = ROLE_SPEECH_TO_TEXT
     roles["grok-voice-transcribe-1.0"] = ROLE_SPEECH_TO_TEXT
     roles[_SPEECH_TO_TEXT_BOOTSTRAP] = ROLE_SPEECH_TO_TEXT
+    # Exact host ids. A dated or -latest neighbor is not included by prefix.
+    roles["grok-imagine-image-quality-latest"] = ROLE_IMAGE
+    roles["grok-imagine-image-2026-03-02"] = ROLE_IMAGE
+    roles["grok-imagine-image-quality-20260403"] = ROLE_IMAGE
+    roles["grok-imagine-video-1.5-2026-05-30"] = ROLE_VIDEO
+    roles["grok-imagine-video-1.5-preview"] = ROLE_VIDEO
     _shipped_roles = roles
     return roles
 
