@@ -94,6 +94,7 @@ from xaikit.client import (
     _realtime_session_body,
     _response_resource_url,
     _tts_voice_resource_url,
+    _tts_voice_rows,
     _video_error_message,
     _video_media_ref,
     _video_meter_usage,
@@ -1217,10 +1218,14 @@ class AsyncXaiClient(XaiClient):
         try:
             payload = response.json()
         except json.JSONDecodeError as exc:
-            raise RuntimeError("STT returned non-JSON response") from exc
+            message = "STT returned non-JSON response"
+            _fail(message)
+            raise RuntimeError(message) from exc
         text = payload.get("text") if isinstance(payload, dict) else None
         if text is None:
-            raise RuntimeError("STT response missing text field")
+            message = "STT response missing text field"
+            _fail(message)
+            raise RuntimeError(message)
         self._record(
             purpose=tag,
             usage=None,
@@ -1300,7 +1305,9 @@ class AsyncXaiClient(XaiClient):
         )
         audio = response.content
         if not audio:
-            raise RuntimeError("TTS returned empty audio")
+            message = "TTS returned empty audio"
+            _fail(message)
+            raise RuntimeError(message)
         content_type = response.headers.get("content-type") or ""
         content_type = content_type.split(";")[0].strip()
         if not content_type:
@@ -1348,10 +1355,18 @@ class AsyncXaiClient(XaiClient):
         try:
             payload = response.json()
         except json.JSONDecodeError as exc:
-            raise RuntimeError("TTS voices returned non-JSON response") from exc
-        voices = payload.get("voices") if isinstance(payload, dict) else None
-        if not isinstance(voices, list) or not voices:
-            raise RuntimeError("TTS voices response missing voices list")
+            message = "TTS voices returned non-JSON response"
+            self._record_tts_voices(
+                tag=tag, parent_id=parent_id, labels=labels, success=False, error=message
+            )
+            raise RuntimeError(message) from exc
+        try:
+            voices = _tts_voice_rows(payload)
+        except RuntimeError as exc:
+            self._record_tts_voices(
+                tag=tag, parent_id=parent_id, labels=labels, success=False, error=str(exc)
+            )
+            raise
         self._record_tts_voices(tag=tag, parent_id=parent_id, labels=labels, success=True)
         return voices
 
@@ -1381,9 +1396,17 @@ class AsyncXaiClient(XaiClient):
         try:
             payload = response.json()
         except json.JSONDecodeError as exc:
-            raise RuntimeError("TTS voice returned non-JSON response") from exc
+            message = "TTS voice returned non-JSON response"
+            self._record_tts_voices(
+                tag=tag, parent_id=parent_id, labels=labels, success=False, error=message
+            )
+            raise RuntimeError(message) from exc
         if not isinstance(payload, dict):
-            raise RuntimeError("TTS voice returned unexpected payload")
+            message = "TTS voice returned unexpected payload"
+            self._record_tts_voices(
+                tag=tag, parent_id=parent_id, labels=labels, success=False, error=message
+            )
+            raise RuntimeError(message)
         self._record_tts_voices(tag=tag, parent_id=parent_id, labels=labels, success=True)
         return payload
 

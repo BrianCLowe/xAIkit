@@ -11,6 +11,7 @@ All notable changes to xaikit-py. Newest entry on top.
 
 ### Fixed
 
+- A malformed HTTP 200 from STT, REST TTS, the TTS voice roster, and `get_tts_voice` records one failed usage event, then raises the existing error. A 401 still records nothing. (MM-AC-1, MM-AC-2)
 - On a non-default host, video extend and batch remaps use only ids that host lists, and raise `RoleUnavailableOnHost` when none qualify. `AsyncXaiClient` loads that list with the async host fetch before the remap. The default host is unchanged. (HR-AC-1, HR-AC-2)
 - Image best, economy, and cheapest skip a dated-only family when it is strictly cheaper than a family in the same pool that has a plain id or a `-latest` alias. On a host that lists `grok-imagine-image-quality-latest`, `grok-imagine-image-2026-03-02`, and `grok-imagine-image-quality-20260403`, all three intents resolve to `grok-imagine-image-quality-latest`. A dated-only image pool is unchanged. (IB-AC-1)
 
