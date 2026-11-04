@@ -531,7 +531,10 @@ def test_generate_image_omits_quality_on_non_2_0_skus(
     assert body["model"] == model
     assert body["resolution"] == "1k"
     assert body["response_format"] == "b64_json"
-    assert "quality" not in body
+    if imagine_supports_quality(model):
+        assert body["quality"] == "low"
+    else:
+        assert "quality" not in body
 
 
 def test_generate_image_omits_unknown_aspect_ratio_and_resolution(
@@ -591,7 +594,7 @@ def test_imagine_generate_knob_contraction() -> None:
     assert contract_imagine_resolution("2K") == "2k"
     assert contract_imagine_resolution("4k") is None
     assert contract_imagine_quality("medium", "grok-imagine-image-2.0") == "medium"
-    assert contract_imagine_quality("low", DEFAULT_IMAGE_MODEL) is None
+    assert contract_imagine_quality("low", DEFAULT_IMAGE_MODEL) == "low"
     assert contract_imagine_quality("high", "grok-imagine-image-2.0") is None
     knobs = imagine_generate_knobs(
         "grok-imagine-image-quality",

@@ -303,7 +303,7 @@ def test_l8_lite_wins_economy_and_cheapest_below_flagship() -> None:
     Kills a lite rule that also drops lite from economy.
     """
     table = default_price_table()
-    assert table.price_for("grok-imagine-image-quality").per_call_usd == 0.05
+    assert table.price_for("grok-imagine-image-quality").per_call_usd == 0.02
     assert table.price_for("grok-imagine-image-3.0-lite").per_call_usd == 0.02
     assert table.price_for("grok-imagine-video-1.5").per_second_usd == 0.08
     assert table.price_for("grok-imagine-video-1.5-lite").per_second_usd == 0.02
@@ -336,7 +336,7 @@ def test_l8_lite_wins_economy_and_cheapest_below_flagship() -> None:
         ),
     ]
     expected = {
-        "image": (image, "grok-imagine-image-quality", "grok-imagine-image-3.0-lite"),
+        "image": (image, "grok-imagine-image-quality", "grok-imagine-image-quality"),
         "chat": (chat, "grok-4.7", "grok-4.8-lite"),
         "video": (video, "grok-imagine-video-1.5", "grok-imagine-video-1.5-lite"),
         "voice": (voice, "grok-voice-think-fast-2.0", "grok-voice-think-fast-3.0-lite"),

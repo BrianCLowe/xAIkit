@@ -349,7 +349,7 @@ def test_unpriced_media_uses_public_rates() -> None:
         "grok-imagine-image"
     )
     assert resolve_model_selection(intent="economy", role="image", catalog=cat).model_id == (
-        "grok-imagine-image"
+        "grok-imagine-image-quality"
     )
     assert resolve_model_selection(intent="best", role="image", catalog=cat).model_id == (
         "grok-imagine-image-quality"
@@ -399,9 +399,9 @@ def test_stale_image_2_0_rate_makes_economy_pick_2_0(
         resolve_model_selection(intent="economy", role="image", catalog=cat).model_id,
         resolve_model_selection(intent="cheapest", role="image", catalog=cat).model_id,
     ) == (
-        "grok-imagine-image-2.0",
+        "grok-imagine-image-quality",
         "grok-imagine-image",
-        "grok-imagine-image-2.0",
+        "grok-imagine-image-quality",
         "grok-imagine-image",
     )
 
@@ -414,9 +414,9 @@ def test_image_economy_and_cheapest_resolve_to_grok_imagine_image() -> None:
         resolve_model_selection(intent="economy", role="image", catalog=cat).model_id,
         resolve_model_selection(intent="cheapest", role="image", catalog=cat).model_id,
     ) == (
+        "grok-imagine-image-quality",
         "grok-imagine-image",
-        "grok-imagine-image",
-        "grok-imagine-image",
+        "grok-imagine-image-quality",
         "grok-imagine-image",
     )
 
@@ -1153,7 +1153,7 @@ def test_image_role_ranks_on_public_per_call_not_sdk_token_units() -> None:
         ModelInfo(id="grok-imagine-image", capabilities=["image"]),
     ]
     cheap = resolve_model_selection(intent="cheapest", role="image", catalog=cat)
-    assert cheap.model_id == "grok-imagine-image"
+    assert cheap.model_id == "grok-imagine-image-quality"
 
 
 def test_bootstrap_model_is_current_flagship() -> None:

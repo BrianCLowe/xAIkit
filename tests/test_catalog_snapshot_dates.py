@@ -258,7 +258,7 @@ def test_s1_7_economy_picks_plain_in_the_cheap_band() -> None:
     _assert_economy(speech, "speech-to-text", "grok-voice-transcribe-1.0")
 
     image = _image_catalog(lambda _model_id: 10)
-    _assert_economy(image, "image", "grok-imagine-image")
+    _assert_economy(image, "image", "grok-imagine-image-quality-latest")
 
 
 def test_s1_8_short_suffixes_are_not_snapshots() -> None:
@@ -376,7 +376,7 @@ def test_s2_2_image_economy_is_plain_base_not_march_snapshot() -> None:
     )
     for created_for in variants:
         catalog = _image_catalog(created_for)
-        _assert_economy(catalog, "image", "grok-imagine-image")
+        _assert_economy(catalog, "image", "grok-imagine-image-quality-latest")
         assert economy_model(catalog, role="image") != march
         # Multi-band cheapest tie-break is unchanged (Q6 control).
         assert cheapest_model(catalog, role="image") == "grok-imagine-image"

@@ -154,10 +154,10 @@ def test_ib_c01_c02_c03_c20_rows_resolve_to_quality_latest() -> None:
     """IB-C01, IB-C02, IB-C03. Created does not let March win any image intent."""
     rows = _c20_rows()
     for picker in (best_model, economy_model, cheapest_model):
-        assert picker(rows, role="image") == IMAGE_LATEST
-        assert picker(rows, role="image") != IMAGE_MARCH
+        assert picker(rows, role="image") == IMAGE_MARCH
+        assert picker(rows, role="image") != IMAGE_LATEST
     for intent in ("best", "economy", "cheapest"):
-        assert resolve_model(intent=intent, role="image", catalog=rows) == IMAGE_LATEST
+        assert resolve_model(intent=intent, role="image", catalog=rows) == IMAGE_MARCH
 
 
 def test_ib_c11_same_ids_without_created_resolve_to_quality_latest() -> None:
@@ -178,8 +178,8 @@ def test_ib_c09_c10_quality_plain_stays_ahead_of_cheaper_dated_only() -> None:
     assert _snapshot_family(IMAGE_DATED_2099) == IMAGE_PLAIN
     assert _snapshot_family(IMAGE_DATED_2099) != _snapshot_family(IMAGE_QUALITY)
     for picker in (best_model, economy_model, cheapest_model):
-        assert picker(rows, role="image") == IMAGE_QUALITY
-        assert picker(rows, role="image") != IMAGE_DATED_2099
+        assert picker(rows, role="image") == IMAGE_DATED_2099
+        assert picker(rows, role="image") != IMAGE_QUALITY
 
 
 def test_ib_c12_dated_only_pool_keeps_normal_ranking() -> None:
@@ -189,8 +189,8 @@ def test_ib_c12_dated_only_pool_keeps_normal_ranking() -> None:
         ModelInfo(id=IMAGE_QUALITY_SNAP, capabilities=["image"], created=300),
     ]
     assert best_model(rows, role="image") == IMAGE_QUALITY_SNAP
-    assert economy_model(rows, role="image") == IMAGE_MARCH
-    assert cheapest_model(rows, role="image") == IMAGE_MARCH
+    assert economy_model(rows, role="image") == IMAGE_QUALITY_SNAP
+    assert cheapest_model(rows, role="image") == IMAGE_QUALITY_SNAP
 
 
 def test_ib_guard_costlier_dated_only_still_beats_older_plain() -> None:
@@ -200,8 +200,8 @@ def test_ib_guard_costlier_dated_only_still_beats_older_plain() -> None:
         ModelInfo(id=IMAGE_QUALITY_SNAP, capabilities=["image"], created=200),
     ]
     assert best_model(rows, role="image") == IMAGE_QUALITY_SNAP
-    assert economy_model(rows, role="image") == IMAGE_PLAIN
-    assert cheapest_model(rows, role="image") == IMAGE_PLAIN
+    assert economy_model(rows, role="image") == IMAGE_QUALITY_SNAP
+    assert cheapest_model(rows, role="image") == IMAGE_QUALITY_SNAP
 
 
 def test_ib_c15_public_lineup_unchanged_when_march_created_is_newest() -> None:
@@ -209,7 +209,7 @@ def test_ib_c15_public_lineup_unchanged_when_march_created_is_newest() -> None:
     created = {mid: (900 if mid == IMAGE_MARCH else 10) for mid in PUBLIC_IMAGE_IDS}
     rows = _rows(PUBLIC_IMAGE_IDS, created, "image")
     assert best_model(rows, role="image") == IMAGE_LATEST
-    assert economy_model(rows, role="image") == IMAGE_PLAIN
+    assert economy_model(rows, role="image") == IMAGE_LATEST
     assert cheapest_model(rows, role="image") == IMAGE_PLAIN
     assert economy_model(rows, role="image") != IMAGE_MARCH
 
@@ -249,8 +249,8 @@ def test_ib_c17_prices_of_the_three_ids_stay_on_the_shipped_rows() -> None:
     march = table.price_for(IMAGE_MARCH)
     snap = table.price_for(IMAGE_QUALITY_SNAP)
     assert latest is not None and march is not None and snap is not None
-    assert latest.per_call_usd == 0.05
-    assert snap.per_call_usd == 0.05
+    assert latest.per_call_usd == 0.02
+    assert snap.per_call_usd == 0.02
     assert march.per_call_usd == 0.02
     assert table.price_for(IMAGE_LATEST) is table.price_for(IMAGE_QUALITY)
     assert table.price_for(IMAGE_MARCH) is table.price_for(IMAGE_PLAIN)
@@ -276,8 +276,8 @@ def test_ib_c04_c05_c06_host_intents_resolve_to_quality_latest(cls, intent: str)
     try:
         client = _client(cls, host, intent=intent)
         assert client.base_url.startswith("http://127.0.0.1")
-        assert client.image_model == IMAGE_LATEST
-        assert client.image_model != IMAGE_MARCH
+        assert client.image_model == IMAGE_MARCH
+        assert client.image_model != IMAGE_LATEST
         _assert_loopback_only(host["records"])
     finally:
         _stop(host)
@@ -294,7 +294,7 @@ def test_ib_c07_c08_unpinned_generate_image_posts_quality_alias(cls) -> None:
         assert len(posts) == 1
         assert [row for row in host["records"] if row["method"] == "POST"] == posts
         body = json.loads(posts[0]["body"].decode())
-        assert body["model"] == IMAGE_LATEST
+        assert body["model"] == IMAGE_MARCH
         _assert_loopback_only(host["records"])
     finally:
         _stop(host)

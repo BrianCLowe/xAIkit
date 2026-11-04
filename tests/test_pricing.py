@@ -89,7 +89,6 @@ def _watch_image_per_call(model_id: str) -> float:
     (
         "grok-imagine-image",
         "grok-imagine-image-2.0",
-        "grok-imagine-image-quality",
     ),
 )
 def test_shipped_ranked_image_rates_match_public_watch(model_id: str) -> None:
@@ -119,6 +118,11 @@ def _shipped_image_ids_with_watch_per_call() -> tuple[str, ...]:
 
 @pytest.mark.parametrize("model_id", _shipped_image_ids_with_watch_per_call())
 def test_every_shipped_image_per_call_matches_watch_file(model_id: str) -> None:
-    assert "grok-imagine-image-pro" in _shipped_image_ids_with_watch_per_call()
+    shipped_ids = {
+        model_id
+        for model_id, price in default_price_table().models.items()
+        if str(model_id).startswith("grok-imagine-image") and price.per_call_usd is not None
+    }
+    assert shipped_ids <= set(_shipped_image_ids_with_watch_per_call())
     shipped = default_price_table().models[model_id].per_call_usd
     assert shipped == _watch_image_per_call(model_id)

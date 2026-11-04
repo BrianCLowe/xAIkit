@@ -16,7 +16,7 @@ import re
 import sys
 import urllib.error
 import urllib.request
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -430,6 +430,87 @@ def write_public_prices(path: Path, pages: dict[str, str]) -> bool | None:
     return True
 
 
+class GuardResult:
+    """Shipped image ids missing from a watcher extract, or present at another rate."""
+
+    def __init__(self, ok: bool, ids: tuple[str, ...]) -> None:
+        self.ok = ok
+        self.ids = ids
+
+
+def check_shipped_image_prices(
+    extract: dict, shipped: Mapping[str, float]
+) -> GuardResult:
+    """Compare watcher output to shipped grok-imagine-image per-call defaults.
+
+    A shipped id fails when the extract has no row or a different per_call_usd.
+    Extra extract ids, including drops that are not shipped defaults, are ignored.
+    """
+    models = extract.get("models") if isinstance(extract, dict) else None
+    if not isinstance(models, dict):
+        models = {}
+    bad: list[str] = []
+    for model_id, rate in shipped.items():
+        row = models.get(model_id)
+        got = row.get("per_call_usd") if isinstance(row, dict) else None
+        if got is None or float(got) != float(rate):
+            bad.append(str(model_id))
+    return GuardResult(ok=not bad, ids=tuple(bad))
+
+
+def guard_issue_text(result: GuardResult) -> tuple[str, str]:
+    """Title and body for the xai-models issue. Both name each failing id."""
+    if result.ok:
+        return (
+            "xAI shipped image prices match the watcher extract",
+            "No shipped image ids are missing or mismatched.",
+        )
+    listed = ", ".join(result.ids)
+    title = f"xAI shipped image price guard failed: {listed}"
+    lines = "\n".join(f"- {model_id}" for model_id in result.ids)
+    body = (
+        "The watcher extract is missing a shipped image id "
+        "or its per_call_usd does not match the shipped default.\n\n"
+        f"{lines}\n"
+    )
+    return title, body
+
+
+def _shipped_image_per_call() -> dict[str, float]:
+    from xaikit.pricing import default_price_table
+
+    shipped: dict[str, float] = {}
+    for model_id, price in default_price_table().models.items():
+        if str(model_id).startswith("grok-imagine-image") and price.per_call_usd is not None:
+            shipped[str(model_id)] = float(price.per_call_usd)
+    return shipped
+
+
+def _run_price_guard(args: argparse.Namespace) -> int:
+    path: Path = args.guard_prices
+    extract: dict[str, Any] = {}
+    if path.is_file():
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            raw = {}
+        if isinstance(raw, dict):
+            extract = raw
+    result = check_shipped_image_prices(extract, _shipped_image_per_call())
+    title, body = guard_issue_text(result)
+    print(title)
+    print(body)
+    if args.github_output is not None:
+        with args.github_output.open("a", encoding="utf-8") as fh:
+            fh.write(f"guard_ok={'true' if result.ok else 'false'}\n")
+            fh.write(f"guard_ids={','.join(result.ids)}\n")
+            fh.write(f"guard_title={title}\n")
+            fh.write("guard_body<<XAIkit_GUARD_BODY\n")
+            fh.write(body if body.endswith("\n") else body + "\n")
+            fh.write("XAIkit_GUARD_BODY\n")
+    return 0 if result.ok else 1
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -472,6 +553,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help="Write scripts/data/xai_public_prices.json from the docs blob",
     )
+    parser.add_argument(
+        "--guard-prices",
+        type=Path,
+        default=None,
+        help="Check a watcher price extract against shipped image defaults",
+    )
     return parser.parse_args(argv)
 
 
@@ -497,6 +584,8 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     if args.select_unlisted:
         return _select_unlisted(args)
+    if args.guard_prices is not None:
+        return _run_price_guard(args)
     pages: dict[str, str] = {}
     for url in WATCH_URLS:
         try:

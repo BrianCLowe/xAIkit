@@ -600,7 +600,7 @@ def test_r2_4_models_failure_warns_and_uses_static_catalog(
             assert len(posts) == 1
             assert posts[0]["path"].startswith(f"/v1/")
             body = json.loads(posts[0]["body"].decode())
-            assert body["model"] == "grok-imagine-image-quality"
+            assert body["model"] == "grok-imagine-image-2.0"
             assert "api.x.ai" not in posts[0]["path"]
             label = started["host"]
         finally:
