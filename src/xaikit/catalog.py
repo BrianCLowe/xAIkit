@@ -25,7 +25,7 @@ from xaikit.types import ModelInfo, ModelSelection
 logger = logging.getLogger(__name__)
 
 BOOTSTRAP_MODEL = "grok-4.7"
-DEFAULT_IMAGE_MODEL = "grok-imagine-image-quality"
+DEFAULT_IMAGE_MODEL = "grok-imagine-image-2.0"
 DEFAULT_VIDEO_MODEL = "grok-imagine-video-1.5"
 DEFAULT_VOICE_MODEL = "grok-voice-latest"
 

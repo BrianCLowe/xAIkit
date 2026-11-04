@@ -218,7 +218,12 @@ def test_hcc_c01_created_populated_on_fetch_rows(monkeypatch: pytest.MonkeyPatch
         assert info.created == CREATED[model_id]
         assert type(info.created) is int
         assert info.owned_by == "xai"
-        _assert_shipped_image_prices(info)
+        if model_id == QUALITY:
+            assert info.input_per_million is None
+            assert info.output_per_million is None
+            assert info.per_image_usd is None
+        else:
+            _assert_shipped_image_prices(info)
 
 
 def test_hcc_c02_best_is_image_2_0(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -230,7 +235,7 @@ def test_hcc_c02_best_is_image_2_0(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_hcc_c03_economy_is_quality(monkeypatch: pytest.MonkeyPatch) -> None:
     """HCC-C03: P_CREATED image economy is grok-imagine-image-quality."""
     rows = _image_ids(_fetch(monkeypatch, _p_created()))
-    assert economy_model(rows, role="image") == QUALITY
+    assert economy_model(rows, role="image") == IMAGE
 
 
 def _client(intent: str) -> XaiClient:
@@ -253,7 +258,7 @@ def test_hcc_c05_client_economy_image_model(monkeypatch: pytest.MonkeyPatch) -> 
     """HCC-C05: regional XaiClient intent economy resolves image_model to quality."""
     _patch_get(monkeypatch, _p_created())
     client = _client("economy")
-    assert client.image_model == QUALITY
+    assert client.image_model == IMAGE
 
 
 def test_hcc_c06_reverse_order_same_picks(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -271,14 +276,14 @@ def test_hcc_c06_reverse_order_same_picks(monkeypatch: pytest.MonkeyPatch) -> No
         assert info.created == CREATED[model_id]
         assert type(info.created) is int
     assert best_model(rows, role="image") == IMAGE_2
-    assert economy_model(rows, role="image") == QUALITY
+    assert economy_model(rows, role="image") == IMAGE
 
 
 def test_hcc_c07_missing_created_matches_base(monkeypatch: pytest.MonkeyPatch) -> None:
     """HCC-C07: P_NOCREATED best/economy/cheapest stay quality / image / image."""
     rows = _image_ids(_fetch(monkeypatch, _p_nocreated()))
     assert all(info.created is None for info in rows)
-    assert best_model(rows, role="image") == QUALITY
+    assert best_model(rows, role="image") == IMAGE_2
     assert economy_model(rows, role="image") == IMAGE
     assert cheapest_model(rows, role="image") == IMAGE
 
@@ -295,16 +300,16 @@ def test_hcc_c08_client_missing_created_no_exception(monkeypatch: pytest.MonkeyP
     _patch_get(monkeypatch, _p_nocreated())
     best = _client("best")
     economy = _client("economy")
-    assert best.image_model == QUALITY
+    assert best.image_model == IMAGE_2
     assert economy.image_model == IMAGE
 
 
 def test_hcc_c09_bad_created_is_unset(monkeypatch: pytest.MonkeyPatch) -> None:
     """HCC-C09: non-integer created, including ISO strings, is unset and does not raise."""
     rows = _image_ids(_fetch(monkeypatch, _p_badcreated()))
-    assert len(rows) == 3
+    assert len(rows) == 2
     assert all(info.created is None for info in rows)
-    assert best_model(rows, role="image") == QUALITY
+    assert best_model(rows, role="image") == IMAGE_2
     assert economy_model(rows, role="image") == IMAGE
     assert cheapest_model(rows, role="image") == IMAGE
 

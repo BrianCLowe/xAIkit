@@ -159,7 +159,7 @@ _DEFAULT_VIDEO_MODELS: dict[str, dict[str, Any]] = {
 }
 
 # Public Imagine image list rates (USD / image). Estimates, not a billing authority.
-# grok-imagine-image-pro is the documented alias for grok-imagine-image-quality.
+# Only ids listed on docs.x.ai Imagine pricing ship here.
 _DEFAULT_IMAGE_MODELS: dict[str, dict[str, Any]] = {
     "grok-imagine-image": {
         "input_per_million": 0.0,
@@ -170,16 +170,6 @@ _DEFAULT_IMAGE_MODELS: dict[str, dict[str, Any]] = {
         "input_per_million": 0.0,
         "output_per_million": 0.0,
         "per_call_usd": 0.06,
-    },
-    "grok-imagine-image-quality": {
-        "input_per_million": 0.0,
-        "output_per_million": 0.0,
-        "per_call_usd": 0.05,
-    },
-    "grok-imagine-image-pro": {
-        "input_per_million": 0.0,
-        "output_per_million": 0.0,
-        "per_call_usd": 0.05,
     },
 }
 

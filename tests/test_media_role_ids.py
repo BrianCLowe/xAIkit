@@ -72,7 +72,7 @@ IMAGE_ROLE = {
     VIDEO_PREVIEW: "video",
 }
 NEAR_IDS = (
-    ("grok-imagine-image-quality-20990101", "image"),
+    ("grok-imagine-image-quality-20990101", "chat"),
     ("grok-imagine-image-2099-01-01", "image"),
     ("grok-imagine-video-1.5-2099-01-01", "video"),
     ("grok-imagine-video-2.0-preview", "chat"),
@@ -229,7 +229,7 @@ def test_mr_c10_known_roles_and_bootstrap_unchanged() -> None:
     assert len(KNOWN_ROLES) == 5
     assert _ROLE_BOOTSTRAP == {
         "chat": "grok-4.7",
-        "image": "grok-imagine-image-quality",
+        "image": "grok-imagine-image-2.0",
         "video": "grok-imagine-video-1.5",
         "voice": "grok-voice-latest",
         "speech-to-text": "grok-voice-transcribe-2.0",
@@ -251,7 +251,7 @@ def test_mr_c11_price_for_matches_base_prefix_rows() -> None:
     assert quality is not None and plain is not None and video is not None
     assert table.price_for(IMAGE_LATEST) is quality
     assert table.price_for(IMAGE_QUALITY_SNAP) is quality
-    assert quality.per_call_usd == 0.05
+    assert quality.per_call_usd == 0.02
     assert table.price_for(IMAGE_MARCH) is plain
     assert plain.per_call_usd == 0.02
     assert table.price_for(VIDEO_STABLE) is video
@@ -290,7 +290,7 @@ def test_mr_c20_best_follows_unchanged_ranking() -> None:
     rows = [
         ModelInfo(id=mid, capabilities=["image"], created=created[mid]) for mid in IMAGE_IDS
     ]
-    assert best_model(rows, role="image") == IMAGE_LATEST
+    assert best_model(rows, role="image") == IMAGE_MARCH
 
     dated_only = [
         ModelInfo(id=IMAGE_MARCH, capabilities=["image"], created=200),
@@ -312,7 +312,7 @@ def test_mr_c20_best_follows_unchanged_ranking() -> None:
     try:
         client = _client(XaiClient, host)
         assert client.image_model == best_model(rows, role="image")
-        assert client.image_model == IMAGE_LATEST
+        assert client.image_model == IMAGE_MARCH
         pinned = _client(XaiClient, host, image_model=IMAGE_LATEST)
         pinned.generate_image("cat")
         assert _posted_models(host["records"], "/images/generations") == [IMAGE_LATEST]

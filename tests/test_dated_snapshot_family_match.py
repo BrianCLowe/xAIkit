@@ -149,26 +149,24 @@ def test_ds_ac_1_dated_snapshots_take_the_family_role() -> None:
     assert set(_date_match_families(roles)) == {
         PLAIN,
         "grok-imagine-image-2.0",
-        QUALITY,
-        PRO,
         VIDEO_QUALITY,
         VIDEO_15,
         VIDEO_LITE,
         PREVIEW,
     }
     dated = (
-        (IMAGE_COMPACT, "image", QUALITY),
         (IMAGE_DASHED, "image", PLAIN),
-        (IMAGE_DASHED_TWIN, "image", QUALITY),
         (VIDEO_DASHED, "video", VIDEO_15),
         (VIDEO_COMPACT, "video", VIDEO_15),
         (VIDEO_LITE_DATED, "video", VIDEO_LITE),
-        (PRO_DATED, "image", PRO),
         (PREVIEW_DATED, "video", PREVIEW),
         (VIDEO_QUALITY_DATED, "video", VIDEO_QUALITY),
         (DAY_31, "image", PLAIN),
         (f" {IMAGE_DASHED} ", "image", PLAIN),
     )
+    for mid in (IMAGE_COMPACT, IMAGE_DASHED_TWIN, PRO_DATED):
+        assert _dated_image_or_video_family(mid, roles) is None
+        assert static_role_for_id(mid) == "chat"
     for mid, role, family in dated:
         assert mid.strip() not in roles
         assert _dated_image_or_video_family(mid.strip(), roles) == family
@@ -179,10 +177,10 @@ def test_ds_ac_1_dated_snapshots_take_the_family_role() -> None:
         assert info.id == mid.strip()
         assert info.capabilities == [role]
         assert table.price_for(mid.strip()) is table.price_for(family)
-    assert table.price_for(IMAGE_COMPACT) is not table.price_for(PLAIN)
+    assert table.price_for(IMAGE_COMPACT) is table.price_for(PLAIN)
     assert table.price_for(VIDEO_LITE_DATED) is not table.price_for(VIDEO_15)
-    assert table.price_for(PRO_DATED) is not table.price_for(PLAIN)
-    assert table.price_for(QUALITY).per_call_usd == 0.05
+    assert table.price_for(PRO_DATED) is table.price_for(PLAIN)
+    assert table.price_for(QUALITY).per_call_usd == 0.02
     assert table.price_for(PLAIN).per_call_usd == 0.02
     assert table.price_for(VIDEO_15).per_second_usd == 0.08
     assert table.price_for(VIDEO_LITE).per_second_usd == 0.02
@@ -239,15 +237,14 @@ def test_ds_ac_1_sync_and_async_resolve_the_dated_snapshot(cls) -> None:
     host = _host((IMAGE_COMPACT, VIDEO_DASHED))
     try:
         client = _client(cls, host)
-        _call(client, "generate_image", "cat")
+        with pytest.raises(RoleUnavailableOnHost) as image_caught:
+            _call(client, "generate_image", "cat")
+        assert image_caught.value.role == "image"
+        assert image_caught.value.host == host["host"]
         _call(client, "generate_video", "clip", into=[], wait=False)
-        assert client.image_model == IMAGE_COMPACT
         assert client.video_model == VIDEO_DASHED
-        with pytest.raises(RoleUnavailableOnHost) as caught:
-            _ = client.model
-        assert caught.value.role == "chat"
-        assert caught.value.host == host["host"]
-        assert _posted_models(host["records"], "/images/generations") == [IMAGE_COMPACT]
+        assert client.model == IMAGE_COMPACT
+        assert _posted_models(host["records"], "/images/generations") == []
         assert _posted_models(host["records"], "/videos/generations") == [VIDEO_DASHED]
         _assert_loopback_only(host["records"])
     finally:
@@ -300,7 +297,7 @@ def test_ds_best_model_ranking_unchanged() -> None:
             created=300,
         ),
     ]
-    assert best_model(image, role="image") == "grok-imagine-image-quality-latest"
+    assert best_model(image, role="image") == "grok-imagine-image-2026-03-02"
     dated_only = [
         ModelInfo(id="grok-imagine-image-2026-03-02", capabilities=["image"], created=200),
         ModelInfo(

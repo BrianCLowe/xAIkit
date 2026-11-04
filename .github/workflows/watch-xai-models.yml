@@ -36,6 +36,40 @@ jobs:
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
         continue-on-error: true
 
+      - name: Guard price extract
+        id: guard
+        run: |
+          set -euo pipefail
+          uv sync --group dev
+          uv run pytest tests/test_pricing.py
+          uv run python scripts/watch_xai_models.py --guard-prices scripts/data/xai_public_prices.json --github-output "$GITHUB_OUTPUT"
+
+      - name: Open issue for failed price guard
+        if: failure() && steps.guard.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GUARD_TITLE: ${{ steps.guard.outputs.guard_title }}
+          GUARD_BODY: ${{ steps.guard.outputs.guard_body }}
+          GUARD_IDS: ${{ steps.guard.outputs.guard_ids }}
+        run: |
+          set -euo pipefail
+          gh label create xai-models --description "Public xAI model/docs drift" --color 1D76DB --force || true
+          title="${GUARD_TITLE:-xAI shipped image price guard failed}"
+          if [ -n "${GUARD_BODY:-}" ]; then
+            body="$GUARD_BODY"
+          else
+            body="$(cat <<EOF
+          The shipped image price guard failed before a commit.
+
+          **Ids:** \`${GUARD_IDS:-unknown}\`
+
+          \`uv run pytest tests/test_pricing.py\` or the shipped-id check failed. No price file was committed.
+          EOF
+          )"
+          fi
+          gh issue create --title "$title" --label xai-models --body "$body"
+          echo "opened xai-models issue for price guard ids=${GUARD_IDS:-unknown}"
+
       - name: Open issue for tokens not already listed
         if: steps.scan.outputs.has_new == 'true'
         env:
@@ -101,7 +135,7 @@ jobs:
           echo "opened xai-models issue for slugs=${slugs:-none} resolutions=${res:-none}"
 
       - name: Commit price gap file when the extract changes
-        if: steps.scan.outputs.exit_code != '1'
+        if: steps.scan.outputs.exit_code != '1' && steps.guard.outcome == 'success'
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"

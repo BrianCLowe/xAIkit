@@ -276,7 +276,8 @@ def test_async_generate_image_forwards_knobs_and_omits_quality_on_default_sku(
         assert body["aspect_ratio"] == "20:9"
         assert body["resolution"] == "2k"
         assert body["response_format"] == "b64_json"
-        assert "quality" not in body
+        assert body["model"] == "grok-imagine-image-2.0"
+        assert body["quality"] == "low"
 
         cap.calls.clear()
         await client.generate_image(
