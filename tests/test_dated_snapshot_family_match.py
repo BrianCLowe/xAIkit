@@ -16,16 +16,19 @@ import pytest
 
 from xaikit import AsyncXaiClient, RoleUnavailableOnHost, UsageMeter, XaiClient
 from xaikit.catalog import (
+    DEFAULT_IMAGE_MODEL,
     _date_match_families,
     _dated_image_or_video_family,
+    _dated_only_rank,
     _shipped_role_map,
     best_model,
     clear_catalog_cache,
     describe_listed_id,
     inject_catalog,
+    prefer_latest_model,
     static_role_for_id,
 )
-from xaikit.pricing import default_price_table
+from xaikit.pricing import _DEFAULT_IMAGE_MODELS, default_price_table
 from xaikit.provider import MockChatProvider
 from xaikit.types import ModelInfo
 
@@ -153,6 +156,8 @@ def test_ds_ac_1_dated_snapshots_take_the_family_role() -> None:
         VIDEO_15,
         VIDEO_LITE,
         PREVIEW,
+        QUALITY,
+        PRO,
     }
     dated = (
         (IMAGE_DASHED, "image", PLAIN),
@@ -164,9 +169,19 @@ def test_ds_ac_1_dated_snapshots_take_the_family_role() -> None:
         (DAY_31, "image", PLAIN),
         (f" {IMAGE_DASHED} ", "image", PLAIN),
     )
-    for mid in (IMAGE_COMPACT, IMAGE_DASHED_TWIN, PRO_DATED):
-        assert _dated_image_or_video_family(mid, roles) is None
-        assert static_role_for_id(mid) == "chat"
+    retired = (
+        (IMAGE_COMPACT, QUALITY),
+        (IMAGE_DASHED_TWIN, QUALITY),
+        (PRO_DATED, PRO),
+    )
+    for mid, family in retired:
+        assert mid not in roles
+        assert _dated_image_or_video_family(mid, roles) == family
+        assert static_role_for_id(mid) == "image"
+        info, got = describe_listed_id(mid)
+        assert got == "image"
+        assert info.capabilities == ["image"]
+        assert table.price_for(mid) is None
     for mid, role, family in dated:
         assert mid.strip() not in roles
         assert _dated_image_or_video_family(mid.strip(), roles) == family
@@ -177,10 +192,14 @@ def test_ds_ac_1_dated_snapshots_take_the_family_role() -> None:
         assert info.id == mid.strip()
         assert info.capabilities == [role]
         assert table.price_for(mid.strip()) is table.price_for(family)
-    assert table.price_for(IMAGE_COMPACT) is table.price_for(PLAIN)
+    assert table.price_for(IMAGE_COMPACT) is None
     assert table.price_for(VIDEO_LITE_DATED) is not table.price_for(VIDEO_15)
-    assert table.price_for(PRO_DATED) is table.price_for(PLAIN)
+    assert table.price_for(PRO_DATED) is None
+    assert table.price_for(QUALITY) is table.price_for(PLAIN)
     assert table.price_for(QUALITY).per_call_usd == 0.02
+    assert table.price_for(PRO).per_call_usd == 0.02
+    assert QUALITY not in table.models
+    assert PRO not in table.models
     assert table.price_for(PLAIN).per_call_usd == 0.02
     assert table.price_for(VIDEO_15).per_second_usd == 0.08
     assert table.price_for(VIDEO_LITE).per_second_usd == 0.02
@@ -233,7 +252,11 @@ def test_ds_ac_2_prefix_without_a_date_stays_chat() -> None:
 
 @pytest.mark.parametrize("cls", [XaiClient, AsyncXaiClient])
 def test_ds_ac_1_sync_and_async_resolve_the_dated_snapshot(cls) -> None:
-    """A host that lists only unknown dated snapshots uses them for that role."""
+    """Video dated snapshots still resolve. A retired quality snapshot does not.
+
+    The quality id is image for role and is not selected, so image and chat
+    are unavailable on a host that lists only that id plus a video snapshot.
+    """
     host = _host((IMAGE_COMPACT, VIDEO_DASHED))
     try:
         client = _client(cls, host)
@@ -243,7 +266,10 @@ def test_ds_ac_1_sync_and_async_resolve_the_dated_snapshot(cls) -> None:
         assert image_caught.value.host == host["host"]
         _call(client, "generate_video", "clip", into=[], wait=False)
         assert client.video_model == VIDEO_DASHED
-        assert client.model == IMAGE_COMPACT
+        with pytest.raises(RoleUnavailableOnHost) as chat_caught:
+            _ = client.model
+        assert chat_caught.value.role == "chat"
+        assert chat_caught.value.host == host["host"]
         assert _posted_models(host["records"], "/images/generations") == []
         assert _posted_models(host["records"], "/videos/generations") == [VIDEO_DASHED]
         _assert_loopback_only(host["records"])
@@ -307,6 +333,17 @@ def test_ds_best_model_ranking_unchanged() -> None:
         ),
     ]
     assert best_model(dated_only, role="image") == "grok-imagine-image-quality-20260403"
+    retired = ModelInfo(
+        id="grok-imagine-image-quality-20260601",
+        capabilities=["image"],
+        created=1,
+    )
+    exact = ModelInfo(
+        id="grok-imagine-image-quality-20260403",
+        capabilities=["image"],
+        created=1,
+    )
+    assert _dated_only_rank(retired) > _dated_only_rank(exact)
     video = [
         ModelInfo(id=VIDEO_15, capabilities=["video"], created=10),
         ModelInfo(id="grok-imagine-video-1.5-2026-05-30", capabilities=["video"], created=999),
@@ -358,3 +395,211 @@ def test_ds_c12_dated_plain_image_usage_is_two_cents(cls) -> None:
         _assert_loopback_only(host["records"])
     finally:
         _stop(host)
+
+
+PRO_COMPACT = "grok-imagine-image-pro-20260501"
+QUALITY_DATED = "grok-imagine-image-quality-20260601"
+EXACT_QUALITY_SNAP = "grok-imagine-image-quality-20260403"
+EXACT_QUALITY_LATEST = "grok-imagine-image-quality-latest"
+
+
+def _image_row(model_id: str, created: int = 1) -> ModelInfo:
+    return ModelInfo(id=model_id, capabilities=["image"], created=created)
+
+
+def _tier_rows(price: Any) -> list[tuple[str, str | None, float]]:
+    return [
+        (tier.resolution, tier.quality, tier.per_call_usd)
+        for tier in (price.image_tiers or [])
+    ]
+
+
+def test_retired_pro_dated_snapshot_is_image() -> None:
+    """DSR-C01. Unlisted pro dated snapshots resolve as image."""
+    for mid in (PRO_COMPACT, PRO_DATED, f" {PRO_COMPACT} "):
+        assert static_role_for_id(mid) == "image"
+        info, role = describe_listed_id(mid.strip())
+        assert role == "image"
+        assert info.id == mid.strip()
+        assert info.capabilities == ["image"]
+
+
+def test_retired_quality_dated_snapshot_is_image() -> None:
+    """DSR-C02. Unlisted quality dated snapshots resolve as image."""
+    for mid in (QUALITY_DATED, IMAGE_COMPACT, IMAGE_DASHED_TWIN):
+        assert static_role_for_id(mid) == "image"
+        info, role = describe_listed_id(mid)
+        assert role == "image"
+        assert info.capabilities == ["image"]
+
+
+def test_retired_dated_snapshots_have_no_price() -> None:
+    """DSR-C03. Unlisted retired dated ids have no price. Exact alias keeps 0.02."""
+    table = default_price_table()
+    for mid in (
+        PRO_COMPACT,
+        QUALITY_DATED,
+        IMAGE_COMPACT,
+        IMAGE_DASHED_TWIN,
+        PRO_DATED,
+        f" {QUALITY_DATED} ",
+    ):
+        assert table.price_for(mid) is None
+        assert mid.strip() not in table.models
+    assert QUALITY not in table.models
+    assert PRO not in table.models
+    assert QUALITY not in _DEFAULT_IMAGE_MODELS
+    assert PRO not in _DEFAULT_IMAGE_MODELS
+    undated = table.price_for(QUALITY)
+    plain = table.price_for(PLAIN)
+    assert undated is plain
+    assert undated is not None and undated.per_call_usd == 0.02
+    assert table.price_for(PRO) is plain
+    exact = table.price_for(EXACT_QUALITY_SNAP)
+    assert exact is plain
+    assert exact is not None and exact.per_call_usd == 0.02
+    assert table.price_for(f" {EXACT_QUALITY_SNAP} ") is plain
+    assert table.price_for(EXACT_QUALITY_LATEST) is plain
+    assert plain is not None
+    assert plain.media_input_per_image_usd == 0.002
+    assert _tier_rows(plain) == [
+        ("1k", None, 0.02),
+        ("2k", None, 0.02),
+    ]
+    image_2 = table.price_for("grok-imagine-image-2.0")
+    assert image_2 is not None
+    assert image_2.per_call_usd == 0.04
+    assert image_2.media_input_per_image_usd == 0.01
+    assert _tier_rows(image_2) == [
+        ("1k", "low", 0.04),
+        ("1.5k", "low", 0.05),
+        ("2k", "low", 0.06),
+        ("1k", "medium", 0.06),
+        ("1.5k", "medium", 0.07),
+        ("2k", "medium", 0.08),
+    ]
+
+
+def test_retired_dated_snapshots_not_best_image() -> None:
+    """DSR-C04. Image selection skips unlisted retired dated ids."""
+    retired_ids = {PRO_COMPACT, QUALITY_DATED}
+    only = [_image_row(PRO_COMPACT, 1), _image_row(QUALITY_DATED, 1)]
+    assert best_model(only, role="image") is None
+    assert prefer_latest_model(only, role="image") is None
+    mixed = [
+        _image_row(PLAIN, 1),
+        _image_row(EXACT_QUALITY_LATEST, 50),
+        _image_row(EXACT_QUALITY_SNAP, 10),
+        _image_row(PRO_COMPACT, 999),
+        _image_row(QUALITY_DATED, 998),
+    ]
+    assert best_model(mixed, role="image") not in retired_ids
+    sibling = [
+        _image_row(EXACT_QUALITY_SNAP, 900),
+        _image_row(QUALITY_DATED, 1),
+    ]
+    assert best_model(sibling, role="image") == EXACT_QUALITY_SNAP
+    for cls in (XaiClient, AsyncXaiClient):
+        host = _host((PRO_COMPACT, QUALITY_DATED))
+        try:
+            client = _client(cls, host)
+            with pytest.raises(RoleUnavailableOnHost) as caught:
+                _call(client, "generate_image", "cat")
+            assert caught.value.role == "image"
+            assert caught.value.host == host["host"]
+            assert _posted_models(host["records"], "/images/generations") == []
+        finally:
+            _stop(host)
+        mixed_host = _host((EXACT_QUALITY_LATEST, QUALITY_DATED))
+        try:
+            client = _client(cls, mixed_host)
+            assert client.image_model == EXACT_QUALITY_LATEST
+            assert client.image_model != QUALITY_DATED
+        finally:
+            _stop(mixed_host)
+
+
+def test_exact_quality_aliases_stay_image() -> None:
+    """DSR-C05. Exact quality aliases stay image, priced, and eligible."""
+    roles = _shipped_role_map()
+    table = default_price_table()
+    for mid in (EXACT_QUALITY_SNAP, EXACT_QUALITY_LATEST):
+        assert mid in roles
+        assert roles[mid] == "image"
+        assert static_role_for_id(mid) == "image"
+        info, role = describe_listed_id(mid)
+        assert role == "image"
+        assert info.capabilities == ["image"]
+    price = table.price_for(EXACT_QUALITY_SNAP)
+    assert price is table.price_for(PLAIN)
+    assert price is not None and price.per_call_usd == 0.02
+    assert table.price_for(EXACT_QUALITY_LATEST).per_call_usd == 0.02
+    assert best_model([_image_row(EXACT_QUALITY_SNAP)], role="image") == EXACT_QUALITY_SNAP
+    assert best_model([_image_row(EXACT_QUALITY_LATEST)], role="image") == EXACT_QUALITY_LATEST
+
+
+def test_unknown_non_image_id_stays_chat(monkeypatch: pytest.MonkeyPatch) -> None:
+    """DSR-C06. Unknown ids and invalid near ids stay chat.
+
+    Static role does not read the REST model list.
+    """
+
+    def _rest_forbidden(*_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("static role consulted REST")
+
+    monkeypatch.setattr("httpx.get", _rest_forbidden)
+    stay_chat = (
+        "not-a-model",
+        "grok-imagine-image-quality",
+        "grok-imagine-image-pro",
+        "grok-imagine-video-2.0-preview",
+        "grok-imagine-image-quality-latest-x",
+        "grok-imagine-image-quality-latest-2026-07-01",
+        "grok-imagine-image-2026-13-01",
+        "grok-imagine-image-quality-20261301",
+        "grok-imagine-image-quality-0309",
+        "grok-imagine-image-quality-20990101x",
+        "grok-imagine-image-2099-01-01-extra",
+        "GROK-IMAGINE-IMAGE-QUALITY-20260601",
+        "grok_imagine_image_quality_20260601",
+        "grok-imagine-image-pro-latest",
+        "grok-4-2099-01-01",
+        "",
+        "   ",
+    )
+    for mid in stay_chat:
+        assert static_role_for_id(mid) == "chat"
+        info, role = describe_listed_id(mid.strip() or mid)
+        assert role == "chat"
+        assert info.capabilities == ["chat"]
+
+
+def test_retired_set_is_role_only_and_exact() -> None:
+    """DSR-C07. Date matching adds exactly the two retired image families."""
+    roles = _shipped_role_map()
+    families = _date_match_families(roles)
+    assert set(families) == {
+        PLAIN,
+        "grok-imagine-image-2.0",
+        VIDEO_QUALITY,
+        VIDEO_15,
+        VIDEO_LITE,
+        PREVIEW,
+        QUALITY,
+        PRO,
+    }
+    assert families[QUALITY] == "image"
+    assert families[PRO] == "image"
+    assert QUALITY not in roles
+    assert PRO not in roles
+    assert static_role_for_id(QUALITY) == "chat"
+    assert static_role_for_id(PRO) == "chat"
+    table = default_price_table()
+    assert QUALITY not in table.models
+    assert PRO not in table.models
+    assert QUALITY not in _DEFAULT_IMAGE_MODELS
+    assert PRO not in _DEFAULT_IMAGE_MODELS
+    assert DEFAULT_IMAGE_MODEL == "grok-imagine-image-2.0"
+    assert "grok-imagine-video-2.0" not in families
+    assert static_role_for_id("grok-imagine-video-2099-01-01") == "video"
+    assert static_role_for_id(IMAGE_DASHED) == "image"

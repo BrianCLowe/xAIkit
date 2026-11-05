@@ -72,7 +72,7 @@ IMAGE_ROLE = {
     VIDEO_PREVIEW: "video",
 }
 NEAR_IDS = (
-    ("grok-imagine-image-quality-20990101", "chat"),
+    ("grok-imagine-image-quality-20990101", "image"),
     ("grok-imagine-image-2099-01-01", "image"),
     ("grok-imagine-video-1.5-2099-01-01", "video"),
     ("grok-imagine-video-2.0-preview", "chat"),
@@ -252,6 +252,10 @@ def test_mr_c11_price_for_matches_base_prefix_rows() -> None:
     assert table.price_for(IMAGE_LATEST) is quality
     assert table.price_for(IMAGE_QUALITY_SNAP) is quality
     assert quality.per_call_usd == 0.02
+    assert table.price_for(IMAGE_QUALITY_SNAP).per_call_usd == 0.02
+    assert table.price_for("grok-imagine-image-quality-20260601") is None
+    assert table.price_for("grok-imagine-image-pro-20260501") is None
+    assert table.price_for("grok-imagine-image-quality-2026-04-03") is None
     assert table.price_for(IMAGE_MARCH) is plain
     assert plain.per_call_usd == 0.02
     assert table.price_for(VIDEO_STABLE) is video
