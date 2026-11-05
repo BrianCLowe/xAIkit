@@ -989,6 +989,15 @@ HOST_MODELS_TIMEOUT_SECONDS = 30.0
 
 _shipped_roles: dict[str, str] | None = None
 
+# Delisted Imagine families. Dated snapshots resolve as image for role only.
+# Undated quality and pro stay out of the exact role map and the price table.
+_RETIRED_IMAGE_ROLE_FAMILIES = frozenset(
+    {
+        "grok-imagine-image-quality",
+        "grok-imagine-image-pro",
+    }
+)
+
 
 def _shipped_role_map() -> dict[str, str]:
     """Exact ids the static catalog already knows.
@@ -1038,9 +1047,10 @@ def static_role_for_id(model_id: str) -> str:
     Exact role-map ids win. An unknown id is chat, except a dated image or
     video snapshot: the longest date-match family it starts with, then a
     hyphen and one calendar date. Families are the shipped image and video
-    price-table ids plus undated image and video role-map ids. Already-dated
-    ids and ``-latest`` aliases are not families. The date is dashed
-    ``YYYY-MM-DD`` or compact ``YYYYMMDD``, checked with
+    price-table ids, undated image and video role-map ids, and the two
+    retired Imagine image families (quality and pro) for role only.
+    Already-dated ids and ``-latest`` aliases are not families. The date is
+    dashed ``YYYY-MM-DD`` or compact ``YYYYMMDD``, checked with
     :func:`_ymd_in_range`. ``-latest`` is not a date. Text, voice, and
     speech-to-text ids are not families here. The REST ``/v1/models``
     payload is not consulted: that list tags every model as chat.
@@ -1052,9 +1062,10 @@ def static_role_for_id(model_id: str) -> str:
     exact = roles.get(key)
     if exact is not None:
         return exact
+    families = _date_match_families(roles)
     family = _dated_image_or_video_family(key, roles)
     if family is not None:
-        return roles[family]
+        return families[family]
     return ROLE_CHAT
 
 
@@ -1063,7 +1074,9 @@ def _date_match_families(roles: Mapping[str, str]) -> dict[str, str]:
 
     Shipped price-table ids plus undated role-map ids such as
     ``grok-imagine-video-1.5-preview``. An id that already contains a
-    calendar date, and a ``-latest`` alias, are not families.
+    calendar date, and a ``-latest`` alias, are not families. The two
+    retired Imagine image families are included for role matching only.
+    They are not exact role-map keys and they are not price-table rows.
     """
     found: dict[str, str] = {}
     for family, role in roles.items():
@@ -1074,6 +1087,8 @@ def _date_match_families(roles: Mapping[str, str]) -> dict[str, str]:
         if _is_snapshot_id(family):
             continue
         found[family] = role
+    for family in _RETIRED_IMAGE_ROLE_FAMILIES:
+        found.setdefault(family, ROLE_IMAGE)
     return found
 
 
@@ -1234,9 +1249,17 @@ def _host_catalog_rows(response: Any) -> list[tuple[ModelInfo, str]]:
         payload = response.json()
     except json.JSONDecodeError as exc:
         raise RuntimeError("Model catalog returned non-JSON response") from exc
-    return [
+    listed = [
         describe_listed_id(str(row["id"]), row=row)
         for row in _model_ids_from_payload(payload)
+    ]
+    # Drop unlisted retired dated image ids before the client treats an
+    # empty image row list as RoleUnavailableOnHost. Exact role-map aliases
+    # stay listed and remain eligible.
+    return [
+        (info, role)
+        for info, role in listed
+        if not _is_unlisted_retired_dated_image_id(info.id)
     ]
 
 
@@ -1755,6 +1778,39 @@ _ROLE_DATE_DASHED = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
 _ROLE_DATE_COMPACT = re.compile(r"(\d{8})")
 
 
+def _is_retired_dated_image_id(model_id: str) -> bool:
+    """True when ``model_id`` is one retired image family plus one calendar date.
+
+    The id is stripped the same way as :func:`static_role_for_id`. The
+    remainder after ``{family}-`` must be exactly one dashed or compact
+    calendar date. Undated ids, ``-latest``, a bad date, a near prefix, and
+    any other family are false.
+    """
+    key = (model_id or "").strip()
+    if not key:
+        return False
+    for family in _RETIRED_IMAGE_ROLE_FAMILIES:
+        prefix = f"{family}-"
+        if not key.startswith(prefix):
+            continue
+        if _is_calendar_date_suffix(key[len(prefix) :]):
+            return True
+    return False
+
+
+def _is_unlisted_retired_dated_image_id(model_id: str) -> bool:
+    """Retired dated image id that is not an exact shipped role-map key.
+
+    ``grok-imagine-image-quality-20260403`` is retired dated and an exact
+    key, so price and image selection keep it. An unlisted dated quality or
+    pro id is role image only.
+    """
+    key = (model_id or "").strip()
+    if not _is_retired_dated_image_id(key):
+        return False
+    return key not in _shipped_role_map()
+
+
 def _is_calendar_date_suffix(text: str) -> bool:
     """True when ``text`` is one dashed or compact calendar date.
 
@@ -1990,11 +2046,28 @@ def _image_pool_drop_cheaper_dated_only(pool: Sequence[ModelInfo]) -> list[Model
     return [model for model in pool if model.id not in drop]
 
 
+def _drop_unlisted_retired_dated_images(pool: list[ModelInfo]) -> list[ModelInfo]:
+    """Drop retired dated image ids that are not exact role-map keys.
+
+    Ranking keys are not involved. An empty result means image selection
+    has nothing to pick.
+    """
+    return [
+        model
+        for model in pool
+        if not _is_unlisted_retired_dated_image_id(model.id)
+    ]
+
+
 def _pool_for_role_intent(pool: list[ModelInfo], role: str) -> list[ModelInfo]:
-    """Image intents skip a cheaper dated-only family. Other roles stay as passed."""
+    """Image intents skip unlisted retired snapshots, then a cheaper dated-only family.
+
+    Other roles stay as passed. Ranking key bodies are not used here.
+    """
     if role != ROLE_IMAGE:
         return pool
-    return _image_pool_drop_cheaper_dated_only(pool)
+    kept = _drop_unlisted_retired_dated_images(pool)
+    return _image_pool_drop_cheaper_dated_only(kept)
 
 
 def _pick_latest(pool: Sequence[ModelInfo], role: str) -> ModelInfo:
