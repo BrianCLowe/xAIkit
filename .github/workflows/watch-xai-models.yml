@@ -71,11 +71,13 @@ jobs:
           echo "opened xai-models issue for price guard ids=${GUARD_IDS:-unknown}"
 
       - name: Open issue for tokens not already listed
-        if: steps.scan.outputs.has_new == 'true'
+        if: always() && (steps.scan.outputs.has_new == 'true' || steps.scan.outputs.has_dropped == 'true')
         env:
           GH_TOKEN: ${{ github.token }}
           NEW_SLUGS: ${{ steps.scan.outputs.new_slugs }}
           NEW_RES: ${{ steps.scan.outputs.new_resolutions }}
+          DROPPED_SLUGS: ${{ steps.scan.outputs.dropped_slugs }}
+          DROPPED_RESOLUTIONS: ${{ steps.scan.outputs.dropped_resolutions }}
         run: |
           set -euo pipefail
           gh label create xai-models --description "Public xAI model/docs drift" --color 1D76DB --force
@@ -108,7 +110,7 @@ jobs:
             --issues-json "$enriched")"
           slugs="$(printf '%s\n' "$filtered" | sed -n 's/^slugs=//p')"
           res="$(printf '%s\n' "$filtered" | sed -n 's/^resolutions=//p')"
-          if [ -z "$slugs" ] && [ -z "$res" ]; then
+          if [ -z "$slugs" ] && [ -z "$res" ] && [ -z "${DROPPED_SLUGS:-}" ] && [ -z "${DROPPED_RESOLUTIONS:-}" ]; then
             echo "new tokens already listed on an open xai-models issue"
             exit 0
           fi
@@ -118,6 +120,8 @@ jobs:
 
           **New slugs:** \`${slugs:-none}\`
           **New resolutions:** \`${res:-none}\`
+          **Dropped slugs:** \`${DROPPED_SLUGS:-none}\`
+          **Dropped resolutions:** \`${DROPPED_RESOLUTIONS:-none}\`
 
           Check whether the kit needs a knob / family / price update:
 
@@ -132,7 +136,7 @@ jobs:
           EOF
           )"
           gh issue create --title "$title" --label xai-models --body "$body"
-          echo "opened xai-models issue for slugs=${slugs:-none} resolutions=${res:-none}"
+          echo "opened xai-models issue for slugs=${slugs:-none} resolutions=${res:-none} dropped_slugs=${DROPPED_SLUGS:-none} dropped_resolutions=${DROPPED_RESOLUTIONS:-none}"
 
       - name: Commit price gap file when the extract changes
         if: steps.scan.outputs.exit_code != '1' && steps.guard.outcome == 'success'

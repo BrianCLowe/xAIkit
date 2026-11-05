@@ -126,12 +126,31 @@ def load_baseline(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _dropped_tokens(baseline_values: Any, live_values: Sequence[str]) -> list[str]:
+    """Baseline ids missing from live, lowercased, in baseline order."""
+    live_norm = {str(item).lower() for item in live_values}
+    dropped: list[str] = []
+    seen: set[str] = set()
+    for raw in baseline_values or []:
+        token = str(raw).lower()
+        if not token or token in seen or token in live_norm:
+            continue
+        seen.add(token)
+        dropped.append(token)
+    return dropped
+
+
 def diff_watch(live: dict[str, list[str]], baseline: dict[str, Any]) -> dict[str, list[str]]:
     known_slugs = {str(s).lower() for s in baseline.get("slugs") or []}
     known_res = {str(s).lower() for s in baseline.get("resolutions") or []}
     new_slugs = [s for s in live["slugs"] if s not in known_slugs]
     new_res = [s for s in live["resolutions"] if s not in known_res]
-    return {"slugs": new_slugs, "resolutions": new_res}
+    return {
+        "slugs": new_slugs,
+        "resolutions": new_res,
+        "dropped_slugs": _dropped_tokens(baseline.get("slugs"), live["slugs"]),
+        "dropped_resolutions": _dropped_tokens(baseline.get("resolutions"), live["resolutions"]),
+    }
 
 
 # Slug characters, so ``grok-4`` does not count as ``grok-4.7`` (``.`` is not a ``\b``).
@@ -528,7 +547,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--github-output",
         type=Path,
         default=None,
-        help="Append new_slugs / new_resolutions for Actions",
+        help="Append new and dropped slug/resolution outputs for Actions",
     )
     parser.add_argument(
         "--select-unlisted",
@@ -617,23 +636,35 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     delta = diff_watch(live, load_baseline(args.baseline))
+    has_new = bool(delta["slugs"] or delta["resolutions"])
+    has_dropped = bool(delta["dropped_slugs"] or delta["dropped_resolutions"])
     if args.github_output is not None:
         with args.github_output.open("a", encoding="utf-8") as fh:
             fh.write(f"new_slugs={','.join(delta['slugs'])}\n")
             fh.write(f"new_resolutions={','.join(delta['resolutions'])}\n")
-            fh.write(f"has_new={'true' if delta['slugs'] or delta['resolutions'] else 'false'}\n")
+            fh.write(f"has_new={'true' if has_new else 'false'}\n")
+            fh.write(f"dropped_slugs={','.join(delta['dropped_slugs'])}\n")
+            fh.write(f"dropped_resolutions={','.join(delta['dropped_resolutions'])}\n")
+            fh.write(f"has_dropped={'true' if has_dropped else 'false'}\n")
 
-    if not delta["slugs"] and not delta["resolutions"]:
+    if not has_new and not has_dropped:
         print("xAI public docs match the committed watch baseline")
         return 1 if prices_failed else 0
 
-    print("New xAI public-docs signals (kit may need a knob/family/price check):")
-    if delta["slugs"]:
-        print("  slugs:", ", ".join(delta["slugs"]))
-    if delta["resolutions"]:
-        print("  resolutions:", ", ".join(delta["resolutions"]))
-    print("Checklist: thought_level families, Imagine quality/resolution, video 1080p/4k, pricing.py, BOOTSTRAP_MODEL")
-    print("Then add the new tokens to scripts/data/xai_models_watch.json (--write-baseline after review)")
+    if has_new:
+        print("New xAI public-docs signals (kit may need a knob/family/price check):")
+        if delta["slugs"]:
+            print("  slugs:", ", ".join(delta["slugs"]))
+        if delta["resolutions"]:
+            print("  resolutions:", ", ".join(delta["resolutions"]))
+        print("Checklist: thought_level families, Imagine quality/resolution, video 1080p/4k, pricing.py, BOOTSTRAP_MODEL")
+        print("Then add the new tokens to scripts/data/xai_models_watch.json (--write-baseline after review)")
+    if has_dropped:
+        print("Dropped xAI public-docs tokens (baseline ids missing from the live scan):")
+        if delta["dropped_slugs"]:
+            print("  dropped slugs:", ", ".join(delta["dropped_slugs"]))
+        if delta["dropped_resolutions"]:
+            print("  dropped resolutions:", ", ".join(delta["dropped_resolutions"]))
     return 1 if prices_failed else 2
 
 
