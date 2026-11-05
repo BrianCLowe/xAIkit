@@ -191,37 +191,16 @@ def declared_watch_tokens(text: str) -> set[str]:
     return found
 
 
-def _comment_text(issue: dict[str, Any]) -> str:
-    raw = issue.get("comments")
-    if raw is None:
-        return ""
-    if isinstance(raw, str):
-        return raw
-    if isinstance(raw, list):
-        parts: list[str] = []
-        for item in raw:
-            if isinstance(item, str):
-                parts.append(item)
-            elif isinstance(item, dict):
-                parts.append(str(item.get("body") or ""))
-        return "\n".join(parts)
-    return ""
-
-
 def unlisted_watch_tokens(tokens: Sequence[str], issues: Sequence[dict[str, Any]]) -> list[str]:
     """Tokens that still need their own watch issue.
 
-    A token is already listed when it is on a New or Dropped slugs/resolutions
-    line, a whole token in the issue title, or a whole token in a comment.
+    Already declared only when a drift or drop-report body names the token on
+    a New or Dropped slugs/resolutions line. Titles, comments, checklist prose,
+    and price-guard issues do not declare it.
     """
     declared: set[str] = set()
-    loose: list[str] = []
     for issue in issues:
         declared.update(declared_watch_tokens(str(issue.get("body") or "")))
-        declared.update(declared_watch_tokens(str(issue.get("title") or "")))
-        loose.append(str(issue.get("title") or ""))
-        loose.append(_comment_text(issue))
-    haystack = "\n".join(loose)
     pending: list[str] = []
     seen: set[str] = set()
     for token in tokens:
@@ -229,7 +208,7 @@ def unlisted_watch_tokens(tokens: Sequence[str], issues: Sequence[dict[str, Any]
         if not key or key == "none" or key in seen:
             continue
         seen.add(key)
-        if key in declared or token_is_listed(key, haystack):
+        if key in declared:
             continue
         pending.append(key)
     return pending

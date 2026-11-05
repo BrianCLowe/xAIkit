@@ -87,20 +87,20 @@ def test_unlisted_watch_tokens_ignore_other_open_issue_and_checklist() -> None:
     assert watch.token_is_listed("grok-4.7", "prefix grok-4.7 suffix") is True
 
 
-def test_comment_or_title_lists_a_token_the_body_line_omits() -> None:
+def test_title_and_comment_do_not_declare_a_watch_token() -> None:
     watch = _load()
     issues = [
         {
             "number": 60,
             "title": "flagship grok-4.7",
-            "body": "**New slugs:** `none`\n**New resolutions:** `none`\n",
+            "body": "**New slugs:** `grok-4-7`\n**New resolutions:** `none`\n",
             "comments": [{"body": "also grok-voice-transcribe-2.0"}],
         }
     ]
     assert watch.unlisted_watch_tokens(
         ["grok-4.7", "grok-voice-transcribe-2.0", "grok-4-7"],
         issues,
-    ) == ["grok-4-7"]
+    ) == ["grok-4.7", "grok-voice-transcribe-2.0"]
 
 
 def _printed_outputs(text: str) -> dict[str, str]:
@@ -176,6 +176,70 @@ def test_already_reported_drop_opens_no_new_issue(tmp_path, capsys) -> None:
     assert '[ "$has_dropped" != "true" ]' in workflow
     assert '[ -z "${DROPPED_SLUGS:-}" ]' not in workflow
     assert "if: always() && (steps.scan.outputs.has_new == 'true' || steps.scan.outputs.has_dropped == 'true')" in workflow
+
+
+def test_guard_issue_title_does_not_suppress_dropped_token(tmp_path, capsys) -> None:
+    """A price-guard issue that names an id still leaves a drift issue to file."""
+    watch = _load()
+    dropped = "grok-imagine-image-2.0"
+    guard = {
+        "number": 90,
+        "title": f"xAI shipped image price guard failed: {dropped}",
+        "body": (
+            "The watcher extract is missing a shipped image id "
+            "or its per_call_usd does not match the shipped default.\n\n"
+            f"- {dropped}\n"
+        ),
+        "comments": f"ping {dropped}",
+    }
+    assert watch.unlisted_watch_tokens([dropped], [guard]) == [dropped]
+
+    path = tmp_path / "issues.json"
+    path.write_text(json.dumps([guard]), encoding="utf-8")
+    code = watch.main(
+        [
+            "--select-unlisted",
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", dropped,
+            "--dropped-resolutions", "none",
+            "--issues-json", str(path),
+        ]
+    )
+    assert code == 0
+    filed = _printed_outputs(capsys.readouterr().out)
+    assert filed["slugs"] == ""
+    assert filed["resolutions"] == ""
+    assert filed["dropped_slugs"] == dropped
+    assert filed["dropped_resolutions"] == ""
+    assert filed["has_dropped"] == "true"
+
+    reported = {
+        "number": 80,
+        "title": f"xAI public docs added models or resolutions {dropped}",
+        "body": (
+            "**New slugs:** `none`\n"
+            "**New resolutions:** `none`\n"
+            f"**Dropped slugs:** `{dropped}`\n"
+            "**Dropped resolutions:** `none`\n"
+        ),
+        "comments": "",
+    }
+    path.write_text(json.dumps([guard, reported]), encoding="utf-8")
+    code = watch.main(
+        [
+            "--select-unlisted",
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", dropped,
+            "--dropped-resolutions", "none",
+            "--issues-json", str(path),
+        ]
+    )
+    assert code == 0
+    quiet = _printed_outputs(capsys.readouterr().out)
+    assert quiet["dropped_slugs"] == ""
+    assert quiet["has_dropped"] == "false"
 
 
 def test_select_unlisted_cli_prints_only_new_tokens(tmp_path, capsys) -> None:
