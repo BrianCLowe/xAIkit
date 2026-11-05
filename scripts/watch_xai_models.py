@@ -155,6 +155,10 @@ def diff_watch(live: dict[str, list[str]], baseline: dict[str, Any]) -> dict[str
 
 # Slug characters, so ``grok-4`` does not count as ``grok-4.7`` (``.`` is not a ``\b``).
 _TOKEN_EDGE = r"A-Za-z0-9._-"
+_NEW_DECLARED_LINE = re.compile(
+    r"^\s*\*\*New (?:slugs|resolutions):\*\*\s*`([^`]*)`",
+    re.IGNORECASE | re.MULTILINE,
+)
 _DECLARED_LINE = re.compile(
     r"^\s*\*\*(?:New|Dropped) (?:slugs|resolutions):\*\*\s*`([^`]*)`",
     re.IGNORECASE | re.MULTILINE,
@@ -180,27 +184,64 @@ def token_is_listed(token: str, text: str) -> bool:
     return re.search(pattern, text, flags=re.IGNORECASE) is not None
 
 
+def _line_tokens(text: str, pattern: re.Pattern[str]) -> set[str]:
+    found: set[str] = set()
+    for match in pattern.finditer(text or ""):
+        found.update(split_watch_tokens(match.group(1)))
+    return found
+
+
 def declared_watch_tokens(text: str) -> set[str]:
     """Tokens named on New or Dropped slugs/resolutions lines.
 
     The issue checklist mentions ``4k`` as an example. That prose is not a listing.
     """
-    found: set[str] = set()
-    for match in _DECLARED_LINE.finditer(text or ""):
-        found.update(split_watch_tokens(match.group(1)))
-    return found
+    return _line_tokens(text, _DECLARED_LINE)
 
 
-def unlisted_watch_tokens(tokens: Sequence[str], issues: Sequence[dict[str, Any]]) -> list[str]:
+def _comment_text(issue: dict[str, Any]) -> str:
+    raw = issue.get("comments")
+    if raw is None:
+        return ""
+    if isinstance(raw, str):
+        return raw
+    if isinstance(raw, list):
+        parts: list[str] = []
+        for item in raw:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                parts.append(str(item.get("body") or ""))
+        return "\n".join(parts)
+    return ""
+
+
+def unlisted_watch_tokens(
+    tokens: Sequence[str],
+    issues: Sequence[dict[str, Any]],
+    *,
+    dropped: bool = False,
+) -> list[str]:
     """Tokens that still need their own watch issue.
 
-    Already declared only when a drift or drop-report body names the token on
-    a New or Dropped slugs/resolutions line. Titles, comments, checklist prose,
-    and price-guard issues do not declare it.
+    New tokens use the base rule: a New slugs/resolutions line, a whole token
+    in an issue title, or a whole token in a comment. Dropped tokens are
+    declared only by a New or Dropped line in an issue body. A guard title,
+    guard body, or comment does not declare a dropped token.
     """
     declared: set[str] = set()
+    loose: list[str] = []
     for issue in issues:
-        declared.update(declared_watch_tokens(str(issue.get("body") or "")))
+        body = str(issue.get("body") or "")
+        if dropped:
+            declared.update(declared_watch_tokens(body))
+            continue
+        title = str(issue.get("title") or "")
+        declared.update(_line_tokens(body, _NEW_DECLARED_LINE))
+        declared.update(_line_tokens(title, _NEW_DECLARED_LINE))
+        loose.append(title)
+        loose.append(_comment_text(issue))
+    haystack = "\n".join(loose)
     pending: list[str] = []
     seen: set[str] = set()
     for token in tokens:
@@ -208,7 +249,7 @@ def unlisted_watch_tokens(tokens: Sequence[str], issues: Sequence[dict[str, Any]
         if not key or key == "none" or key in seen:
             continue
         seen.add(key)
-        if key in declared:
+        if key in declared or (not dropped and token_is_listed(key, haystack)):
             continue
         pending.append(key)
     return pending
@@ -583,10 +624,15 @@ def _select_unlisted(args: argparse.Namespace) -> int:
     issues = _load_issues(args.issues_json)
     slugs = unlisted_watch_tokens(split_watch_tokens(args.slugs), issues)
     resolutions = unlisted_watch_tokens(split_watch_tokens(args.resolutions), issues)
-    dropped_slugs = unlisted_watch_tokens(split_watch_tokens(args.dropped_slugs), issues)
+    dropped_slugs = unlisted_watch_tokens(
+        split_watch_tokens(args.dropped_slugs),
+        issues,
+        dropped=True,
+    )
     dropped_resolutions = unlisted_watch_tokens(
         split_watch_tokens(args.dropped_resolutions),
         issues,
+        dropped=True,
     )
     has_dropped = bool(dropped_slugs or dropped_resolutions)
     print(f"slugs={','.join(slugs)}")

@@ -87,20 +87,20 @@ def test_unlisted_watch_tokens_ignore_other_open_issue_and_checklist() -> None:
     assert watch.token_is_listed("grok-4.7", "prefix grok-4.7 suffix") is True
 
 
-def test_title_and_comment_do_not_declare_a_watch_token() -> None:
+def test_comment_or_title_lists_a_token_the_body_line_omits() -> None:
     watch = _load()
     issues = [
         {
             "number": 60,
             "title": "flagship grok-4.7",
-            "body": "**New slugs:** `grok-4-7`\n**New resolutions:** `none`\n",
+            "body": "**New slugs:** `none`\n**New resolutions:** `none`\n",
             "comments": [{"body": "also grok-voice-transcribe-2.0"}],
         }
     ]
     assert watch.unlisted_watch_tokens(
         ["grok-4.7", "grok-voice-transcribe-2.0", "grok-4-7"],
         issues,
-    ) == ["grok-4.7", "grok-voice-transcribe-2.0"]
+    ) == ["grok-4-7"]
 
 
 def _printed_outputs(text: str) -> dict[str, str]:
@@ -129,10 +129,12 @@ def test_already_reported_drop_opens_no_new_issue(tmp_path, capsys) -> None:
             "comments": "",
         }
     ]
-    assert watch.unlisted_watch_tokens(["grok-other"], issues) == ["grok-other"]
+    assert watch.unlisted_watch_tokens(["grok-other"], issues, dropped=True) == ["grok-other"]
     assert watch.declared_watch_tokens(body) >= {"grok-retired", "720p"}
-    assert watch.unlisted_watch_tokens(["grok-retired", "grok-legacy"], issues) == ["grok-legacy"]
-    assert watch.unlisted_watch_tokens(["720p", "4k"], issues) == ["4k"]
+    assert watch.unlisted_watch_tokens(
+        ["grok-retired", "grok-legacy"], issues, dropped=True
+    ) == ["grok-legacy"]
+    assert watch.unlisted_watch_tokens(["720p", "4k"], issues, dropped=True) == ["4k"]
 
     path = tmp_path / "issues.json"
     path.write_text(json.dumps(issues), encoding="utf-8")
@@ -192,7 +194,8 @@ def test_guard_issue_title_does_not_suppress_dropped_token(tmp_path, capsys) -> 
         ),
         "comments": f"ping {dropped}",
     }
-    assert watch.unlisted_watch_tokens([dropped], [guard]) == [dropped]
+    assert watch.unlisted_watch_tokens([dropped], [guard]) == []
+    assert watch.unlisted_watch_tokens([dropped], [guard], dropped=True) == [dropped]
 
     path = tmp_path / "issues.json"
     path.write_text(json.dumps([guard]), encoding="utf-8")
