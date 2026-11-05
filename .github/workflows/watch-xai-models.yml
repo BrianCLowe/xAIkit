@@ -71,11 +71,13 @@ jobs:
           echo "opened xai-models issue for price guard ids=${GUARD_IDS:-unknown}"
 
       - name: Open issue for tokens not already listed
-        if: steps.scan.outputs.has_new == 'true'
+        if: always() && (steps.scan.outputs.has_new == 'true' || steps.scan.outputs.has_dropped == 'true')
         env:
           GH_TOKEN: ${{ github.token }}
           NEW_SLUGS: ${{ steps.scan.outputs.new_slugs }}
           NEW_RES: ${{ steps.scan.outputs.new_resolutions }}
+          DROPPED_SLUGS: ${{ steps.scan.outputs.dropped_slugs }}
+          DROPPED_RESOLUTIONS: ${{ steps.scan.outputs.dropped_resolutions }}
         run: |
           set -euo pipefail
           gh label create xai-models --description "Public xAI model/docs drift" --color 1D76DB --force
@@ -105,11 +107,16 @@ jobs:
           filtered="$(uv run python scripts/watch_xai_models.py --select-unlisted \
             --slugs "$NEW_SLUGS" \
             --resolutions "$NEW_RES" \
+            --dropped-slugs "$DROPPED_SLUGS" \
+            --dropped-resolutions "$DROPPED_RESOLUTIONS" \
             --issues-json "$enriched")"
           slugs="$(printf '%s\n' "$filtered" | sed -n 's/^slugs=//p')"
           res="$(printf '%s\n' "$filtered" | sed -n 's/^resolutions=//p')"
-          if [ -z "$slugs" ] && [ -z "$res" ]; then
-            echo "new tokens already listed on an open xai-models issue"
+          dropped_slugs="$(printf '%s\n' "$filtered" | sed -n 's/^dropped_slugs=//p')"
+          dropped_res="$(printf '%s\n' "$filtered" | sed -n 's/^dropped_resolutions=//p')"
+          has_dropped="$(printf '%s\n' "$filtered" | sed -n 's/^has_dropped=//p')"
+          if [ -z "$slugs" ] && [ -z "$res" ] && [ "$has_dropped" != "true" ]; then
+            echo "tokens already listed on an open xai-models issue"
             exit 0
           fi
           title="xAI public docs added models or resolutions"
@@ -118,6 +125,8 @@ jobs:
 
           **New slugs:** \`${slugs:-none}\`
           **New resolutions:** \`${res:-none}\`
+          **Dropped slugs:** \`${dropped_slugs:-none}\`
+          **Dropped resolutions:** \`${dropped_res:-none}\`
 
           Check whether the kit needs a knob / family / price update:
 
@@ -132,7 +141,7 @@ jobs:
           EOF
           )"
           gh issue create --title "$title" --label xai-models --body "$body"
-          echo "opened xai-models issue for slugs=${slugs:-none} resolutions=${res:-none}"
+          echo "opened xai-models issue for slugs=${slugs:-none} resolutions=${res:-none} dropped_slugs=${dropped_slugs:-none} dropped_resolutions=${dropped_res:-none}"
 
       - name: Commit price gap file when the extract changes
         if: steps.scan.outputs.exit_code != '1' && steps.guard.outcome == 'success'

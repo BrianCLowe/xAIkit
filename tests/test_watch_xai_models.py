@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -100,6 +101,148 @@ def test_comment_or_title_lists_a_token_the_body_line_omits() -> None:
         ["grok-4.7", "grok-voice-transcribe-2.0", "grok-4-7"],
         issues,
     ) == ["grok-4-7"]
+
+
+def _printed_outputs(text: str) -> dict[str, str]:
+    parsed: dict[str, str] = {}
+    for line in text.splitlines():
+        key, value = line.split("=", 1)
+        parsed[key] = value
+    return parsed
+
+
+def test_already_reported_drop_opens_no_new_issue(tmp_path, capsys) -> None:
+    """A drop already named on an open watch issue does not open another."""
+    watch = _load()
+    body = (
+        "**New slugs:** `none`\n"
+        "**New resolutions:** `none`\n"
+        "**Dropped slugs:** `grok-retired`\n"
+        "**Dropped resolutions:** `720p`\n"
+        "- [ ] Imagine quality (2.0 vs later; grok-other?)\n"
+    )
+    issues = [
+        {
+            "number": 80,
+            "title": "xAI public docs added models or resolutions",
+            "body": body,
+            "comments": "",
+        }
+    ]
+    assert watch.unlisted_watch_tokens(["grok-other"], issues, dropped=True) == ["grok-other"]
+    assert watch.declared_watch_tokens(body) >= {"grok-retired", "720p"}
+    assert watch.unlisted_watch_tokens(
+        ["grok-retired", "grok-legacy"], issues, dropped=True
+    ) == ["grok-legacy"]
+    assert watch.unlisted_watch_tokens(["720p", "4k"], issues, dropped=True) == ["4k"]
+
+    path = tmp_path / "issues.json"
+    path.write_text(json.dumps(issues), encoding="utf-8")
+    code = watch.main(
+        [
+            "--select-unlisted",
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", "grok-retired",
+            "--dropped-resolutions", "720p",
+            "--issues-json", str(path),
+        ]
+    )
+    assert code == 0
+    reported = _printed_outputs(capsys.readouterr().out)
+    assert reported["slugs"] == ""
+    assert reported["resolutions"] == ""
+    assert reported["dropped_slugs"] == ""
+    assert reported["dropped_resolutions"] == ""
+    assert reported["has_dropped"] == "false"
+
+    code = watch.main(
+        [
+            "--select-unlisted",
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", "grok-legacy",
+            "--dropped-resolutions", "4k",
+            "--issues-json", str(path),
+        ]
+    )
+    assert code == 0
+    fresh = _printed_outputs(capsys.readouterr().out)
+    assert fresh["dropped_slugs"] == "grok-legacy"
+    assert fresh["dropped_resolutions"] == "4k"
+    assert fresh["has_dropped"] == "true"
+
+    workflow = (ROOT / ".github" / "workflows" / "watch-xai-models.yml").read_text(encoding="utf-8")
+    assert "--dropped-slugs \"$DROPPED_SLUGS\"" in workflow
+    assert "--dropped-resolutions \"$DROPPED_RESOLUTIONS\"" in workflow
+    assert '[ "$has_dropped" != "true" ]' in workflow
+    assert '[ -z "${DROPPED_SLUGS:-}" ]' not in workflow
+    assert "if: always() && (steps.scan.outputs.has_new == 'true' || steps.scan.outputs.has_dropped == 'true')" in workflow
+
+
+def test_guard_issue_title_does_not_suppress_dropped_token(tmp_path, capsys) -> None:
+    """A price-guard issue that names an id still leaves a drift issue to file."""
+    watch = _load()
+    dropped = "grok-imagine-image-2.0"
+    guard = {
+        "number": 90,
+        "title": f"xAI shipped image price guard failed: {dropped}",
+        "body": (
+            "The watcher extract is missing a shipped image id "
+            "or its per_call_usd does not match the shipped default.\n\n"
+            f"- {dropped}\n"
+        ),
+        "comments": f"ping {dropped}",
+    }
+    assert watch.unlisted_watch_tokens([dropped], [guard]) == []
+    assert watch.unlisted_watch_tokens([dropped], [guard], dropped=True) == [dropped]
+
+    path = tmp_path / "issues.json"
+    path.write_text(json.dumps([guard]), encoding="utf-8")
+    code = watch.main(
+        [
+            "--select-unlisted",
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", dropped,
+            "--dropped-resolutions", "none",
+            "--issues-json", str(path),
+        ]
+    )
+    assert code == 0
+    filed = _printed_outputs(capsys.readouterr().out)
+    assert filed["slugs"] == ""
+    assert filed["resolutions"] == ""
+    assert filed["dropped_slugs"] == dropped
+    assert filed["dropped_resolutions"] == ""
+    assert filed["has_dropped"] == "true"
+
+    reported = {
+        "number": 80,
+        "title": f"xAI public docs added models or resolutions {dropped}",
+        "body": (
+            "**New slugs:** `none`\n"
+            "**New resolutions:** `none`\n"
+            f"**Dropped slugs:** `{dropped}`\n"
+            "**Dropped resolutions:** `none`\n"
+        ),
+        "comments": "",
+    }
+    path.write_text(json.dumps([guard, reported]), encoding="utf-8")
+    code = watch.main(
+        [
+            "--select-unlisted",
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", dropped,
+            "--dropped-resolutions", "none",
+            "--issues-json", str(path),
+        ]
+    )
+    assert code == 0
+    quiet = _printed_outputs(capsys.readouterr().out)
+    assert quiet["dropped_slugs"] == ""
+    assert quiet["has_dropped"] == "false"
 
 
 def test_select_unlisted_cli_prints_only_new_tokens(tmp_path, capsys) -> None:
@@ -236,6 +379,135 @@ def test_committed_public_prices_parse() -> None:
     video = models["grok-imagine-video-1.5"]["per_second_usd_by_resolution"]
     assert video["480p"] > 0
     assert models["stt"]["per_minute_usd"] > 0
+
+
+def _github_outputs(text: str) -> dict[str, str]:
+    found: dict[str, str] = {}
+    for line in text.splitlines():
+        key, value = line.split("=", 1)
+        found[key] = value
+    return found
+
+
+def _run_offline_main(watch, tmp_path, monkeypatch, live: dict, baseline: dict):
+    baseline_path = tmp_path / "baseline.json"
+    payload = json.dumps(baseline)
+    baseline_path.write_text(payload, encoding="utf-8")
+    output_path = tmp_path / "github_output.txt"
+    repo_baseline = (ROOT / "scripts" / "data" / "xai_models_watch.json").read_bytes()
+    repo_prices = (ROOT / "scripts" / "data" / "xai_public_prices.json").read_bytes()
+
+    def fake_fetch(url: str, *, timeout: float = 30.0) -> str:
+        return "offline"
+
+    def fake_scan(pages, **kwargs):
+        return live
+
+    monkeypatch.setattr(watch, "fetch_text", fake_fetch)
+    monkeypatch.setattr(watch, "scan_pages", fake_scan)
+    code = watch.main(
+        ["--baseline", str(baseline_path), "--github-output", str(output_path)]
+    )
+    written = output_path.read_text(encoding="utf-8")
+    assert baseline_path.read_text(encoding="utf-8") == payload
+    assert (ROOT / "scripts" / "data" / "xai_models_watch.json").read_bytes() == repo_baseline
+    assert (ROOT / "scripts" / "data" / "xai_public_prices.json").read_bytes() == repo_prices
+    return code, _github_outputs(written)
+
+
+def test_diff_watch_reports_dropped_slugs_and_resolutions() -> None:
+    watch = _load()
+    baseline = {
+        "slugs": ["grok-4.6", "Grok-Kept", "grok-retired", "grok-legacy"],
+        "resolutions": ["1k", "480P", "720p"],
+    }
+    live = {
+        "slugs": ["grok-4.6", "grok-kept", "grok-imagine-image-3.0"],
+        "resolutions": ["1k", "480p", "4k"],
+    }
+    delta = watch.diff_watch(live, baseline)
+    assert delta["slugs"] == ["grok-imagine-image-3.0"]
+    assert delta["resolutions"] == ["4k"]
+    assert delta["dropped_slugs"] == ["grok-retired", "grok-legacy"]
+    assert delta["dropped_resolutions"] == ["720p"]
+
+
+def test_main_writes_dropped_outputs_and_exits_2(tmp_path, monkeypatch, capsys) -> None:
+    watch = _load()
+    code, outputs = _run_offline_main(
+        watch,
+        tmp_path,
+        monkeypatch,
+        live={"slugs": ["grok-4.6"], "resolutions": ["1k"]},
+        baseline={
+            "slugs": ["grok-4.6", "grok-retired"],
+            "resolutions": ["1k", "720p"],
+        },
+    )
+    assert code == 2
+    assert outputs["dropped_slugs"] == "grok-retired"
+    assert outputs["dropped_resolutions"] == "720p"
+    assert outputs["has_dropped"] == "true"
+    assert outputs["has_new"] == "false"
+    assert outputs["new_slugs"] == ""
+    assert outputs["new_resolutions"] == ""
+    stdout = capsys.readouterr().out
+    assert "grok-retired" in stdout
+    assert "720p" in stdout
+    assert "Dropped xAI public-docs tokens" in stdout
+
+
+def test_main_no_drop_outputs_false_and_exits_0(tmp_path, monkeypatch, capsys) -> None:
+    watch = _load()
+    live = {
+        "slugs": ["grok-4.6", "grok-imagine-image-2.0"],
+        "resolutions": ["1k", "720p"],
+    }
+    code, outputs = _run_offline_main(
+        watch,
+        tmp_path,
+        monkeypatch,
+        live=live,
+        baseline=dict(live),
+    )
+    assert code == 0
+    assert outputs["dropped_slugs"] == ""
+    assert outputs["dropped_resolutions"] == ""
+    assert outputs["has_dropped"] == "false"
+    assert outputs["has_new"] == "false"
+    stdout = capsys.readouterr().out
+    assert "xAI public docs match the committed watch baseline" in stdout
+
+
+def test_main_new_and_dropped_both_reported(tmp_path, monkeypatch, capsys) -> None:
+    watch = _load()
+    code, outputs = _run_offline_main(
+        watch,
+        tmp_path,
+        monkeypatch,
+        live={
+            "slugs": ["grok-4.6", "grok-imagine-image-3.0"],
+            "resolutions": ["1k", "4k"],
+        },
+        baseline={
+            "slugs": ["grok-4.6", "grok-retired"],
+            "resolutions": ["1k", "720p"],
+        },
+    )
+    assert code == 2
+    assert outputs["has_new"] == "true"
+    assert outputs["has_dropped"] == "true"
+    assert outputs["new_slugs"] == "grok-imagine-image-3.0"
+    assert outputs["new_resolutions"] == "4k"
+    assert outputs["dropped_slugs"] == "grok-retired"
+    assert outputs["dropped_resolutions"] == "720p"
+    stdout = capsys.readouterr().out
+    assert "New xAI public-docs signals" in stdout
+    assert "Dropped xAI public-docs tokens" in stdout
+    assert "grok-imagine-image-3.0" in stdout
+    assert "4k" in stdout
+    assert "grok-retired" in stdout
+    assert "720p" in stdout
 
 
 def test_committed_baseline_has_current_public_table() -> None:

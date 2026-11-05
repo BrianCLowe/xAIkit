@@ -126,18 +126,41 @@ def load_baseline(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _dropped_tokens(baseline_values: Any, live_values: Sequence[str]) -> list[str]:
+    """Baseline ids missing from live, lowercased, in baseline order."""
+    live_norm = {str(item).lower() for item in live_values}
+    dropped: list[str] = []
+    seen: set[str] = set()
+    for raw in baseline_values or []:
+        token = str(raw).lower()
+        if not token or token in seen or token in live_norm:
+            continue
+        seen.add(token)
+        dropped.append(token)
+    return dropped
+
+
 def diff_watch(live: dict[str, list[str]], baseline: dict[str, Any]) -> dict[str, list[str]]:
     known_slugs = {str(s).lower() for s in baseline.get("slugs") or []}
     known_res = {str(s).lower() for s in baseline.get("resolutions") or []}
     new_slugs = [s for s in live["slugs"] if s not in known_slugs]
     new_res = [s for s in live["resolutions"] if s not in known_res]
-    return {"slugs": new_slugs, "resolutions": new_res}
+    return {
+        "slugs": new_slugs,
+        "resolutions": new_res,
+        "dropped_slugs": _dropped_tokens(baseline.get("slugs"), live["slugs"]),
+        "dropped_resolutions": _dropped_tokens(baseline.get("resolutions"), live["resolutions"]),
+    }
 
 
 # Slug characters, so ``grok-4`` does not count as ``grok-4.7`` (``.`` is not a ``\b``).
 _TOKEN_EDGE = r"A-Za-z0-9._-"
-_DECLARED_LINE = re.compile(
+_NEW_DECLARED_LINE = re.compile(
     r"^\s*\*\*New (?:slugs|resolutions):\*\*\s*`([^`]*)`",
+    re.IGNORECASE | re.MULTILINE,
+)
+_DECLARED_LINE = re.compile(
+    r"^\s*\*\*(?:New|Dropped) (?:slugs|resolutions):\*\*\s*`([^`]*)`",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -161,15 +184,19 @@ def token_is_listed(token: str, text: str) -> bool:
     return re.search(pattern, text, flags=re.IGNORECASE) is not None
 
 
+def _line_tokens(text: str, pattern: re.Pattern[str]) -> set[str]:
+    found: set[str] = set()
+    for match in pattern.finditer(text or ""):
+        found.update(split_watch_tokens(match.group(1)))
+    return found
+
+
 def declared_watch_tokens(text: str) -> set[str]:
-    """Tokens named on ``**New slugs:**`` / ``**New resolutions:**`` lines.
+    """Tokens named on New or Dropped slugs/resolutions lines.
 
     The issue checklist mentions ``4k`` as an example. That prose is not a listing.
     """
-    found: set[str] = set()
-    for match in _DECLARED_LINE.finditer(text or ""):
-        found.update(split_watch_tokens(match.group(1)))
-    return found
+    return _line_tokens(text, _DECLARED_LINE)
 
 
 def _comment_text(issue: dict[str, Any]) -> str:
@@ -189,18 +216,30 @@ def _comment_text(issue: dict[str, Any]) -> str:
     return ""
 
 
-def unlisted_watch_tokens(tokens: Sequence[str], issues: Sequence[dict[str, Any]]) -> list[str]:
+def unlisted_watch_tokens(
+    tokens: Sequence[str],
+    issues: Sequence[dict[str, Any]],
+    *,
+    dropped: bool = False,
+) -> list[str]:
     """Tokens that still need their own watch issue.
 
-    A token is already listed when it is on a New slugs / New resolutions line,
-    a whole token in the issue title, or a whole token in a comment.
+    New tokens use the base rule: a New slugs/resolutions line, a whole token
+    in an issue title, or a whole token in a comment. Dropped tokens are
+    declared only by a New or Dropped line in an issue body. A guard title,
+    guard body, or comment does not declare a dropped token.
     """
     declared: set[str] = set()
     loose: list[str] = []
     for issue in issues:
-        declared.update(declared_watch_tokens(str(issue.get("body") or "")))
-        declared.update(declared_watch_tokens(str(issue.get("title") or "")))
-        loose.append(str(issue.get("title") or ""))
+        body = str(issue.get("body") or "")
+        if dropped:
+            declared.update(declared_watch_tokens(body))
+            continue
+        title = str(issue.get("title") or "")
+        declared.update(_line_tokens(body, _NEW_DECLARED_LINE))
+        declared.update(_line_tokens(title, _NEW_DECLARED_LINE))
+        loose.append(title)
         loose.append(_comment_text(issue))
     haystack = "\n".join(loose)
     pending: list[str] = []
@@ -210,7 +249,7 @@ def unlisted_watch_tokens(tokens: Sequence[str], issues: Sequence[dict[str, Any]
         if not key or key == "none" or key in seen:
             continue
         seen.add(key)
-        if key in declared or token_is_listed(key, haystack):
+        if key in declared or (not dropped and token_is_listed(key, haystack)):
             continue
         pending.append(key)
     return pending
@@ -528,7 +567,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--github-output",
         type=Path,
         default=None,
-        help="Append new_slugs / new_resolutions for Actions",
+        help="Append new and dropped slug/resolution outputs for Actions",
     )
     parser.add_argument(
         "--select-unlisted",
@@ -540,6 +579,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--resolutions",
         default="",
         help="Comma-separated resolution tokens to filter",
+    )
+    parser.add_argument(
+        "--dropped-slugs",
+        default="",
+        help="Comma-separated dropped slugs to filter",
+    )
+    parser.add_argument(
+        "--dropped-resolutions",
+        default="",
+        help="Comma-separated dropped resolution tokens to filter",
     )
     parser.add_argument(
         "--issues-json",
@@ -575,8 +624,22 @@ def _select_unlisted(args: argparse.Namespace) -> int:
     issues = _load_issues(args.issues_json)
     slugs = unlisted_watch_tokens(split_watch_tokens(args.slugs), issues)
     resolutions = unlisted_watch_tokens(split_watch_tokens(args.resolutions), issues)
+    dropped_slugs = unlisted_watch_tokens(
+        split_watch_tokens(args.dropped_slugs),
+        issues,
+        dropped=True,
+    )
+    dropped_resolutions = unlisted_watch_tokens(
+        split_watch_tokens(args.dropped_resolutions),
+        issues,
+        dropped=True,
+    )
+    has_dropped = bool(dropped_slugs or dropped_resolutions)
     print(f"slugs={','.join(slugs)}")
     print(f"resolutions={','.join(resolutions)}")
+    print(f"dropped_slugs={','.join(dropped_slugs)}")
+    print(f"dropped_resolutions={','.join(dropped_resolutions)}")
+    print(f"has_dropped={'true' if has_dropped else 'false'}")
     return 0
 
 
@@ -617,23 +680,35 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     delta = diff_watch(live, load_baseline(args.baseline))
+    has_new = bool(delta["slugs"] or delta["resolutions"])
+    has_dropped = bool(delta["dropped_slugs"] or delta["dropped_resolutions"])
     if args.github_output is not None:
         with args.github_output.open("a", encoding="utf-8") as fh:
             fh.write(f"new_slugs={','.join(delta['slugs'])}\n")
             fh.write(f"new_resolutions={','.join(delta['resolutions'])}\n")
-            fh.write(f"has_new={'true' if delta['slugs'] or delta['resolutions'] else 'false'}\n")
+            fh.write(f"has_new={'true' if has_new else 'false'}\n")
+            fh.write(f"dropped_slugs={','.join(delta['dropped_slugs'])}\n")
+            fh.write(f"dropped_resolutions={','.join(delta['dropped_resolutions'])}\n")
+            fh.write(f"has_dropped={'true' if has_dropped else 'false'}\n")
 
-    if not delta["slugs"] and not delta["resolutions"]:
+    if not has_new and not has_dropped:
         print("xAI public docs match the committed watch baseline")
         return 1 if prices_failed else 0
 
-    print("New xAI public-docs signals (kit may need a knob/family/price check):")
-    if delta["slugs"]:
-        print("  slugs:", ", ".join(delta["slugs"]))
-    if delta["resolutions"]:
-        print("  resolutions:", ", ".join(delta["resolutions"]))
-    print("Checklist: thought_level families, Imagine quality/resolution, video 1080p/4k, pricing.py, BOOTSTRAP_MODEL")
-    print("Then add the new tokens to scripts/data/xai_models_watch.json (--write-baseline after review)")
+    if has_new:
+        print("New xAI public-docs signals (kit may need a knob/family/price check):")
+        if delta["slugs"]:
+            print("  slugs:", ", ".join(delta["slugs"]))
+        if delta["resolutions"]:
+            print("  resolutions:", ", ".join(delta["resolutions"]))
+        print("Checklist: thought_level families, Imagine quality/resolution, video 1080p/4k, pricing.py, BOOTSTRAP_MODEL")
+        print("Then add the new tokens to scripts/data/xai_models_watch.json (--write-baseline after review)")
+    if has_dropped:
+        print("Dropped xAI public-docs tokens (baseline ids missing from the live scan):")
+        if delta["dropped_slugs"]:
+            print("  dropped slugs:", ", ".join(delta["dropped_slugs"]))
+        if delta["dropped_resolutions"]:
+            print("  dropped resolutions:", ", ".join(delta["dropped_resolutions"]))
     return 1 if prices_failed else 2
 
 
