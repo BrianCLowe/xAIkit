@@ -156,7 +156,7 @@ def diff_watch(live: dict[str, list[str]], baseline: dict[str, Any]) -> dict[str
 # Slug characters, so ``grok-4`` does not count as ``grok-4.7`` (``.`` is not a ``\b``).
 _TOKEN_EDGE = r"A-Za-z0-9._-"
 _DECLARED_LINE = re.compile(
-    r"^\s*\*\*New (?:slugs|resolutions):\*\*\s*`([^`]*)`",
+    r"^\s*\*\*(?:New|Dropped) (?:slugs|resolutions):\*\*\s*`([^`]*)`",
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -181,7 +181,7 @@ def token_is_listed(token: str, text: str) -> bool:
 
 
 def declared_watch_tokens(text: str) -> set[str]:
-    """Tokens named on ``**New slugs:**`` / ``**New resolutions:**`` lines.
+    """Tokens named on New or Dropped slugs/resolutions lines.
 
     The issue checklist mentions ``4k`` as an example. That prose is not a listing.
     """
@@ -211,8 +211,8 @@ def _comment_text(issue: dict[str, Any]) -> str:
 def unlisted_watch_tokens(tokens: Sequence[str], issues: Sequence[dict[str, Any]]) -> list[str]:
     """Tokens that still need their own watch issue.
 
-    A token is already listed when it is on a New slugs / New resolutions line,
-    a whole token in the issue title, or a whole token in a comment.
+    A token is already listed when it is on a New or Dropped slugs/resolutions
+    line, a whole token in the issue title, or a whole token in a comment.
     """
     declared: set[str] = set()
     loose: list[str] = []
@@ -561,6 +561,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Comma-separated resolution tokens to filter",
     )
     parser.add_argument(
+        "--dropped-slugs",
+        default="",
+        help="Comma-separated dropped slugs to filter",
+    )
+    parser.add_argument(
+        "--dropped-resolutions",
+        default="",
+        help="Comma-separated dropped resolution tokens to filter",
+    )
+    parser.add_argument(
         "--issues-json",
         type=Path,
         default=None,
@@ -594,8 +604,17 @@ def _select_unlisted(args: argparse.Namespace) -> int:
     issues = _load_issues(args.issues_json)
     slugs = unlisted_watch_tokens(split_watch_tokens(args.slugs), issues)
     resolutions = unlisted_watch_tokens(split_watch_tokens(args.resolutions), issues)
+    dropped_slugs = unlisted_watch_tokens(split_watch_tokens(args.dropped_slugs), issues)
+    dropped_resolutions = unlisted_watch_tokens(
+        split_watch_tokens(args.dropped_resolutions),
+        issues,
+    )
+    has_dropped = bool(dropped_slugs or dropped_resolutions)
     print(f"slugs={','.join(slugs)}")
     print(f"resolutions={','.join(resolutions)}")
+    print(f"dropped_slugs={','.join(dropped_slugs)}")
+    print(f"dropped_resolutions={','.join(dropped_resolutions)}")
+    print(f"has_dropped={'true' if has_dropped else 'false'}")
     return 0
 
 

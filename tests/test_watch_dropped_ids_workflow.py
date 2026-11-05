@@ -122,14 +122,18 @@ def test_wdi_c06_workflow_dropped_issue_body() -> None:
     res_lines = [line for line in body.splitlines() if "**Dropped resolutions:**" in line]
     assert len(slug_lines) == 1
     assert len(res_lines) == 1
-    assert "${DROPPED_SLUGS" in slug_lines[0]
-    assert "${DROPPED_RESOLUTIONS" in res_lines[0]
+    assert "${dropped_slugs" in slug_lines[0]
+    assert "${dropped_res" in res_lines[0]
+    assert "DROPPED_SLUGS" not in slug_lines[0]
+    assert "DROPPED_RESOLUTIONS" not in res_lines[0]
     assert "NEW_SLUGS" not in slug_lines[0]
     assert "NEW_RES" not in slug_lines[0]
     assert "NEW_SLUGS" not in res_lines[0]
     assert "NEW_RES" not in res_lines[0]
-    assert '[ -z "${DROPPED_SLUGS:-}" ]' in step
-    assert '[ -z "${DROPPED_RESOLUTIONS:-}" ]' in step
+    assert '--dropped-slugs "$DROPPED_SLUGS"' in step
+    assert '--dropped-resolutions "$DROPPED_RESOLUTIONS"' in step
+    assert '[ "$has_dropped" != "true" ]' in step
+    assert '[ -z "${DROPPED_SLUGS:-}" ]' not in step
 
 
 def test_wdi_c07_commit_gate_unchanged() -> None:
