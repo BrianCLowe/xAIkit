@@ -410,9 +410,13 @@ def test_s2_4_compact_video_snapshot_never_beats_plain_1_5() -> None:
 
 
 def test_s2_5_only_dated_family_newest_calendar_date_wins() -> None:
-    """S2-5. Newest date in the id wins, including over a newer created stamp."""
-    older = "grok-imagine-image-quality-20260403"
-    newer = "grok-imagine-image-quality-20260601"
+    """S2-5. Newest date in the id wins, including over a newer created stamp.
+
+    The plain image family carries this pin. An unlisted quality dated
+    snapshot is not an image-selection candidate.
+    """
+    older = "grok-imagine-image-20260302"
+    newer = "grok-imagine-image-20260601"
     image = _rows([(older, 900), (newer, 1)], "image")
     assert image[0].created is not None and image[1].created is not None
     assert image[0].created > image[1].created
