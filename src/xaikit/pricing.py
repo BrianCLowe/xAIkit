@@ -160,16 +160,37 @@ _DEFAULT_VIDEO_MODELS: dict[str, dict[str, Any]] = {
 
 # Public Imagine image list rates (USD / image). Estimates, not a billing authority.
 # Only ids listed on docs.x.ai Imagine pricing ship here.
+# Live HTML record Nov 5 2026 1:45 PM ET. Base is the 1K row (1K Low for image-2.0).
+# https://docs.x.ai/developers/pricing
+# https://docs.x.ai/developers/models/grok-imagine-image-2.0
+# https://docs.x.ai/developers/models/grok-imagine-image
+# grok-imagine-image docs labels: "1K (1024x1024)", "2K (2048x2048)".
+# Stored resolution keys are 1k, 1.5k, and 2k. A tier with quality None matches
+# only when quality is omitted. It is not a wildcard.
 _DEFAULT_IMAGE_MODELS: dict[str, dict[str, Any]] = {
     "grok-imagine-image": {
         "input_per_million": 0.0,
         "output_per_million": 0.0,
         "per_call_usd": 0.02,
+        "media_input_per_image_usd": 0.002,
+        "image_tiers": [
+            {"resolution": "1k", "quality": None, "per_call_usd": 0.02},
+            {"resolution": "2k", "quality": None, "per_call_usd": 0.02},
+        ],
     },
     "grok-imagine-image-2.0": {
         "input_per_million": 0.0,
         "output_per_million": 0.0,
-        "per_call_usd": 0.06,
+        "per_call_usd": 0.04,
+        "media_input_per_image_usd": 0.01,
+        "image_tiers": [
+            {"resolution": "1k", "quality": "low", "per_call_usd": 0.04},
+            {"resolution": "1.5k", "quality": "low", "per_call_usd": 0.05},
+            {"resolution": "2k", "quality": "low", "per_call_usd": 0.06},
+            {"resolution": "1k", "quality": "medium", "per_call_usd": 0.06},
+            {"resolution": "1.5k", "quality": "medium", "per_call_usd": 0.07},
+            {"resolution": "2k", "quality": "medium", "per_call_usd": 0.08},
+        ],
     },
 }
 
@@ -207,6 +228,14 @@ _DEFAULT_VOICE_MODELS: dict[str, dict[str, Any]] = {
 }
 
 
+class ImagePriceTier(BaseModel):
+    """One image output rate for an exact resolution and quality pair."""
+
+    resolution: str
+    quality: str | None = None
+    per_call_usd: float = Field(ge=0.0)
+
+
 class ModelPrice(BaseModel):
     """Per-model pricing (token, per-second video, and/or per-minute voice rates)."""
 
@@ -232,6 +261,8 @@ class ModelPrice(BaseModel):
     input_long_per_million: float | None = Field(default=None, ge=0.0)
     output_long_per_million: float | None = Field(default=None, ge=0.0)
     cached_input_long_per_million: float | None = Field(default=None, ge=0.0)
+    image_tiers: list[ImagePriceTier] | None = None
+    media_input_per_image_usd: float | None = Field(default=None, ge=0.0)
 
 
 class PriceTable(BaseModel):
@@ -277,11 +308,15 @@ class PriceTable(BaseModel):
         resolution: str | None = None,
         usage: dict[str, Any] | None = None,
         token_premium: float = 0.0,
+        quality: str | None = None,
+        input_images: int | None = None,
     ) -> float | None:
         """Estimate USD from video duration, voice minutes, tokens, or per-image rate.
 
         ``token_premium`` marks up token components only. Per-second, per-minute,
-        and per-image amounts ignore it.
+        and per-image amounts ignore it. An image tier applies only when both
+        resolution and quality match. Otherwise the image base rate applies.
+        ``input_images`` adds the media-input charge on that image branch.
         """
         price = self.price_for(model)
         if price is None:
@@ -312,7 +347,16 @@ class PriceTable(BaseModel):
         if price.per_call_usd is not None:
             # Image rows store the per-image rate on per_call_usd.
             # Count is images returned (default 1), not requested n.
-            return round(float(price.per_call_usd) * _image_count(usage), 8)
+            # Tier matching runs only in this branch. Video resolution stays above.
+            rate = _matched_image_per_call_usd(
+                price,
+                resolution,
+                quality,
+                float(price.per_call_usd),
+            )
+            media = float(price.media_input_per_image_usd or 0.0)
+            inputs = max(0, int(input_images or 0))
+            return round(rate * _image_count(usage) + media * inputs, 8)
         return None
 
 
@@ -321,6 +365,28 @@ def _prefix_remainder_ok(model_id: str, prefix: str) -> bool:
         return False
     rest = model_id[len(prefix) :]
     return rest == "" or rest.startswith("-")
+
+
+def _normalize_tier_part(value: str | None) -> str | None:
+    """Strip and lowercase a tier key. None stays None."""
+    if value is None:
+        return None
+    return value.strip().lower()
+
+
+def _matched_image_per_call_usd(
+    price: ModelPrice,
+    resolution: str | None,
+    quality: str | None,
+    base: float,
+) -> float:
+    """Return the tier rate only when resolution and quality both match."""
+    res = _normalize_tier_part(resolution)
+    qual = _normalize_tier_part(quality)
+    for tier in price.image_tiers or ():
+        if tier.resolution == res and tier.quality == qual:
+            return float(tier.per_call_usd)
+    return float(base)
 
 
 def _image_count(usage: dict[str, Any] | None) -> int:

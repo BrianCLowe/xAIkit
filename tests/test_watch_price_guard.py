@@ -58,8 +58,9 @@ def test_kept_image_rates_unchanged() -> None:
     models = _watch_models()
     assert table.fetched == PRICE_TABLE_FETCHED == "2026-10-04"
     assert table.price_for("grok-imagine-image").per_call_usd == 0.02
-    assert table.price_for("grok-imagine-image-2.0").per_call_usd == 0.06
-    assert models["grok-imagine-image-2.0"]["per_call_usd"] == 0.06
+    # IPT-C06: image-2.0 base pins are the 1K Low rate.
+    assert table.price_for("grok-imagine-image-2.0").per_call_usd == 0.04
+    assert models["grok-imagine-image-2.0"]["per_call_usd"] == 0.04
     assert table.price_for("grok-imagine-image-2.0").per_call_usd == (
         models["grok-imagine-image-2.0"]["per_call_usd"]
     )
@@ -95,7 +96,8 @@ def test_default_image_model_is_2_0() -> None:
 def test_guard_blocks_missing_shipped_id() -> None:
     watch = _load()
     extract = {"models": {"grok-imagine-image": {"per_call_usd": 0.02}}}
-    shipped = {"grok-imagine-image": 0.02, "grok-imagine-image-2.0": 0.06}
+    # IPT-C06: guard fixture uses the image-2.0 base rate.
+    shipped = {"grok-imagine-image": 0.02, "grok-imagine-image-2.0": 0.04}
     result = watch.check_shipped_image_prices(extract, shipped)
     assert result.ok is False
     assert result.ids == ("grok-imagine-image-2.0",)
@@ -157,3 +159,67 @@ def test_guard_ignores_non_shipped_drop() -> None:
     assert result.ok is True
     assert result.ids == ()
     assert "grok-imagine-image-2026-03-02" not in result.ids
+
+
+def test_guard_base_only_and_ignores_tiers() -> None:
+    """IPT-C05: tier and media fields do not change a base per_call_usd result."""
+    from xaikit.pricing import default_price_table
+
+    watch = _load()
+    shipped = {
+        model_id: float(price.per_call_usd)
+        for model_id, price in default_price_table().models.items()
+        if str(model_id).startswith("grok-imagine-image") and price.per_call_usd is not None
+    }
+    assert "grok-imagine-image-2.0" in shipped
+    base_extract = {
+        "models": {
+            model_id: {"per_call_usd": rate} for model_id, rate in shipped.items()
+        }
+    }
+    base_result = watch.check_shipped_image_prices(base_extract, shipped)
+    assert base_result.ok is True
+    assert base_result.ids == ()
+
+    with_tiers = {
+        "models": {
+            model_id: {
+                "per_call_usd": rate,
+                "media_input_per_image_usd": 9.99,
+                "image_tiers": [
+                    {
+                        "resolution": "2k",
+                        "quality": "high",
+                        "per_call_usd": rate + 1.0,
+                    }
+                ],
+            }
+            for model_id, rate in shipped.items()
+        }
+    }
+    tier_result = watch.check_shipped_image_prices(with_tiers, shipped)
+    assert tier_result.ok is base_result.ok
+    assert tier_result.ids == base_result.ids
+
+    wrong_models = {
+        model_id: {
+            "per_call_usd": rate,
+            "image_tiers": [
+                {"resolution": "1k", "quality": "low", "per_call_usd": rate}
+            ],
+        }
+        for model_id, rate in shipped.items()
+    }
+    wrong_models["grok-imagine-image-2.0"] = {
+        "per_call_usd": shipped["grok-imagine-image-2.0"] + 5.0,
+        "image_tiers": [
+            {
+                "resolution": "1k",
+                "quality": "low",
+                "per_call_usd": shipped["grok-imagine-image-2.0"],
+            }
+        ],
+    }
+    wrong = watch.check_shipped_image_prices({"models": wrong_models}, shipped)
+    assert wrong.ok is False
+    assert wrong.ids == ("grok-imagine-image-2.0",)

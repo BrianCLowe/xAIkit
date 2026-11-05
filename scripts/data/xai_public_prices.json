@@ -82,7 +82,7 @@
     "grok-imagine-image-2.0": {
       "input_per_million": 0.0,
       "output_per_million": 0.0,
-      "per_call_usd": 0.06
+      "per_call_usd": 0.04
     },
     "grok-imagine-image-2026-03-02": {
       "input_per_million": 0.0,
