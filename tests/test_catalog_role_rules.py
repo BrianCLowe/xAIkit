@@ -87,8 +87,8 @@ def _assert_best(catalog: list[ModelInfo], role: str, want: str) -> None:
 def _watch_slugs() -> list[str]:
     payload = json.loads(_WATCH_PATH.read_text(encoding="utf-8"))
     slugs = [str(slug) for slug in payload["slugs"]]
-    assert len(slugs) == 64
-    assert len(set(slugs)) == 64
+    assert len(slugs) == 55
+    assert len(set(slugs)) == 55
     return slugs
 
 

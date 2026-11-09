@@ -6,7 +6,6 @@
     "https://docs.x.ai/developers/model-capabilities/video/generation"
   ],
   "slugs": [
-    "grok-4-6",
     "grok-4-7",
     "grok-4.20",
     "grok-4.20-0309",
@@ -54,10 +53,6 @@
     "grok-imagine-image",
     "grok-imagine-image-2.0",
     "grok-imagine-image-2026-03-02",
-    "grok-imagine-image-pro",
-    "grok-imagine-image-quality",
-    "grok-imagine-image-quality-20260403",
-    "grok-imagine-image-quality-latest",
     "grok-imagine-video",
     "grok-imagine-video-1.5",
     "grok-imagine-video-1.5-2026-05-30",
@@ -65,10 +60,6 @@
     "grok-imagine-video-1.5-preview",
     "grok-voice-2.0",
     "grok-voice-3.0",
-    "grok-voice-latest",
-    "grok-voice-think-fast-1.0",
-    "grok-voice-think-fast-2.0",
-    "grok-voice-transcribe-1.0",
     "grok-voice-transcribe-2.0"
   ],
   "resolutions": [
