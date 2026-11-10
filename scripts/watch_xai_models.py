@@ -515,6 +515,79 @@ def guard_issue_text(result: GuardResult) -> tuple[str, str]:
     return title, body
 
 
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+_PYTEST_FAILED_RE = re.compile(r"^FAILED\s+(\S+)", re.MULTILINE)
+
+
+def parse_pytest_failing_nodes(log: str) -> tuple[str, ...]:
+    """Return pytest node ids from FAILED lines, in first-seen order.
+
+    The parameter suffix stays on the node id. ANSI color is stripped so a
+    colored log yields the same ids as a plain one.
+    """
+    text = _ANSI_RE.sub("", log)
+    found: list[str] = []
+    seen: set[str] = set()
+    for match in _PYTEST_FAILED_RE.finditer(text):
+        node = match.group(1)
+        if node in seen:
+            continue
+        seen.add(node)
+        found.append(node)
+    return tuple(found)
+
+
+def guard_diagnostic_text(
+    result: GuardResult, failing_nodes: Sequence[str]
+) -> tuple[str, str]:
+    """Title and body when pytest failed during the price guard.
+
+    Id-check-only failures stay on guard_issue_text. A clean id check is
+    described as a pytest failure, not as missing shipped ids, and the first
+    failing node is named. A failed id check names those ids and the node ids.
+    """
+    nodes = tuple(failing_nodes)
+    if result.ok:
+        title = "xAI shipped image price guard failed: pytest"
+        lines = [
+            "This is a pytest failure, not missing shipped image ids.",
+            "The shipped image id check passed: no shipped image id is missing or mismatched.",
+            "",
+        ]
+        if nodes:
+            lines.append(f"First failing test: {nodes[0]}")
+            if len(nodes) > 1:
+                lines.append("")
+                lines.append("Later failing tests:")
+                lines.extend(f"- {node}" for node in nodes[1:])
+        else:
+            lines.append("First failing test: (none captured)")
+        return title, "\n".join(lines) + "\n"
+
+    listed = ", ".join(result.ids)
+    title = (
+        f"xAI shipped image price guard failed: {listed}"
+        if listed
+        else "xAI shipped image price guard failed"
+    )
+    lines = [
+        "The shipped image price guard failed pytest and the shipped image id check.",
+        "",
+        "Failing shipped image ids:",
+    ]
+    if result.ids:
+        lines.extend(f"- {model_id}" for model_id in result.ids)
+    else:
+        lines.append("- (none)")
+    lines.append("")
+    lines.append("Failing pytest node ids:")
+    if nodes:
+        lines.extend(f"- {node}" for node in nodes)
+    else:
+        lines.append("- (none captured)")
+    return title, "\n".join(lines) + "\n"
+
+
 def _shipped_image_per_call() -> dict[str, float]:
     from xaikit.pricing import default_price_table
 
@@ -536,18 +609,31 @@ def _run_price_guard(args: argparse.Namespace) -> int:
         if isinstance(raw, dict):
             extract = raw
     result = check_shipped_image_prices(extract, _shipped_image_per_call())
-    title, body = guard_issue_text(result)
+    pytest_rc = args.pytest_exit_code
+    pytest_failed = pytest_rc not in (None, 0)
+    if pytest_failed:
+        nodes: tuple[str, ...] = ()
+        log_path = args.pytest_log
+        if isinstance(log_path, Path) and log_path.is_file():
+            nodes = parse_pytest_failing_nodes(
+                log_path.read_text(encoding="utf-8", errors="replace")
+            )
+        title, body = guard_diagnostic_text(result, nodes)
+        step_ok = False
+    else:
+        title, body = guard_issue_text(result)
+        step_ok = result.ok
     print(title)
     print(body)
     if args.github_output is not None:
         with args.github_output.open("a", encoding="utf-8") as fh:
-            fh.write(f"guard_ok={'true' if result.ok else 'false'}\n")
+            fh.write(f"guard_ok={'true' if step_ok else 'false'}\n")
             fh.write(f"guard_ids={','.join(result.ids)}\n")
             fh.write(f"guard_title={title}\n")
             fh.write("guard_body<<XAIkit_GUARD_BODY\n")
             fh.write(body if body.endswith("\n") else body + "\n")
             fh.write("XAIkit_GUARD_BODY\n")
-    return 0 if result.ok else 1
+    return 0 if step_ok else 1
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -607,6 +693,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         default=None,
         help="Check a watcher price extract against shipped image defaults",
+    )
+    parser.add_argument(
+        "--pytest-log",
+        type=Path,
+        default=None,
+        help="Pytest log captured by the price-guard step",
+    )
+    parser.add_argument(
+        "--pytest-exit-code",
+        type=int,
+        default=None,
+        help="Pytest exit code captured by the price-guard step",
     )
     return parser.parse_args(argv)
 

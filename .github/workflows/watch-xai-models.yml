@@ -41,8 +41,23 @@ jobs:
         run: |
           set -euo pipefail
           uv sync --group dev
-          uv run pytest tests/test_pricing.py
-          uv run python scripts/watch_xai_models.py --guard-prices scripts/data/xai_public_prices.json --github-output "$GITHUB_OUTPUT"
+          pytest_log="$(mktemp)"
+          set +e
+          uv run pytest tests/test_pricing.py >"$pytest_log" 2>&1
+          pytest_rc=$?
+          if [ "$pytest_rc" -ne 0 ]; then
+            cat "$pytest_log"
+          fi
+          uv run python scripts/watch_xai_models.py \
+            --guard-prices scripts/data/xai_public_prices.json \
+            --github-output "$GITHUB_OUTPUT" \
+            --pytest-log "$pytest_log" \
+            --pytest-exit-code "$pytest_rc"
+          guard_rc=$?
+          set -e
+          if [ "$pytest_rc" -ne 0 ] || [ "$guard_rc" -ne 0 ]; then
+            exit 1
+          fi
 
       - name: Open issue for failed price guard
         if: failure() && steps.guard.outcome == 'failure'
