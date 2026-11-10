@@ -317,8 +317,8 @@ def test_hcc_c09_bad_created_is_unset(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_hcc_c10_mixed_created_ranks_missing_as_oldest(monkeypatch: pytest.MonkeyPatch) -> None:
     """HCC-C10: created on 2.0 only. Best is 2.0. Economy is the recorded default.
 
-    Rows without created rank as created unset (oldest). That puts quality
-    ahead of image in the cheaper band, so economy is grok-imagine-image-quality.
+    Rows without created rank as created unset (oldest). Retired quality is
+    out of the image pool, so economy is grok-imagine-image.
     """
     found = _by_id(_fetch(monkeypatch, _p_mixed()))
     assert found[IMAGE_2].created == CREATED[IMAGE_2]
@@ -328,7 +328,7 @@ def test_hcc_c10_mixed_created_ranks_missing_as_oldest(monkeypatch: pytest.Monke
     rows = list(found.values())
     assert best_model(rows, role="image") == IMAGE_2
     recorded_economy = economy_model(rows, role="image")
-    assert recorded_economy == QUALITY
+    assert recorded_economy == IMAGE
 
 
 def test_hcc_c11_skips_rows_without_id(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -195,9 +195,8 @@ def test_ds_ac_1_dated_snapshots_take_the_family_role() -> None:
     assert table.price_for(IMAGE_COMPACT) is None
     assert table.price_for(VIDEO_LITE_DATED) is not table.price_for(VIDEO_15)
     assert table.price_for(PRO_DATED) is None
-    assert table.price_for(QUALITY) is table.price_for(PLAIN)
-    assert table.price_for(QUALITY).per_call_usd == 0.02
-    assert table.price_for(PRO).per_call_usd == 0.02
+    assert table.price_for(QUALITY) is None
+    assert table.price_for(PRO) is None
     assert QUALITY not in table.models
     assert PRO not in table.models
     assert table.price_for(PLAIN).per_call_usd == 0.02
@@ -332,7 +331,7 @@ def test_ds_best_model_ranking_unchanged() -> None:
             created=300,
         ),
     ]
-    assert best_model(dated_only, role="image") == "grok-imagine-image-quality-20260403"
+    assert best_model(dated_only, role="image") == "grok-imagine-image-2026-03-02"
     retired = ModelInfo(
         id="grok-imagine-image-quality-20260601",
         capabilities=["image"],
@@ -434,7 +433,7 @@ def test_retired_quality_dated_snapshot_is_image() -> None:
 
 
 def test_retired_dated_snapshots_have_no_price() -> None:
-    """DSR-C03. Unlisted retired dated ids have no price. Exact alias keeps 0.02."""
+    """DSR-C03. Retired ids have no price, exact aliases included (RQBQ-3)."""
     table = default_price_table()
     for mid in (
         PRO_COMPACT,
@@ -450,16 +449,12 @@ def test_retired_dated_snapshots_have_no_price() -> None:
     assert PRO not in table.models
     assert QUALITY not in _DEFAULT_IMAGE_MODELS
     assert PRO not in _DEFAULT_IMAGE_MODELS
-    undated = table.price_for(QUALITY)
     plain = table.price_for(PLAIN)
-    assert undated is plain
-    assert undated is not None and undated.per_call_usd == 0.02
-    assert table.price_for(PRO) is plain
-    exact = table.price_for(EXACT_QUALITY_SNAP)
-    assert exact is plain
-    assert exact is not None and exact.per_call_usd == 0.02
-    assert table.price_for(f" {EXACT_QUALITY_SNAP} ") is plain
-    assert table.price_for(EXACT_QUALITY_LATEST) is plain
+    assert table.price_for(QUALITY) is None
+    assert table.price_for(PRO) is None
+    assert table.price_for(EXACT_QUALITY_SNAP) is None
+    assert table.price_for(f" {EXACT_QUALITY_SNAP} ") is None
+    assert table.price_for(EXACT_QUALITY_LATEST) is None
     assert plain is not None
     assert plain.media_input_per_image_usd == 0.002
     assert _tier_rows(plain) == [
@@ -520,7 +515,7 @@ def test_retired_dated_snapshots_not_best_image() -> None:
 
 
 def test_exact_quality_aliases_stay_image() -> None:
-    """DSR-C05. Exact quality aliases stay image, priced, and eligible."""
+    """DSR-C05. Exact quality aliases stay image and eligible; unpriced (RQBQ-3)."""
     roles = _shipped_role_map()
     table = default_price_table()
     for mid in (EXACT_QUALITY_SNAP, EXACT_QUALITY_LATEST):
@@ -530,10 +525,8 @@ def test_exact_quality_aliases_stay_image() -> None:
         info, role = describe_listed_id(mid)
         assert role == "image"
         assert info.capabilities == ["image"]
-    price = table.price_for(EXACT_QUALITY_SNAP)
-    assert price is table.price_for(PLAIN)
-    assert price is not None and price.per_call_usd == 0.02
-    assert table.price_for(EXACT_QUALITY_LATEST).per_call_usd == 0.02
+    assert table.price_for(EXACT_QUALITY_SNAP) is None
+    assert table.price_for(EXACT_QUALITY_LATEST) is None
     assert best_model([_image_row(EXACT_QUALITY_SNAP)], role="image") == EXACT_QUALITY_SNAP
     assert best_model([_image_row(EXACT_QUALITY_LATEST)], role="image") == EXACT_QUALITY_LATEST
 

@@ -282,10 +282,10 @@ class PriceTable(BaseModel):
 
         ``grok-4.7-latest`` follows ``grok-4.7``. ``grok-4.8`` does not follow
         ``grok-4``. Unknown ids return None — the ``default`` row is only an
-        exact match for the id ``default``. A retired dated image id returns
-        None when that id is not an exact shipped role-map key. An exact
-        alias such as ``grok-imagine-image-quality-20260403`` keeps the
-        prefix row.
+        exact match for the id ``default``. An id in a retired Imagine
+        family (``grok-imagine-image-quality`` or ``grok-imagine-image-pro``,
+        their ``-latest`` alias, and every dated snapshot, including
+        ``grok-imagine-image-quality-20260403``) never takes a prefix row.
         """
         key = (model or "").strip()
         if not key:
@@ -300,9 +300,9 @@ class PriceTable(BaseModel):
         if not candidates:
             return None
         resolved = self.models[max(candidates, key=len)]
-        from xaikit.catalog import _is_unlisted_retired_dated_image_id
+        from xaikit.catalog import _is_retired_image_family_id
 
-        if _is_unlisted_retired_dated_image_id(key):
+        if _is_retired_image_family_id(key):
             return None
         return resolved
 
