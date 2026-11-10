@@ -321,6 +321,8 @@ def test_c01_workflow_mock_reaches_issue_with_ids(tmp_path: Path) -> None:
     assert body.index(NODE_A) < body.index(NODE_C)
     assert "unknown" not in body.lower()
     assert UNKNOWN_FALLBACK not in body
+    assert "short test summary info" in ran["stdout"]
+    assert ran["exit"] != 0
 
 
 def test_c02_workflow_mock_distinguishes_pytest_from_missing_ids(tmp_path: Path) -> None:
@@ -340,6 +342,8 @@ def test_c02_workflow_mock_distinguishes_pytest_from_missing_ids(tmp_path: Path)
     assert "or its per_call_usd does not match the shipped default" not in body
     assert UNKNOWN_FALLBACK not in body
     assert "unknown" not in body.lower()
+    assert "short test summary info" in ran["stdout"]
+    assert ran["exit"] != 0
 
 
 def test_c03_id_check_only_still_names_failing_id(tmp_path: Path) -> None:
@@ -361,6 +365,7 @@ def test_c03_id_check_only_still_names_failing_id(tmp_path: Path) -> None:
     assert "per_call_usd does not match the shipped default" in ran["issue_body"]
     assert "This is a pytest failure" not in ran["issue_body"]
     assert UNKNOWN_FALLBACK not in ran["issue_body"]
+    assert "short test summary info" not in ran["stdout"]
 
 
 def test_c04_clean_pytest_and_extract_do_not_open_an_issue(tmp_path: Path) -> None:
@@ -370,6 +375,7 @@ def test_c04_clean_pytest_and_extract_do_not_open_an_issue(tmp_path: Path) -> No
     assert ran["gh_called"] is False
     assert ran["outputs"].get("guard_ok") == "true"
     assert ran["outputs"].get("guard_ids") == ""
+    assert "short test summary info" not in ran["stdout"]
 
 
 def test_c06_failures_stay_nonzero_and_commit_stays_gated(tmp_path: Path) -> None:

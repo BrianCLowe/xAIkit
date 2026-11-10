@@ -45,6 +45,9 @@ jobs:
           set +e
           uv run pytest tests/test_pricing.py >"$pytest_log" 2>&1
           pytest_rc=$?
+          if [ "$pytest_rc" -ne 0 ]; then
+            cat "$pytest_log"
+          fi
           uv run python scripts/watch_xai_models.py \
             --guard-prices scripts/data/xai_public_prices.json \
             --github-output "$GITHUB_OUTPUT" \
