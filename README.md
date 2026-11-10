@@ -4,7 +4,7 @@
 
 # xAIkit
 
-**`0.5.1`.** Not an official xAI package. The API may still change. Problems or feedback: [open an issue](https://github.com/BrianCLowe/xAIkit/issues).
+**`0.5.2`.** Not an official xAI package. The API may still change. Problems or feedback: [open an issue](https://github.com/BrianCLowe/xAIkit/issues).
 
 **Unofficial** Python kit for the **xAI (Grok) API** — one typed client, living model catalog, usage metering, media, and realtime voice. Not a multi-provider SDK.
 
@@ -54,7 +54,7 @@ uv add xaikit-py
 # or: pip install xaikit-py
 
 # From a git tag
-uv add "xaikit-py @ git+https://github.com/BrianCLowe/xAIkit@v0.5.1"
+uv add "xaikit-py @ git+https://github.com/BrianCLowe/xAIkit@v0.5.2"
 
 # Editable neighbor checkout
 uv add --editable ../xAIkit
@@ -227,7 +227,7 @@ edited = client.edit_image(
 # )
 ```
 
-Default model is `grok-imagine-image-quality`. Optional generate knobs: `aspect_ratio` (Imagine list, including `auto` / `19.5:9` / `20:9`), `resolution` (`1k` | `1.5k` | `2k`), `response_format` (`b64_json`), and `quality` (`low` | `medium`) on `grok-imagine-image-2.0` only. Unknown aspect/resolution values are omitted. When Imagine returns `file_output.file_id`, both methods surface it as `file_id`.
+Default model is `grok-imagine-image-2.0`. Optional generate knobs: `aspect_ratio` (Imagine list, including `auto` / `19.5:9` / `20:9`), `resolution` (`1k` | `1.5k` | `2k`), `response_format` (`b64_json`), and `quality` (`low` | `medium`) on `grok-imagine-image-2.0` only. Unknown aspect/resolution values are omitted. When Imagine returns `file_output.file_id`, both methods surface it as `file_id`.
 
 ## Files
 

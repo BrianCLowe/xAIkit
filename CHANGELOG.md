@@ -2,6 +2,21 @@
 
 All notable changes to xaikit-py. Newest entry on top.
 
+## 0.5.2 (2026-11-10)
+
+### Changed
+
+- The default image model is `grok-imagine-image-2.0`. Retired `grok-imagine-image-quality` and `grok-imagine-image-pro` are no longer defaults, and the model watcher does not commit a price extract that fails the price tests or drops a shipped image id. (#119)
+- `grok-imagine-image-2.0` has a $0.04 base (the 1k low rate) and shipped image tiers. An image estimate uses a tier only when resolution and quality both match, otherwise the base, and adds the media-input charge per input image. (#120)
+- Retired Imagine quality and pro families, their `-latest` alias, and their dated snapshots no longer win image best, economy, or cheapest while a non-retired image id is listed, and `price_for` gives them no prefix price. A pinned retired id is still sent unchanged but has no static price. An all-retired pool still ranks normally. (RQB-AC-1a, RQB-AC-1b)
+- Imagine generate accepts `resolution="1.5k"` on every model. Image usage meters the resolution, quality, and input-image count that were sent, so the metered cost equals the direct estimate, including with a cached catalog row at the shipped base rate. The model watcher extracts `1.5k`. (TM-AC-1, TM-AC-2)
+
+### Fixed
+
+- Unlisted dated quality and pro snapshots take the image role, have no price, and are left out of image selection. (#122)
+- The model watcher reports dropped slugs and resolutions, and a failing price guard reports the failing ids and pytest node ids. (#121, #128, #130)
+- README, MediaRest, and Catalog docs name `grok-imagine-image-2.0` as the image default and state its $0.04 base. (IDS-1)
+
 ## 0.5.1 (2026-10-21)
 
 ### Added
