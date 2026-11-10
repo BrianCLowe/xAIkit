@@ -258,7 +258,7 @@ def test_s1_7_economy_picks_plain_in_the_cheap_band() -> None:
     _assert_economy(speech, "speech-to-text", "grok-voice-transcribe-1.0")
 
     image = _image_catalog(lambda _model_id: 10)
-    _assert_economy(image, "image", "grok-imagine-image-quality-latest")
+    _assert_economy(image, "image", "grok-imagine-image")
 
 
 def test_s1_8_short_suffixes_are_not_snapshots() -> None:
@@ -331,11 +331,11 @@ def test_s1_9_dated_only_newer_family_beats_older_plain() -> None:
     image = _rows(
         [
             ("grok-imagine-image", 100),
-            ("grok-imagine-image-quality-20260403", 200),
+            ("grok-imagine-image-3.0-20261001", 200),
         ],
         "image",
     )
-    _assert_best(image, "image", "grok-imagine-image-quality-20260403")
+    _assert_best(image, "image", "grok-imagine-image-3.0-20261001")
 
     chat = _rows(
         [
@@ -348,7 +348,7 @@ def test_s1_9_dated_only_newer_family_beats_older_plain() -> None:
 
 
 def test_s2_1_image_best_is_quality_latest_not_a_dated_id() -> None:
-    """S2-1. Quality -latest wins for equal created and for a newest snapshot."""
+    """S2-1. Retired quality -latest no longer wins; 2.0 is best (RQB-AC-1a)."""
     march = "grok-imagine-image-2026-03-02"
     quality_snap = "grok-imagine-image-quality-20260403"
     variants = (
@@ -359,14 +359,14 @@ def test_s2_1_image_best_is_quality_latest_not_a_dated_id() -> None:
     for created_for in variants:
         catalog = _image_catalog(created_for)
         assert {row.id for row in catalog} == set(_PUBLIC_IMAGE_IDS)
-        want = "grok-imagine-image-quality-latest"
+        want = "grok-imagine-image-2.0"
         _assert_best(catalog, "image", want)
-        assert want not in _IMAGE_NOT_BEST
-        assert best_model(catalog, role="image") not in _IMAGE_NOT_BEST
+        assert want not in _IMAGE_DATED
+        assert best_model(catalog, role="image") not in _IMAGE_DATED
 
 
 def test_s2_2_image_economy_is_plain_base_not_march_snapshot() -> None:
-    """S2-2. Economy is grok-imagine-image, never the March snapshot."""
+    """S2-2. Economy is grok-imagine-image, never the March snapshot or a retired id."""
     march = "grok-imagine-image-2026-03-02"
     quality_snap = "grok-imagine-image-quality-20260403"
     variants = (
@@ -376,14 +376,14 @@ def test_s2_2_image_economy_is_plain_base_not_march_snapshot() -> None:
     )
     for created_for in variants:
         catalog = _image_catalog(created_for)
-        _assert_economy(catalog, "image", "grok-imagine-image-quality-latest")
+        _assert_economy(catalog, "image", "grok-imagine-image")
         assert economy_model(catalog, role="image") != march
         # Multi-band cheapest tie-break is unchanged (Q6 control).
         assert cheapest_model(catalog, role="image") == "grok-imagine-image"
 
 
 def test_s2_3_image_best_without_latest_is_quality_plain() -> None:
-    """S2-3. Without -latest, best is the plain quality id, not a snapshot."""
+    """S2-3. Without -latest, best is 2.0, not retired quality and not a snapshot."""
     march = "grok-imagine-image-2026-03-02"
     quality_snap = "grok-imagine-image-quality-20260403"
     variants = (
@@ -394,8 +394,8 @@ def test_s2_3_image_best_without_latest_is_quality_plain() -> None:
     for created_for in variants:
         catalog = _image_catalog(created_for, include_latest=False)
         assert "grok-imagine-image-quality-latest" not in {row.id for row in catalog}
-        _assert_best(catalog, "image", "grok-imagine-image-quality")
-        assert best_model(catalog, role="image") not in _IMAGE_NOT_BEST
+        _assert_best(catalog, "image", "grok-imagine-image-2.0")
+        assert best_model(catalog, role="image") not in _IMAGE_DATED
 
 
 def test_s2_4_compact_video_snapshot_never_beats_plain_1_5() -> None:

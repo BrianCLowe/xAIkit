@@ -248,11 +248,9 @@ def test_mr_c11_price_for_matches_base_prefix_rows() -> None:
     quality = table.price_for("grok-imagine-image-quality")
     plain = table.price_for("grok-imagine-image")
     video = table.price_for("grok-imagine-video-1.5")
-    assert quality is not None and plain is not None and video is not None
-    assert table.price_for(IMAGE_LATEST) is quality
-    assert table.price_for(IMAGE_QUALITY_SNAP) is quality
-    assert quality.per_call_usd == 0.02
-    assert table.price_for(IMAGE_QUALITY_SNAP).per_call_usd == 0.02
+    assert quality is None and plain is not None and video is not None
+    assert table.price_for(IMAGE_LATEST) is None
+    assert table.price_for(IMAGE_QUALITY_SNAP) is None
     assert table.price_for("grok-imagine-image-quality-20260601") is None
     assert table.price_for("grok-imagine-image-pro-20260501") is None
     assert table.price_for("grok-imagine-image-quality-2026-04-03") is None
@@ -280,7 +278,7 @@ def test_mr_c15_best_model_on_static_role_pools() -> None:
     video_pool = [row for row in rows if static_role_for_id(row.id) == "video"]
     assert [row.id for row in image_pool] == list(IMAGE_IDS)
     assert [row.id for row in video_pool] == list(VIDEO_IDS)
-    assert best_model(image_pool, role="image") == IMAGE_LATEST
+    assert best_model(image_pool, role="image") == IMAGE_MARCH
     assert best_model(video_pool, role="video") == VIDEO_STABLE
 
 
@@ -300,11 +298,11 @@ def test_mr_c20_best_follows_unchanged_ranking() -> None:
         ModelInfo(id=IMAGE_MARCH, capabilities=["image"], created=200),
         ModelInfo(id=IMAGE_QUALITY_SNAP, capabilities=["image"], created=300),
     ]
-    assert best_model(dated_only, role="image") == IMAGE_QUALITY_SNAP
+    assert best_model(dated_only, role="image") == IMAGE_MARCH
     assert IMAGE_LATEST not in {row.id for row in dated_only}
 
     no_dates = [ModelInfo(id=mid, capabilities=["image"]) for mid in IMAGE_IDS]
-    assert best_model(no_dates, role="image") == IMAGE_LATEST
+    assert best_model(no_dates, role="image") == IMAGE_MARCH
 
     video_rows = [
         ModelInfo(id=VIDEO_STABLE, capabilities=["video"], created=10),
@@ -328,7 +326,7 @@ def test_mr_c20_best_follows_unchanged_ranking() -> None:
     dated_host = _host((IMAGE_MARCH, IMAGE_QUALITY_SNAP), created=dated_created)
     try:
         client = _client(XaiClient, dated_host)
-        assert client.image_model == IMAGE_QUALITY_SNAP
+        assert client.image_model == IMAGE_MARCH
         assert client.image_model != IMAGE_LATEST
         _assert_loopback_only(dated_host["records"])
     finally:
@@ -350,7 +348,7 @@ def test_mr_c12_c13_c14_five_id_host_resolves_image_and_video(cls) -> None:
         else:
             client.generate_image("cat")
             client.generate_video("clip", into=[], wait=False)
-        assert _posted_models(host["records"], "/images/generations") == [IMAGE_LATEST]
+        assert _posted_models(host["records"], "/images/generations") == [IMAGE_MARCH]
         assert _posted_models(host["records"], "/videos/generations") == [VIDEO_STABLE]
         _assert_loopback_only(host["records"])
     finally:
@@ -363,7 +361,7 @@ def test_mr_c16_image_ids_only_leave_other_roles_unavailable(cls) -> None:
     try:
         client = _client(cls, host)
         _call(client, "generate_image", "cat")
-        assert _posted_models(host["records"], "/images/generations") == [IMAGE_LATEST]
+        assert _posted_models(host["records"], "/images/generations") == [IMAGE_MARCH]
         for name, args, kwargs, role in (
             ("generate_video", ("clip",), {"into": [], "wait": False}, "video"),
             ("synthesize_speech", ("hi",), {}, "voice"),

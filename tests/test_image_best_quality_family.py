@@ -161,12 +161,12 @@ def test_ib_c01_c02_c03_c20_rows_resolve_to_quality_latest() -> None:
 
 
 def test_ib_c11_same_ids_without_created_resolve_to_quality_latest() -> None:
-    """IB-C11. With no created stamps, every intent is still the quality alias."""
+    """IB-C11. With no created stamps, no intent picks the retired quality alias."""
     rows = _rows(IMAGE_IDS, None, "image")
     assert all(row.created is None for row in rows)
-    assert best_model(rows, role="image") == IMAGE_LATEST
-    assert economy_model(rows, role="image") == IMAGE_LATEST
-    assert cheapest_model(rows, role="image") == IMAGE_LATEST
+    assert best_model(rows, role="image") == IMAGE_MARCH
+    assert economy_model(rows, role="image") == IMAGE_MARCH
+    assert cheapest_model(rows, role="image") == IMAGE_MARCH
 
 
 def test_ib_c09_c10_quality_plain_stays_ahead_of_cheaper_dated_only() -> None:
@@ -184,32 +184,34 @@ def test_ib_c09_c10_quality_plain_stays_ahead_of_cheaper_dated_only() -> None:
 
 def test_ib_c12_dated_only_pool_keeps_normal_ranking() -> None:
     """IB-C12. No plain or -latest family: newest created snapshot still wins best."""
+    newer_dated = "grok-imagine-image-3.0-20261001"
     rows = [
         ModelInfo(id=IMAGE_MARCH, capabilities=["image"], created=200),
-        ModelInfo(id=IMAGE_QUALITY_SNAP, capabilities=["image"], created=300),
+        ModelInfo(id=newer_dated, capabilities=["image"], created=300),
     ]
-    assert best_model(rows, role="image") == IMAGE_QUALITY_SNAP
-    assert economy_model(rows, role="image") == IMAGE_QUALITY_SNAP
-    assert cheapest_model(rows, role="image") == IMAGE_QUALITY_SNAP
+    assert best_model(rows, role="image") == newer_dated
+    assert economy_model(rows, role="image") == newer_dated
+    assert cheapest_model(rows, role="image") == newer_dated
 
 
 def test_ib_guard_costlier_dated_only_still_beats_older_plain() -> None:
     """A dated-only family that is not cheaper still beats an older plain id."""
+    newer_dated = "grok-imagine-image-3.0-20261001"
     rows = [
         ModelInfo(id=IMAGE_PLAIN, capabilities=["image"], created=100),
-        ModelInfo(id=IMAGE_QUALITY_SNAP, capabilities=["image"], created=200),
+        ModelInfo(id=newer_dated, capabilities=["image"], created=200),
     ]
-    assert best_model(rows, role="image") == IMAGE_QUALITY_SNAP
-    assert economy_model(rows, role="image") == IMAGE_QUALITY_SNAP
-    assert cheapest_model(rows, role="image") == IMAGE_QUALITY_SNAP
+    assert best_model(rows, role="image") == newer_dated
+    assert economy_model(rows, role="image") == newer_dated
+    assert cheapest_model(rows, role="image") == newer_dated
 
 
 def test_ib_c15_public_lineup_unchanged_when_march_created_is_newest() -> None:
     """IB-C15. Plain base family stays economy and cheapest on the public ids."""
     created = {mid: (900 if mid == IMAGE_MARCH else 10) for mid in PUBLIC_IMAGE_IDS}
     rows = _rows(PUBLIC_IMAGE_IDS, created, "image")
-    assert best_model(rows, role="image") == IMAGE_LATEST
-    assert economy_model(rows, role="image") == IMAGE_LATEST
+    assert best_model(rows, role="image") == IMAGE_2
+    assert economy_model(rows, role="image") == IMAGE_PLAIN
     assert cheapest_model(rows, role="image") == IMAGE_PLAIN
     assert economy_model(rows, role="image") != IMAGE_MARCH
 
@@ -243,16 +245,15 @@ def test_ib_guard_created_still_beats_latest_flag_for_image_and_voice() -> None:
 
 
 def test_ib_c17_prices_of_the_three_ids_stay_on_the_shipped_rows() -> None:
-    """IB-C17. quality alias and quality snapshot are 0.05. March is 0.02."""
+    """IB-C17. Retired quality alias and snapshot are unpriced. March is 0.02."""
     table = default_price_table()
     latest = table.price_for(IMAGE_LATEST)
     march = table.price_for(IMAGE_MARCH)
     snap = table.price_for(IMAGE_QUALITY_SNAP)
-    assert latest is not None and march is not None and snap is not None
-    assert latest.per_call_usd == 0.02
-    assert snap.per_call_usd == 0.02
+    assert latest is None and snap is None
+    assert march is not None
     assert march.per_call_usd == 0.02
-    assert table.price_for(IMAGE_LATEST) is table.price_for(IMAGE_QUALITY)
+    assert table.price_for(IMAGE_QUALITY) is None
     assert table.price_for(IMAGE_MARCH) is table.price_for(IMAGE_PLAIN)
 
 

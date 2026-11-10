@@ -1802,8 +1802,9 @@ def _is_unlisted_retired_dated_image_id(model_id: str) -> bool:
     """Retired dated image id that is not an exact shipped role-map key.
 
     ``grok-imagine-image-quality-20260403`` is retired dated and an exact
-    key, so price and image selection keep it. An unlisted dated quality or
-    pro id is role image only.
+    key, so it keeps role image here. Price and image selection treat it
+    like every other retired family id (:func:`_is_retired_image_family_id`).
+    An unlisted dated quality or pro id is role image only.
     """
     key = (model_id or "").strip()
     if not _is_retired_dated_image_id(key):
@@ -2046,6 +2047,34 @@ def _image_pool_drop_cheaper_dated_only(pool: Sequence[ModelInfo]) -> list[Model
     return [model for model in pool if model.id not in drop]
 
 
+def _is_retired_image_family_id(model_id: str) -> bool:
+    """True for any id in a retired Imagine image family.
+
+    The id is stripped the same way as :func:`static_role_for_id`. It is
+    retired when it equals ``grok-imagine-image-quality`` or
+    ``grok-imagine-image-pro``, or starts with one of them plus ``-``. That
+    covers the undated id, the ``-latest`` alias, and every dated snapshot.
+    Role stays image; only selection and prefix pricing use this.
+    """
+    key = (model_id or "").strip()
+    if not key:
+        return False
+    return any(
+        key == family or key.startswith(f"{family}-")
+        for family in _RETIRED_IMAGE_ROLE_FAMILIES
+    )
+
+
+def _drop_retired_image_families(pool: list[ModelInfo]) -> list[ModelInfo]:
+    """Drop retired Imagine family ids when a non-retired image id remains.
+
+    When every id in the pool is retired, the pool is returned unchanged so
+    normal ranking still picks one of them (no new failure mode).
+    """
+    kept = [model for model in pool if not _is_retired_image_family_id(model.id)]
+    return kept or list(pool)
+
+
 def _drop_unlisted_retired_dated_images(pool: list[ModelInfo]) -> list[ModelInfo]:
     """Drop retired dated image ids that are not exact role-map keys.
 
@@ -2060,13 +2089,17 @@ def _drop_unlisted_retired_dated_images(pool: list[ModelInfo]) -> list[ModelInfo
 
 
 def _pool_for_role_intent(pool: list[ModelInfo], role: str) -> list[ModelInfo]:
-    """Image intents skip unlisted retired snapshots, then a cheaper dated-only family.
+    """Image intents skip retired ids, then a cheaper dated-only family.
+
+    Unlisted retired snapshots go first. Then every retired family id goes
+    when a non-retired image id remains.
 
     Other roles stay as passed. Ranking key bodies are not used here.
     """
     if role != ROLE_IMAGE:
         return pool
     kept = _drop_unlisted_retired_dated_images(pool)
+    kept = _drop_retired_image_families(kept)
     return _image_pool_drop_cheaper_dated_only(kept)
 
 
