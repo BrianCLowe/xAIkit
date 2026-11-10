@@ -285,6 +285,17 @@ def _missing_long_or_cached_fields(
     ]
 
 
+def _input_image_count(raw: Any) -> int | None:
+    """Media inputs on an Imagine usage event. Missing or unusable is None."""
+    if raw is None or isinstance(raw, bool):
+        return None
+    try:
+        count = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return count if count > 0 else None
+
+
 def _estimate_from_catalog(
     model: str,
     *,
@@ -293,11 +304,18 @@ def _estimate_from_catalog(
     duration_seconds: float | None,
     usage: dict[str, Any] | None,
     token_premium: float = 0.0,
+    resolution: str | None = None,
+    quality: str | None = None,
+    input_images: int | None = None,
 ) -> float | None:
     """In-process catalog rates. None when the row cannot price this call.
 
     Video seconds stay on the gap file / static table — the language list has
     no per-second field. A partial token row does not invent $0.
+    An image row's ``per_image_usd`` is the base rate. The media-input charge
+    comes from the shipped row. Shipped image tiers apply when the catalog
+    base equals the shipped base, so ``resolution``, ``quality``, and
+    ``input_images`` price the same way as ``estimate_usd``.
     """
     if duration_seconds is not None:
         return None
@@ -345,7 +363,27 @@ def _estimate_from_catalog(
             token_premium=token_premium,
         )
     if info.per_image_usd is not None:
-        return round(float(info.per_image_usd) * _image_count(usage), 8)
+        base = float(info.per_image_usd)
+        shipped = default_price_table()
+        row = shipped.price_for(info.id)
+        if row is None:
+            row = shipped.price_for(model)
+        if row is None:
+            return round(base * _image_count(usage), 8)
+        price = row.model_copy(update={"per_call_usd": base})
+        if row.per_call_usd is None or float(row.per_call_usd) != base:
+            # Shipped tiers belong to the shipped base rate. A different
+            # catalog base keeps its own flat rate.
+            price = price.model_copy(update={"image_tiers": None})
+        key = (model or "").strip() or info.id
+        table = PriceTable(models={key: price})
+        return table.estimate_usd(
+            key,
+            resolution=resolution,
+            quality=quality,
+            input_images=input_images,
+            usage=usage,
+        )
     return None
 
 
@@ -433,10 +471,16 @@ class UsageMeter:
         if estimated_usd is None and apply_price_table:
             duration = _duration_seconds_from_usage(usage)
             resolution = None
+            quality = None
+            input_images = None
             if usage:
                 raw_res = usage.get("resolution")
                 if raw_res is not None:
                     resolution = str(raw_res).strip() or None
+                raw_quality = usage.get("quality")
+                if raw_quality is not None:
+                    quality = str(raw_quality).strip() or None
+                input_images = _input_image_count(usage.get("input_images"))
             estimated_usd = _estimate_from_catalog(
                 model,
                 prompt_tokens=pt,
@@ -444,6 +488,9 @@ class UsageMeter:
                 duration_seconds=duration,
                 usage=usage,
                 token_premium=token_premium,
+                resolution=resolution,
+                quality=quality,
+                input_images=input_images,
             )
             if estimated_usd is None:
                 estimated_usd = self.price_table.estimate_usd(
@@ -454,6 +501,8 @@ class UsageMeter:
                     resolution=resolution,
                     usage=usage,
                     token_premium=token_premium,
+                    quality=quality,
+                    input_images=input_images,
                 )
             if estimated_usd is None:
                 gap = public_price_table()
@@ -466,6 +515,8 @@ class UsageMeter:
                         resolution=resolution,
                         usage=usage,
                         token_premium=token_premium,
+                        quality=quality,
+                        input_images=input_images,
                     )
 
         event = UsageEvent(

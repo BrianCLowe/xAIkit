@@ -52,7 +52,7 @@ _SLUG_STOP = frozenset(
 
 _SLUG_RE = re.compile(r"\bgrok-[a-z0-9]+(?:[-._][a-z0-9]+)*", re.IGNORECASE)
 _RESOL_RE = re.compile(
-    r"\b(?:1k|2k|4k|8k|480p|720p|1080p|1440p|2160p)\b",
+    r"(?<![\w.])(?:1\.5k|1k|2k|4k|8k|480p|720p|1080p|1440p|2160p)\b",
     re.IGNORECASE,
 )
 

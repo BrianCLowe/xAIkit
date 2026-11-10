@@ -2551,7 +2551,7 @@ class AsyncXaiClient(XaiClient):
         parsed = _parse_imagine_result(payload)
         self._record(
             purpose=tag,
-            usage=_imagine_meter_usage(parsed),
+            usage=_imagine_meter_usage(parsed, body),
             parent_id=parent_id,
             labels=labels,
             success=True,

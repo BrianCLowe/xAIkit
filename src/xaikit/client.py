@@ -3679,7 +3679,7 @@ class XaiClient:
         parsed = _parse_imagine_result(payload)
         self._record(
             purpose=tag,
-            usage=_imagine_meter_usage(parsed),
+            usage=_imagine_meter_usage(parsed, body),
             parent_id=parent_id,
             labels=labels,
             success=True,
@@ -5007,9 +5007,27 @@ def _imagine_response(parsed: dict[str, Any], image_model: str) -> dict[str, Any
     }
 
 
-def _imagine_meter_usage(parsed: dict[str, Any]) -> dict[str, int]:
-    """Bill images returned, not the n that was requested."""
-    return {"image_count": len(parsed["images"])}
+def _imagine_meter_usage(
+    parsed: dict[str, Any], body: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """Bill images returned, not the n that was requested.
+
+    Tier inputs come from the request body that was sent: the contracted
+    ``resolution`` and ``quality``, and ``input_images`` as the number of
+    edit sources (``image`` is one, ``images`` counts each entry).
+    """
+    usage: dict[str, Any] = {"image_count": len(parsed["images"])}
+    sent = body or {}
+    for key in ("resolution", "quality"):
+        value = sent.get(key)
+        if isinstance(value, str) and value.strip():
+            usage[key] = value.strip()
+    sources = sent.get("images")
+    if isinstance(sources, list) and sources:
+        usage["input_images"] = len(sources)
+    elif sent.get("image"):
+        usage["input_images"] = 1
+    return usage
 
 
 _IMAGINE_EDIT_MAX_SOURCES = 3
