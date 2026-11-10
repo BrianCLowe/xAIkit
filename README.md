@@ -227,7 +227,7 @@ edited = client.edit_image(
 # )
 ```
 
-Default model is `grok-imagine-image-quality`. Optional generate knobs: `aspect_ratio` (Imagine list, including `auto` / `19.5:9` / `20:9`), `resolution` (`1k` | `2k`), `response_format` (`b64_json`), and `quality` (`low` | `medium`) on `grok-imagine-image-2.0` only. Unknown aspect/resolution values are omitted. When Imagine returns `file_output.file_id`, both methods surface it as `file_id`.
+Default model is `grok-imagine-image-quality`. Optional generate knobs: `aspect_ratio` (Imagine list, including `auto` / `19.5:9` / `20:9`), `resolution` (`1k` | `1.5k` | `2k`), `response_format` (`b64_json`), and `quality` (`low` | `medium`) on `grok-imagine-image-2.0` only. Unknown aspect/resolution values are omitted. When Imagine returns `file_output.file_id`, both methods surface it as `file_id`.
 
 ## Files
 

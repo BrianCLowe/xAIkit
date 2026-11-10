@@ -583,7 +583,7 @@ IMAGINE_ASPECT_RATIOS = frozenset(
         "auto",
     }
 )
-IMAGINE_RESOLUTIONS = frozenset({"1k", "2k"})
+IMAGINE_RESOLUTIONS = frozenset({"1k", "1.5k", "2k"})
 IMAGINE_QUALITIES = frozenset({"low", "medium"})
 _IMAGINE_QUALITY_SKU_MARK = "imagine-image-2.0"
 
@@ -606,7 +606,7 @@ def contract_imagine_aspect_ratio(value: str | None) -> str | None:
 
 
 def contract_imagine_resolution(value: str | None) -> str | None:
-    """Keep ``1k`` | ``2k``; omit unknown (do not 400)."""
+    """Keep ``1k`` | ``1.5k`` | ``2k`` for every model; omit unknown (do not 400)."""
     raw = (value or "").strip().lower()
     if not raw:
         return None
