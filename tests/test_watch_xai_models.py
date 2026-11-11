@@ -347,6 +347,96 @@ def test_extract_public_prices_prefers_us_east_and_scales() -> None:
     assert prices["models"]["stt"]["per_minute_usd"] == round(555556 / 10_000_000_000 * 60, 8)
 
 
+def _image_model_price(watch, row: dict) -> dict:
+    blob = {
+        "clusterConfigs": [
+            {
+                "clusterName": "us-east-1",
+                "imageGenerationModels": [row],
+            }
+        ]
+    }
+    html = "<script>globalThis.__XAI_PUBLIC_MODELS__=" + json.dumps(blob) + ";</script>"
+    prices = watch.extract_public_prices({"https://docs.x.ai/developers/models": html})
+    return prices["models"][row["name"]]
+
+
+def test_image_price_prefers_1k_low_over_image_price() -> None:
+    watch = _load()
+    priced = _image_model_price(
+        watch,
+        {
+            "name": "grok-imagine-image-2.0",
+            "imagePrice": "600000000",
+            "resolutionPricing": [
+                {
+                    "resolution": "IMAGE_RESOLUTION_1K",
+                    "quality": "low",
+                    "pricePerImage": "400000000",
+                }
+            ],
+        },
+    )
+    assert priced == {
+        "input_per_million": 0.0,
+        "output_per_million": 0.0,
+        "per_call_usd": 0.04,
+    }
+
+
+def test_image_price_falls_back_to_image_price_when_no_1k_tier() -> None:
+    watch = _load()
+    priced = _image_model_price(
+        watch,
+        {"name": "grok-imagine-image-quality", "imagePrice": "500000000"},
+    )
+    assert priced == {
+        "input_per_million": 0.0,
+        "output_per_million": 0.0,
+        "per_call_usd": 0.05,
+    }
+
+
+def test_image_price_parses_image_resolution_1k_key() -> None:
+    watch = _load()
+    assert watch._resolution_key("IMAGE_RESOLUTION_1K") == "1k"
+    assert watch._resolution_key("VIDEO_RESOLUTION_720P") == "720p"
+    priced = _image_model_price(
+        watch,
+        {
+            "name": "grok-imagine-image-2.0",
+            "imagePrice": "600000000",
+            "resolutionPricing": [
+                {
+                    "resolution": "IMAGE_RESOLUTION_1K",
+                    "quality": "low",
+                    "pricePerImage": "400000000",
+                }
+            ],
+        },
+    )
+    assert priced["per_call_usd"] == 0.04
+
+
+def test_image_price_uses_no_quality_1k_row() -> None:
+    watch = _load()
+    priced = _image_model_price(
+        watch,
+        {
+            "name": "grok-imagine-image",
+            "imagePrice": "600000000",
+            "resolutionPricing": [
+                {"resolution": "IMAGE_RESOLUTION_1K", "pricePerImage": "200000000"}
+            ],
+        },
+    )
+    assert priced == {
+        "input_per_million": 0.0,
+        "output_per_million": 0.0,
+        "per_call_usd": 0.02,
+    }
+
+
 def test_language_zero_token_side_is_kept() -> None:
     watch = _load()
     priced = watch._language_price(
