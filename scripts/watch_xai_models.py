@@ -288,6 +288,7 @@ def _usd_media(raw: Any) -> float | None:
 def _resolution_key(raw: str) -> str:
     text = (raw or "").strip().lower()
     text = text.replace("video_resolution_", "")
+    text = text.replace("image_resolution_", "")
     return text
 
 
@@ -322,8 +323,43 @@ def _language_price(row: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _image_quality_token(item: dict[str, Any]) -> str:
+    raw = item.get("quality")
+    if raw is None:
+        return ""
+    return str(raw).strip().lower()
+
+
+def _one_k_per_image_usd(row: dict[str, Any]) -> float | None:
+    """1K Low pricePerImage, else no-quality 1K when no 1K row has a quality."""
+    low_price: float | None = None
+    bare_price: float | None = None
+    saw_quality = False
+    for item in row.get("resolutionPricing") or []:
+        if not isinstance(item, dict):
+            continue
+        if _resolution_key(str(item.get("resolution") or "")) != "1k":
+            continue
+        token = _image_quality_token(item)
+        price = _usd_media(item.get("pricePerImage"))
+        if token:
+            saw_quality = True
+        if token == "low":
+            if low_price is None and price is not None:
+                low_price = price
+        elif token == "" and bare_price is None and price is not None:
+            bare_price = price
+    if low_price is not None:
+        return low_price
+    if saw_quality:
+        return None
+    return bare_price
+
+
 def _image_price(row: dict[str, Any]) -> dict[str, Any]:
-    per_call = _usd_media(row.get("imagePrice"))
+    per_call = _one_k_per_image_usd(row)
+    if per_call is None:
+        per_call = _usd_media(row.get("imagePrice"))
     if per_call is None:
         return {}
     return {
