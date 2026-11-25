@@ -17,6 +17,7 @@ import sys
 import urllib.error
 import urllib.request
 from collections.abc import Mapping, Sequence
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +58,7 @@ _RESOL_RE = re.compile(
 )
 
 BASELINE_PATH = Path(__file__).resolve().parent / "data" / "xai_models_watch.json"
+PENDING_PATH = Path(__file__).resolve().parent / "data" / "xai_models_watch_pending.json"
 # Docs token integers: 20000 = $2 / 1M. Media integers: 800000000 = $0.08.
 _TOKEN_SCALE = 10_000
 _MEDIA_SCALE = 10_000_000_000
@@ -124,6 +126,159 @@ def scan_pages(
 
 def load_baseline(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+class _PendingError(ValueError):
+    """The pending file cannot be read. Callers must not write it."""
+
+
+def _utc_now_stamp() -> str:
+    """UTC time with seconds precision and a Z suffix."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def load_pending(path: Path) -> dict[str, dict[str, dict[str, str]]]:
+    """Load pending state. A missing file is empty. Bad files raise."""
+    if not path.is_file():
+        return {}
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise _PendingError("invalid JSON") from exc
+    if not isinstance(raw, dict):
+        raise _PendingError("pending top level is not an object")
+    unknown = [key for key in raw if key not in ("slugs", "resolutions")]
+    if unknown:
+        raise _PendingError("unknown pending keys")
+    loaded: dict[str, dict[str, dict[str, str]]] = {}
+    for side in ("slugs", "resolutions"):
+        if side not in raw:
+            continue
+        entries = raw[side]
+        if not isinstance(entries, dict):
+            raise _PendingError("pending side is not an object")
+        side_out: dict[str, dict[str, str]] = {}
+        for token, entry in entries.items():
+            if not isinstance(entry, dict):
+                raise _PendingError("pending token entry is not an object")
+            if "first_miss" not in entry or not isinstance(entry.get("first_miss"), str):
+                raise _PendingError("pending first_miss is missing or not a string")
+            extra = set(entry) - {"first_miss", "reported_at"}
+            if extra:
+                raise _PendingError("unknown pending token keys")
+            cleaned = {"first_miss": entry["first_miss"]}
+            if "reported_at" in entry:
+                if not isinstance(entry["reported_at"], str):
+                    raise _PendingError("pending reported_at is not a string")
+                cleaned["reported_at"] = entry["reported_at"]
+            side_out[str(token).lower()] = cleaned
+        if side_out:
+            loaded[side] = side_out
+    return loaded
+
+
+def dump_pending(state: Mapping[str, Mapping[str, Mapping[str, str]]]) -> str:
+    """Serialize pending JSON. Empty state is exactly ``{}`` plus a newline."""
+    payload: dict[str, dict[str, dict[str, str]]] = {}
+    for side in ("resolutions", "slugs"):
+        entries = state.get(side) or {}
+        if entries:
+            payload[side] = {token: dict(entries[token]) for token in entries}
+    if not payload:
+        return "{}\n"
+    return json.dumps(payload, sort_keys=True, indent=2) + "\n"
+
+
+def _write_pending(path: Path, state: Mapping[str, Mapping[str, Mapping[str, str]]]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(dump_pending(state), encoding="utf-8")
+
+
+def _write_scan_ok(path: Path | None, ok: bool) -> None:
+    if path is None:
+        return
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(f"scan_ok={'true' if ok else 'false'}\n")
+
+
+def _baseline_list(baseline: Mapping[str, Any], key: str) -> list[str]:
+    seen: set[str] = set()
+    out: list[str] = []
+    for raw in baseline.get(key) or []:
+        token = str(raw).lower()
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        out.append(token)
+    return out
+
+
+def _scan_side(
+    pages: Mapping[str, str], urls: tuple[str, ...], key: str
+) -> tuple[bool, list[str]]:
+    """One side. Empty union or an extractor exception is not a scan."""
+    side_pages = {url: pages.get(url, "") for url in urls}
+    try:
+        scanned = scan_pages(side_pages)
+    except Exception:
+        return False, []
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for raw in scanned.get(key) or []:
+        token = str(raw).lower()
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        ordered.append(token)
+    if not ordered:
+        return False, []
+    return True, ordered
+
+
+def _apply_side(
+    entries: Mapping[str, Mapping[str, str]],
+    baseline_tokens: Sequence[str],
+    live_tokens: Sequence[str],
+    *,
+    now: str,
+    record_misses: bool,
+) -> tuple[dict[str, dict[str, str]], list[str]]:
+    """Prune, clear live tokens, and optionally record a first or second miss.
+
+    The scan path never writes ``reported_at``. A second miss is emitted and
+    left unmarked so a failed filing is retried on the next scan.
+    """
+    live = set(live_tokens)
+    baseline_set = set(baseline_tokens)
+    kept: dict[str, dict[str, str]] = {}
+    for token, entry in entries.items():
+        if token in baseline_set:
+            kept[token] = dict(entry)
+    for token in list(kept):
+        if token in live:
+            del kept[token]
+    emitted: list[str] = []
+    if record_misses:
+        for token in baseline_tokens:
+            if token in live or token not in baseline_set:
+                continue
+            entry = kept.get(token)
+            if entry is None:
+                kept[token] = {"first_miss": now}
+            elif "reported_at" not in entry:
+                emitted.append(token)
+    return kept, emitted
+
+
+def _store_side(
+    state: dict[str, dict[str, dict[str, str]]],
+    side: str,
+    entries: Mapping[str, Mapping[str, str]],
+) -> None:
+    if entries:
+        state[side] = {token: dict(entries[token]) for token in entries}
+    else:
+        state.pop(side, None)
 
 
 def _dropped_tokens(baseline_values: Any, live_values: Sequence[str]) -> list[str]:
@@ -681,6 +836,17 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Committed watch snapshot (JSON)",
     )
     parser.add_argument(
+        "--pending",
+        type=Path,
+        default=PENDING_PATH,
+        help="Pending first-miss file (JSON)",
+    )
+    parser.add_argument(
+        "--mark-reported",
+        action="store_true",
+        help="Set reported_at on dropped tokens already pending, then exit",
+    )
+    parser.add_argument(
         "--write-baseline",
         action="store_true",
         help="Overwrite the snapshot with today's public-docs scan",
@@ -777,53 +943,200 @@ def _select_unlisted(args: argparse.Namespace) -> int:
     return 0
 
 
+def _mark_reported(args: argparse.Namespace) -> int:
+    """Set reported_at on tokens already pending. Does not fetch or scan."""
+    slugs = split_watch_tokens(args.dropped_slugs)
+    resolutions = split_watch_tokens(args.dropped_resolutions)
+    path: Path = args.pending
+    if not slugs and not resolutions:
+        return 0
+    try:
+        state = load_pending(path)
+    except _PendingError:
+        print(f"pending file is malformed {path}", file=sys.stderr)
+        _write_scan_ok(args.github_output, False)
+        return 1
+    now: str | None = None
+    changed = False
+    for side, tokens in (("slugs", slugs), ("resolutions", resolutions)):
+        entries = state.get(side)
+        if not entries:
+            continue
+        for token in tokens:
+            entry = entries.get(token)
+            if entry is None or "reported_at" in entry:
+                continue
+            if now is None:
+                now = _utc_now_stamp()
+            entry["reported_at"] = now
+            changed = True
+    if changed:
+        _write_pending(path, state)
+    return 0
+
+
+def _write_watch_outputs(
+    path: Path | None,
+    *,
+    new_slugs: Sequence[str],
+    new_resolutions: Sequence[str],
+    dropped_slugs: Sequence[str],
+    dropped_resolutions: Sequence[str],
+    scan_ok: bool,
+) -> tuple[bool, bool]:
+    has_new = bool(new_slugs or new_resolutions)
+    has_dropped = bool(dropped_slugs or dropped_resolutions)
+    if path is None:
+        return has_new, has_dropped
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(f"new_slugs={','.join(new_slugs)}\n")
+        handle.write(f"new_resolutions={','.join(new_resolutions)}\n")
+        handle.write(f"has_new={'true' if has_new else 'false'}\n")
+        handle.write(f"dropped_slugs={','.join(dropped_slugs)}\n")
+        handle.write(f"dropped_resolutions={','.join(dropped_resolutions)}\n")
+        handle.write(f"has_dropped={'true' if has_dropped else 'false'}\n")
+        handle.write(f"scan_ok={'true' if scan_ok else 'false'}\n")
+    return has_new, has_dropped
+
+
+def _read_prices(args: argparse.Namespace, pages: Mapping[str, str]) -> bool:
+    if args.write_prices is None:
+        return False
+    changed = write_public_prices(args.write_prices, pages)
+    if changed is None:
+        return True
+    print(f"{'updated' if changed else 'unchanged'} {args.write_prices}")
+    return False
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     if args.select_unlisted:
         return _select_unlisted(args)
     if args.guard_prices is not None:
         return _run_price_guard(args)
+    if args.mark_reported:
+        return _mark_reported(args)
+    try:
+        pending = load_pending(args.pending)
+    except _PendingError:
+        print(f"pending file is malformed {args.pending}", file=sys.stderr)
+        _write_scan_ok(args.github_output, False)
+        return 1
+
     pages: dict[str, str] = {}
     for url in WATCH_URLS:
         try:
             pages[url] = fetch_text(url)
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             print(f"fetch failed {url}: {exc}", file=sys.stderr)
+            _write_scan_ok(args.github_output, False)
             return 1
 
-    live = scan_pages(pages)
-    prices_failed = False
-    if args.write_prices is not None:
-        changed = write_public_prices(args.write_prices, pages)
-        if changed is None:
-            prices_failed = True
-        else:
-            print(f"{'updated' if changed else 'unchanged'} {args.write_prices}")
+    slug_ok, slug_tokens = _scan_side(pages, SLUG_URLS, "slugs")
+    res_ok, res_tokens = _scan_side(pages, RESOLUTION_URLS, "resolutions")
+    prices_failed = _read_prices(args, pages)
+    if not slug_ok and not res_ok:
+        _write_watch_outputs(
+            args.github_output,
+            new_slugs=(),
+            new_resolutions=(),
+            dropped_slugs=(),
+            dropped_resolutions=(),
+            scan_ok=False,
+        )
+        return 1
+
+    now = _utc_now_stamp()
     if args.write_baseline:
-        args.baseline.parent.mkdir(parents=True, exist_ok=True)
+        old_slugs: list[Any] = []
+        old_resolutions: list[Any] = []
+        if (not slug_ok or not res_ok) and args.baseline.is_file():
+            old = load_baseline(args.baseline)
+            old_slugs = list(old.get("slugs") or [])
+            old_resolutions = list(old.get("resolutions") or [])
         payload = {
             "source_urls": list(WATCH_URLS),
-            **live,
+            "slugs": slug_tokens if slug_ok else old_slugs,
+            "resolutions": res_tokens if res_ok else old_resolutions,
         }
+        args.baseline.parent.mkdir(parents=True, exist_ok=True)
         args.baseline.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-        print(f"wrote {args.baseline} ({len(live['slugs'])} slugs, {len(live['resolutions'])} resolutions)")
+        print(
+            f"wrote {args.baseline} "
+            f"({len(payload['slugs'])} slugs, {len(payload['resolutions'])} resolutions)"
+        )
+        if slug_ok:
+            kept, _emitted = _apply_side(
+                pending.get("slugs") or {},
+                slug_tokens,
+                slug_tokens,
+                now=now,
+                record_misses=False,
+            )
+            _store_side(pending, "slugs", kept)
+        if res_ok:
+            kept, _emitted = _apply_side(
+                pending.get("resolutions") or {},
+                res_tokens,
+                res_tokens,
+                now=now,
+                record_misses=False,
+            )
+            _store_side(pending, "resolutions", kept)
+        _write_pending(args.pending, pending)
+        _write_scan_ok(args.github_output, True)
         return 1 if prices_failed else 0
 
     if not args.baseline.is_file():
         print(f"missing baseline {args.baseline}", file=sys.stderr)
+        _write_scan_ok(args.github_output, False)
         return 1
 
-    delta = diff_watch(live, load_baseline(args.baseline))
-    has_new = bool(delta["slugs"] or delta["resolutions"])
-    has_dropped = bool(delta["dropped_slugs"] or delta["dropped_resolutions"])
-    if args.github_output is not None:
-        with args.github_output.open("a", encoding="utf-8") as fh:
-            fh.write(f"new_slugs={','.join(delta['slugs'])}\n")
-            fh.write(f"new_resolutions={','.join(delta['resolutions'])}\n")
-            fh.write(f"has_new={'true' if has_new else 'false'}\n")
-            fh.write(f"dropped_slugs={','.join(delta['dropped_slugs'])}\n")
-            fh.write(f"dropped_resolutions={','.join(delta['dropped_resolutions'])}\n")
-            fh.write(f"has_dropped={'true' if has_dropped else 'false'}\n")
+    baseline = load_baseline(args.baseline)
+    base_slugs = _baseline_list(baseline, "slugs")
+    base_resolutions = _baseline_list(baseline, "resolutions")
+    live_view = {
+        "slugs": slug_tokens if slug_ok else base_slugs,
+        "resolutions": res_tokens if res_ok else base_resolutions,
+    }
+    delta = diff_watch(live_view, baseline)
+    if slug_ok:
+        kept, dropped_slugs = _apply_side(
+            pending.get("slugs") or {},
+            base_slugs,
+            slug_tokens,
+            now=now,
+            record_misses=True,
+        )
+        _store_side(pending, "slugs", kept)
+        new_slugs = delta["slugs"]
+    else:
+        dropped_slugs = []
+        new_slugs = []
+    if res_ok:
+        kept, dropped_resolutions = _apply_side(
+            pending.get("resolutions") or {},
+            base_resolutions,
+            res_tokens,
+            now=now,
+            record_misses=True,
+        )
+        _store_side(pending, "resolutions", kept)
+        new_resolutions = delta["resolutions"]
+    else:
+        dropped_resolutions = []
+        new_resolutions = []
+
+    has_new, has_dropped = _write_watch_outputs(
+        args.github_output,
+        new_slugs=new_slugs,
+        new_resolutions=new_resolutions,
+        dropped_slugs=dropped_slugs,
+        dropped_resolutions=dropped_resolutions,
+        scan_ok=True,
+    )
+    _write_pending(args.pending, pending)
 
     if not has_new and not has_dropped:
         print("xAI public docs match the committed watch baseline")
@@ -831,18 +1144,18 @@ def main(argv: list[str] | None = None) -> int:
 
     if has_new:
         print("New xAI public-docs signals (kit may need a knob/family/price check):")
-        if delta["slugs"]:
-            print("  slugs:", ", ".join(delta["slugs"]))
-        if delta["resolutions"]:
-            print("  resolutions:", ", ".join(delta["resolutions"]))
+        if new_slugs:
+            print("  slugs:", ", ".join(new_slugs))
+        if new_resolutions:
+            print("  resolutions:", ", ".join(new_resolutions))
         print("Checklist: thought_level families, Imagine quality/resolution, video 1080p/4k, pricing.py, BOOTSTRAP_MODEL")
         print("Then add the new tokens to scripts/data/xai_models_watch.json (--write-baseline after review)")
     if has_dropped:
         print("Dropped xAI public-docs tokens (baseline ids missing from the live scan):")
-        if delta["dropped_slugs"]:
-            print("  dropped slugs:", ", ".join(delta["dropped_slugs"]))
-        if delta["dropped_resolutions"]:
-            print("  dropped resolutions:", ", ".join(delta["dropped_resolutions"]))
+        if dropped_slugs:
+            print("  dropped slugs:", ", ".join(dropped_slugs))
+        if dropped_resolutions:
+            print("  dropped resolutions:", ", ".join(dropped_resolutions))
     return 1 if prices_failed else 2
 
 

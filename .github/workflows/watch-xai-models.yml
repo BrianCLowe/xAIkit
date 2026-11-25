@@ -36,6 +36,20 @@ jobs:
           echo "exit_code=$?" >> "$GITHUB_OUTPUT"
         continue-on-error: true
 
+      - name: Commit watch pending file when the scan changes
+        if: ${{ !cancelled() && steps.scan.outputs.scan_ok == 'true' }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/data/xai_models_watch_pending.json
+          if git diff --cached --quiet; then
+            echo "watch pending file unchanged"
+            exit 0
+          fi
+          git commit -m "Update xAI watch pending file"
+          git push
+
       - name: Guard price extract
         id: guard
         run: |
@@ -86,6 +100,7 @@ jobs:
           echo "opened xai-models issue for price guard ids=${GUARD_IDS:-unknown}"
 
       - name: Open issue for tokens not already listed
+        id: issue
         if: always() && (steps.scan.outputs.has_new == 'true' || steps.scan.outputs.has_dropped == 'true')
         env:
           GH_TOKEN: ${{ github.token }}
@@ -157,6 +172,24 @@ jobs:
           )"
           gh issue create --title "$title" --label xai-models --body "$body"
           echo "opened xai-models issue for slugs=${slugs:-none} resolutions=${res:-none} dropped_slugs=${dropped_slugs:-none} dropped_resolutions=${dropped_res:-none}"
+
+      - name: Mark reported watch tokens
+        if: ${{ !cancelled() && steps.issue.outcome == 'success' }}
+        env:
+          DROPPED_SLUGS: ${{ steps.scan.outputs.dropped_slugs }}
+          DROPPED_RESOLUTIONS: ${{ steps.scan.outputs.dropped_resolutions }}
+        run: |
+          set -euo pipefail
+          uv run python scripts/watch_xai_models.py --mark-reported --pending scripts/data/xai_models_watch_pending.json --dropped-slugs "$DROPPED_SLUGS" --dropped-resolutions "$DROPPED_RESOLUTIONS"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/data/xai_models_watch_pending.json
+          if git diff --cached --quiet; then
+            echo "watch pending file unchanged"
+            exit 0
+          fi
+          git commit -m "Mark reported xAI watch tokens"
+          git push
 
       - name: Commit price gap file when the extract changes
         if: steps.scan.outputs.exit_code != '1' && steps.guard.outcome == 'success'

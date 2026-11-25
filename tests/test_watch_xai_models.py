@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import json
+import urllib.error
+from datetime import datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -479,13 +482,19 @@ def _github_outputs(text: str) -> dict[str, str]:
     return found
 
 
-def _run_offline_main(watch, tmp_path, monkeypatch, live: dict, baseline: dict):
+def _run_offline_main(
+    watch, tmp_path, monkeypatch, live: dict, baseline: dict, pending_path=None
+):
+    if pending_path is None:
+        pending_path = tmp_path / "pending.json"
     baseline_path = tmp_path / "baseline.json"
     payload = json.dumps(baseline)
     baseline_path.write_text(payload, encoding="utf-8")
     output_path = tmp_path / "github_output.txt"
     repo_baseline = (ROOT / "scripts" / "data" / "xai_models_watch.json").read_bytes()
     repo_prices = (ROOT / "scripts" / "data" / "xai_public_prices.json").read_bytes()
+    repo_pending = ROOT / "scripts" / "data" / "xai_models_watch_pending.json"
+    repo_pending_bytes = repo_pending.read_bytes() if repo_pending.is_file() else None
 
     def fake_fetch(url: str, *, timeout: float = 30.0) -> str:
         return "offline"
@@ -496,12 +505,21 @@ def _run_offline_main(watch, tmp_path, monkeypatch, live: dict, baseline: dict):
     monkeypatch.setattr(watch, "fetch_text", fake_fetch)
     monkeypatch.setattr(watch, "scan_pages", fake_scan)
     code = watch.main(
-        ["--baseline", str(baseline_path), "--github-output", str(output_path)]
+        [
+            "--baseline",
+            str(baseline_path),
+            "--github-output",
+            str(output_path),
+            "--pending",
+            str(pending_path),
+        ]
     )
     written = output_path.read_text(encoding="utf-8")
     assert baseline_path.read_text(encoding="utf-8") == payload
     assert (ROOT / "scripts" / "data" / "xai_models_watch.json").read_bytes() == repo_baseline
     assert (ROOT / "scripts" / "data" / "xai_public_prices.json").read_bytes() == repo_prices
+    after_pending = repo_pending.read_bytes() if repo_pending.is_file() else None
+    assert after_pending == repo_pending_bytes
     return code, _github_outputs(written)
 
 
@@ -534,17 +552,17 @@ def test_main_writes_dropped_outputs_and_exits_2(tmp_path, monkeypatch, capsys) 
             "resolutions": ["1k", "720p"],
         },
     )
-    assert code == 2
-    assert outputs["dropped_slugs"] == "grok-retired"
-    assert outputs["dropped_resolutions"] == "720p"
-    assert outputs["has_dropped"] == "true"
+    assert code != 2
+    assert outputs["dropped_slugs"] == ""
+    assert outputs["dropped_resolutions"] == ""
+    assert outputs["has_dropped"] == "false"
     assert outputs["has_new"] == "false"
     assert outputs["new_slugs"] == ""
     assert outputs["new_resolutions"] == ""
     stdout = capsys.readouterr().out
-    assert "grok-retired" in stdout
-    assert "720p" in stdout
-    assert "Dropped xAI public-docs tokens" in stdout
+    assert "grok-retired" not in stdout
+    assert "720p" not in stdout
+    assert "Dropped xAI public-docs tokens" not in stdout
 
 
 def test_main_no_drop_outputs_false_and_exits_0(tmp_path, monkeypatch, capsys) -> None:
@@ -586,18 +604,18 @@ def test_main_new_and_dropped_both_reported(tmp_path, monkeypatch, capsys) -> No
     )
     assert code == 2
     assert outputs["has_new"] == "true"
-    assert outputs["has_dropped"] == "true"
+    assert outputs["has_dropped"] == "false"
     assert outputs["new_slugs"] == "grok-imagine-image-3.0"
     assert outputs["new_resolutions"] == "4k"
-    assert outputs["dropped_slugs"] == "grok-retired"
-    assert outputs["dropped_resolutions"] == "720p"
+    assert outputs["dropped_slugs"] == ""
+    assert outputs["dropped_resolutions"] == ""
     stdout = capsys.readouterr().out
     assert "New xAI public-docs signals" in stdout
-    assert "Dropped xAI public-docs tokens" in stdout
+    assert "Dropped xAI public-docs tokens" not in stdout
     assert "grok-imagine-image-3.0" in stdout
     assert "4k" in stdout
-    assert "grok-retired" in stdout
-    assert "720p" in stdout
+    assert "grok-retired" not in stdout
+    assert "720p" not in stdout
 
 
 def test_committed_baseline_has_current_public_table() -> None:
@@ -608,3 +626,1069 @@ def test_committed_baseline_has_current_public_table() -> None:
     assert "grok-imagine-image-2.0" in slugs
     assert "1k" in baseline["resolutions"]
     assert "4k" not in baseline["resolutions"]
+
+
+def _stamp_ok(value: str) -> bool:
+    if len(value) != 20:
+        return False
+    try:
+        datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return False
+    return True
+
+
+def _read_pending(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_xts_c1_first_miss_not_reported(tmp_path, monkeypatch) -> None:
+    """C1 and C10.2: a missing pending file records the first miss and does not report it."""
+    watch = _load()
+    baseline = {
+        "slugs": ["grok-4.6", "grok-retired"],
+        "resolutions": ["1k", "720p"],
+    }
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+    output_path = tmp_path / "github_output.txt"
+    pending_path = tmp_path / "pending.json"
+
+    def fake_fetch(url, *, timeout=30.0):
+        return "offline"
+
+    def fake_scan(pages, **kwargs):
+        return {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+
+    monkeypatch.setattr(watch, "fetch_text", fake_fetch)
+    monkeypatch.setattr(watch, "scan_pages", fake_scan)
+    code = watch.main(
+        [
+            "--baseline",
+            str(baseline_path),
+            "--github-output",
+            str(output_path),
+            "--pending",
+            str(pending_path),
+        ]
+    )
+    outputs = _github_outputs(output_path.read_text(encoding="utf-8"))
+    dropped_slugs = outputs["dropped_slugs"].split(",") if outputs["dropped_slugs"] else []
+    dropped_resolutions = (
+        outputs["dropped_resolutions"].split(",") if outputs["dropped_resolutions"] else []
+    )
+    failures = []
+    if "grok-retired" in dropped_slugs or "720p" in dropped_resolutions:
+        failures.append("first-miss token in dropped_*")
+    if outputs["has_dropped"] != "false":
+        failures.append("has_dropped")
+    if code == 2:
+        failures.append("exit 2")
+    assert failures == []
+    state = _read_pending(pending_path)
+    assert set(state) == {"resolutions", "slugs"}
+    assert set(state["slugs"]) == {"grok-retired"}
+    assert set(state["resolutions"]) == {"720p"}
+    assert set(state["slugs"]["grok-retired"]) == {"first_miss"}
+    assert set(state["resolutions"]["720p"]) == {"first_miss"}
+    assert _stamp_ok(state["slugs"]["grok-retired"]["first_miss"])
+    assert _stamp_ok(state["resolutions"]["720p"]["first_miss"])
+    assert outputs["scan_ok"] == "true"
+    assert code == 0
+    assert "grok-imagine" not in pending_path.read_text(encoding="utf-8")
+
+
+def test_xts_c2_second_miss_reported(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    live = {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+    baseline = {
+        "slugs": ["grok-4.6", "grok-retired"],
+        "resolutions": ["1k", "720p"],
+    }
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code != 2
+    assert outputs["has_dropped"] == "false"
+    first_slug = _read_pending(pending)["slugs"]["grok-retired"]["first_miss"]
+    first_res = _read_pending(pending)["resolutions"]["720p"]["first_miss"]
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code == 2
+    assert outputs["dropped_slugs"] == "grok-retired"
+    assert outputs["dropped_resolutions"] == "720p"
+    assert outputs["has_dropped"] == "true"
+    assert outputs["scan_ok"] == "true"
+    state = _read_pending(pending)
+    assert state["slugs"]["grok-retired"]["first_miss"] == first_slug
+    assert state["resolutions"]["720p"]["first_miss"] == first_res
+    assert "reported_at" not in state["slugs"]["grok-retired"]
+    assert "reported_at" not in state["resolutions"]["720p"]
+
+
+def test_xts_c3_reappearance_clears_pending(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        watch.dump_pending(
+            {
+                "slugs": {"grok-retired": {"first_miss": "2026-11-25T01:00:00Z"}},
+                "resolutions": {"720p": {"first_miss": "2026-11-25T01:00:00Z"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    live = {
+        "slugs": ["grok-4.6", "grok-retired"],
+        "resolutions": ["1k", "720p"],
+    }
+    baseline = dict(live)
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code == 0
+    assert outputs["dropped_slugs"] == ""
+    assert outputs["dropped_resolutions"] == ""
+    assert outputs["has_dropped"] == "false"
+    assert pending.read_bytes() == b"{}\n"
+
+
+def test_xts_c4_prune_token_outside_baseline(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        watch.dump_pending(
+            {
+                "slugs": {
+                    "grok-ghost": {"first_miss": "2026-11-25T01:00:00Z"},
+                    "grok-reported": {
+                        "first_miss": "2026-11-25T01:00:00Z",
+                        "reported_at": "2026-11-25T01:05:00Z",
+                    },
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    live = {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+    baseline = {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code == 0
+    assert outputs["has_dropped"] == "false"
+    assert pending.read_bytes() == b"{}\n"
+
+
+def test_xts_c4_write_baseline_prunes_removed(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    baseline_path = tmp_path / "baseline.json"
+    output_path = tmp_path / "out.txt"
+    old = {
+        "source_urls": ["https://example.invalid/models"],
+        "slugs": ["grok-4.6", "grok-retired", "grok-kept"],
+        "resolutions": ["1k", "1080p"],
+    }
+    baseline_path.write_text(json.dumps(old, indent=2) + "\n", encoding="utf-8")
+    pending.write_text(
+        watch.dump_pending(
+            {
+                "slugs": {
+                    "grok-retired": {"first_miss": "2026-11-25T01:00:00Z"},
+                    "grok-kept": {"first_miss": "2026-11-25T01:00:00Z"},
+                    "grok-ghost": {"first_miss": "2026-11-25T01:00:00Z"},
+                },
+                "resolutions": {
+                    "1080p": {
+                        "first_miss": "2026-11-25T01:00:00Z",
+                        "reported_at": "2026-11-25T01:05:00Z",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_fetch(url, *, timeout=30.0):
+        return "offline"
+
+    def fake_scan(pages, **kwargs):
+        return {"slugs": ["grok-4.6", "grok-kept"], "resolutions": ["1k"]}
+
+    monkeypatch.setattr(watch, "fetch_text", fake_fetch)
+    monkeypatch.setattr(watch, "scan_pages", fake_scan)
+    code = watch.main(
+        [
+            "--baseline",
+            str(baseline_path),
+            "--pending",
+            str(pending),
+            "--github-output",
+            str(output_path),
+            "--write-baseline",
+        ]
+    )
+    assert code == 0
+    written = json.loads(baseline_path.read_text(encoding="utf-8"))
+    assert written["slugs"] == ["grok-4.6", "grok-kept"]
+    assert written["resolutions"] == ["1k"]
+    assert "grok-retired" not in written["slugs"]
+    assert pending.read_bytes() == b"{}\n"
+    assert _github_outputs(output_path.read_text(encoding="utf-8"))["scan_ok"] == "true"
+
+
+def test_xts_c4_fetch_failure_leaves_pending_byte_identical(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    body = watch.dump_pending(
+        {"slugs": {"grok-retired": {"first_miss": "2026-11-25T01:00:00Z"}}}
+    )
+    pending.write_text(body, encoding="utf-8")
+    before = pending.read_bytes()
+    digest = hashlib.sha256(before).hexdigest()
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_bytes(b"KEEP\n")
+    output_path = tmp_path / "out.txt"
+    errors = (
+        urllib.error.URLError("offline"),
+        TimeoutError("timed out"),
+        OSError("reset"),
+    )
+    for exc in errors:
+        output_path.write_bytes(b"")
+
+        def fake_fetch(url, *, timeout=30.0, exc=exc):
+            raise exc
+
+        monkeypatch.setattr(watch, "fetch_text", fake_fetch)
+        code = watch.main(
+            [
+                "--baseline",
+                str(baseline_path),
+                "--pending",
+                str(pending),
+                "--github-output",
+                str(output_path),
+                "--write-baseline",
+            ]
+        )
+        assert code == 1
+        assert hashlib.sha256(pending.read_bytes()).hexdigest() == digest
+        assert pending.read_bytes() == before
+        assert baseline_path.read_bytes() == b"KEEP\n"
+        assert _github_outputs(output_path.read_text(encoding="utf-8"))["scan_ok"] == "false"
+
+    missing = tmp_path / "missing-pending.json"
+    output_path.write_bytes(b"")
+
+    def fail_fetch(url, *, timeout=30.0):
+        raise urllib.error.URLError("offline")
+
+    monkeypatch.setattr(watch, "fetch_text", fail_fetch)
+    code = watch.main(
+        [
+            "--baseline",
+            str(baseline_path),
+            "--pending",
+            str(missing),
+            "--github-output",
+            str(output_path),
+        ]
+    )
+    assert code == 1
+    assert not missing.exists()
+    assert baseline_path.read_bytes() == b"KEEP\n"
+
+
+def test_xts_c4_fetch_gap_does_not_reset_the_count(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    baseline = {
+        "slugs": ["grok-4.6", "grok-retired"],
+        "resolutions": ["1k", "720p"],
+    }
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+    output_path = tmp_path / "out.txt"
+    mode = {"name": "miss"}
+
+    def fake_fetch(url, *, timeout=30.0):
+        if mode["name"] == "fail":
+            raise TimeoutError("timed out")
+        return "offline"
+
+    def fake_scan(pages, **kwargs):
+        if mode["name"] == "present":
+            return {
+                "slugs": ["grok-4.6", "grok-retired"],
+                "resolutions": ["1k", "720p"],
+            }
+        return {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+
+    monkeypatch.setattr(watch, "fetch_text", fake_fetch)
+    monkeypatch.setattr(watch, "scan_pages", fake_scan)
+
+    def run():
+        output_path.write_text("", encoding="utf-8")
+        code = watch.main(
+            [
+                "--baseline",
+                str(baseline_path),
+                "--github-output",
+                str(output_path),
+                "--pending",
+                str(pending),
+            ]
+        )
+        return code, _github_outputs(output_path.read_text(encoding="utf-8"))
+
+    code, _outputs = run()
+    assert code != 2
+    snap = pending.read_bytes()
+    mode["name"] = "fail"
+    code, outputs = run()
+    assert code == 1
+    assert outputs["scan_ok"] == "false"
+    assert pending.read_bytes() == snap
+    mode["name"] = "miss"
+    code, outputs = run()
+    assert code == 2
+    assert outputs["dropped_slugs"] == "grok-retired"
+    assert outputs["dropped_resolutions"] == "720p"
+    assert outputs["has_dropped"] == "true"
+    assert "reported_at" not in pending.read_text(encoding="utf-8")
+
+    pending.unlink()
+    mode["name"] = "miss"
+    run()
+    assert "grok-retired" in pending.read_text(encoding="utf-8")
+    snap = pending.read_bytes()
+    mode["name"] = "fail"
+    run()
+    assert pending.read_bytes() == snap
+    mode["name"] = "present"
+    code, outputs = run()
+    assert code == 0
+    assert outputs["has_dropped"] == "false"
+    assert "grok-retired" not in pending.read_text(encoding="utf-8")
+    assert pending.read_bytes() == b"{}\n"
+
+
+def _bind_pages(watch, monkeypatch, pages: dict[str, str]) -> None:
+    def fake_fetch(url, *, timeout=30.0):
+        if url not in pages:
+            raise OSError(url)
+        return pages[url]
+
+    monkeypatch.setattr(watch, "fetch_text", fake_fetch)
+
+
+def _run_pages(watch, tmp_path, pages, baseline, pending: Path, extra=None):
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+    output_path = tmp_path / "out.txt"
+    argv = [
+        "--baseline",
+        str(baseline_path),
+        "--github-output",
+        str(output_path),
+        "--pending",
+        str(pending),
+    ]
+    if extra:
+        argv.extend(extra)
+    code = watch.main(argv)
+    outputs = _github_outputs(output_path.read_text(encoding="utf-8"))
+    return code, outputs
+
+
+def test_xts_c4_3b_slug_parse_failure_keeps_slug_pending(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    seeded = {
+        "slugs": {
+            "grok-retired": {"first_miss": "2026-11-25T01:00:00Z"},
+            "grok-reported": {
+                "first_miss": "2026-11-25T01:00:00Z",
+                "reported_at": "2026-11-25T01:05:00Z",
+            },
+        },
+        "resolutions": {"720p": {"first_miss": "2026-11-25T01:00:00Z"}},
+    }
+    pending.write_text(watch.dump_pending(seeded), encoding="utf-8")
+    pages = {
+        watch.SLUG_URLS[0]: "no model sku here",
+        watch.SLUG_URLS[1]: "still no model sku",
+        watch.RESOLUTION_URLS[0]: "frame 1k",
+        watch.RESOLUTION_URLS[1]: "frame 720p",
+    }
+    _bind_pages(watch, monkeypatch, pages)
+    code, outputs = _run_pages(
+        watch,
+        tmp_path,
+        pages,
+        {"slugs": ["grok-4.6", "grok-retired"], "resolutions": ["1k", "720p", "1080p"]},
+        pending,
+    )
+    state = _read_pending(pending)
+    assert state["slugs"] == seeded["slugs"]
+    assert "720p" not in state.get("resolutions", {})
+    assert set(state["resolutions"]["1080p"]) == {"first_miss"}
+    assert outputs["dropped_slugs"] == ""
+    assert outputs["dropped_resolutions"] == ""
+    assert outputs["has_dropped"] == "false"
+    assert outputs["scan_ok"] == "true"
+    assert code == 0
+
+
+def test_xts_c4_3b_resolution_parse_failure_keeps_resolution_pending(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    seeded = {
+        "slugs": {"grok-4.6": {"first_miss": "2026-11-25T01:00:00Z"}},
+        "resolutions": {
+            "1080p": {"first_miss": "2026-11-25T01:00:00Z"},
+            "720p": {
+                "first_miss": "2026-11-25T01:00:00Z",
+                "reported_at": "2026-11-25T01:05:00Z",
+            },
+        },
+    }
+    pending.write_text(watch.dump_pending(seeded), encoding="utf-8")
+    pages = {
+        watch.SLUG_URLS[0]: "grok-4.6",
+        watch.SLUG_URLS[1]: "grok-4.6",
+        watch.RESOLUTION_URLS[0]: "no frame size",
+        watch.RESOLUTION_URLS[1]: "still no frame size",
+    }
+    _bind_pages(watch, monkeypatch, pages)
+    code, outputs = _run_pages(
+        watch,
+        tmp_path,
+        pages,
+        {"slugs": ["grok-4.6", "grok-retired"], "resolutions": ["1k", "1080p"]},
+        pending,
+    )
+    state = _read_pending(pending)
+    assert state["resolutions"] == seeded["resolutions"]
+    assert "grok-4.6" not in state.get("slugs", {})
+    assert set(state["slugs"]["grok-retired"]) == {"first_miss"}
+    assert outputs["dropped_slugs"] == ""
+    assert outputs["dropped_resolutions"] == ""
+    assert outputs["scan_ok"] == "true"
+    assert code == 0
+
+
+def test_xts_c4_3b_extractor_exception_updates_other_side(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    seeded = {"slugs": {"grok-retired": {"first_miss": "2026-11-25T01:00:00Z"}}}
+    pending.write_text(watch.dump_pending(seeded), encoding="utf-8")
+
+    def boom(_text):
+        raise RuntimeError("slug parse")
+
+    monkeypatch.setattr(watch, "extract_slugs", boom)
+    pages = {
+        watch.SLUG_URLS[0]: "grok-4.6",
+        watch.SLUG_URLS[1]: "grok-4.6",
+        watch.RESOLUTION_URLS[0]: "frame 1k",
+        watch.RESOLUTION_URLS[1]: "frame 1k",
+    }
+    _bind_pages(watch, monkeypatch, pages)
+    code, outputs = _run_pages(
+        watch,
+        tmp_path,
+        pages,
+        {"slugs": ["grok-4.6", "grok-retired"], "resolutions": ["1k", "1080p"]},
+        pending,
+    )
+    state = _read_pending(pending)
+    assert state["slugs"] == seeded["slugs"]
+    assert set(state["resolutions"]["1080p"]) == {"first_miss"}
+    assert outputs["dropped_slugs"] == ""
+    assert outputs["scan_ok"] == "true"
+    assert code == 0
+
+
+def test_xts_c4_3b_both_sides_fail_is_not_a_scan(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    body = watch.dump_pending(
+        {"slugs": {"grok-retired": {"first_miss": "2026-11-25T01:00:00Z"}}}
+    )
+    pending.write_text(body, encoding="utf-8")
+    before = pending.read_bytes()
+    pages = {url: "nothing to parse" for url in watch.WATCH_URLS}
+    _bind_pages(watch, monkeypatch, pages)
+    code, outputs = _run_pages(
+        watch,
+        tmp_path,
+        pages,
+        {"slugs": ["grok-4.6", "grok-retired"], "resolutions": ["1k"]},
+        pending,
+    )
+    assert code == 1
+    assert outputs["scan_ok"] == "false"
+    assert outputs["dropped_slugs"] == ""
+    assert outputs["dropped_resolutions"] == ""
+    assert outputs["has_dropped"] == "false"
+    assert pending.read_bytes() == before
+    assert hashlib.sha256(pending.read_bytes()).hexdigest() == hashlib.sha256(before).hexdigest()
+
+    missing = tmp_path / "absent.json"
+    code, outputs = _run_pages(
+        watch,
+        tmp_path,
+        pages,
+        {"slugs": ["grok-4.6"], "resolutions": ["1k"]},
+        missing,
+    )
+    assert code == 1
+    assert outputs["scan_ok"] == "false"
+    assert not missing.exists()
+
+
+def test_xts_c5_1_new_tokens_reported_and_not_pending(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    live = {
+        "slugs": ["grok-4.6", "grok-imagine-image-3.0"],
+        "resolutions": ["1k", "4k"],
+    }
+    baseline = {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code == 2
+    assert outputs["has_new"] == "true"
+    assert outputs["new_slugs"] == "grok-imagine-image-3.0"
+    assert outputs["new_resolutions"] == "4k"
+    assert outputs["has_dropped"] == "false"
+    assert pending.read_bytes() == b"{}\n"
+    assert "grok-imagine-image-3.0" not in pending.read_text(encoding="utf-8")
+    assert "4k" not in pending.read_text(encoding="utf-8")
+
+    pending.write_text(
+        watch.dump_pending(
+            {
+                "slugs": {
+                    "grok-retired": {
+                        "first_miss": "2026-11-25T01:00:00Z",
+                        "reported_at": "2026-11-25T01:05:00Z",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    live_gap = {
+        "slugs": ["grok-4.6", "grok-imagine-image-3.0"],
+        "resolutions": ["1k", "4k"],
+    }
+    baseline_gap = {
+        "slugs": ["grok-4.6", "grok-retired"],
+        "resolutions": ["1k"],
+    }
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live_gap, baseline_gap, pending_path=pending
+    )
+    assert code == 2
+    assert outputs["new_slugs"] == "grok-imagine-image-3.0"
+    assert outputs["new_resolutions"] == "4k"
+    assert outputs["dropped_slugs"] == ""
+    text = pending.read_text(encoding="utf-8")
+    assert "grok-imagine-image-3.0" not in text
+    assert "4k" not in text
+    assert "grok-retired" in text
+
+
+def test_xts_c9_prices_failed_still_updates_pending(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        watch.dump_pending({"slugs": {"grok-kept": {"first_miss": "2026-11-25T01:00:00Z"}}}),
+        encoding="utf-8",
+    )
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(
+        json.dumps(
+            {"slugs": ["grok-4.6", "grok-kept", "grok-retired"], "resolutions": ["1k"]}
+        ),
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "out.txt"
+
+    def fake_fetch(url, *, timeout=30.0):
+        return "offline"
+
+    def fake_scan(pages, **kwargs):
+        return {"slugs": ["grok-4.6", "grok-kept"], "resolutions": ["1k"]}
+
+    monkeypatch.setattr(watch, "fetch_text", fake_fetch)
+    monkeypatch.setattr(watch, "scan_pages", fake_scan)
+    monkeypatch.setattr(watch, "write_public_prices", lambda path, pages: None)
+    code = watch.main(
+        [
+            "--baseline",
+            str(baseline_path),
+            "--pending",
+            str(pending),
+            "--github-output",
+            str(output_path),
+            "--write-prices",
+            str(tmp_path / "prices.json"),
+        ]
+    )
+    outputs = _github_outputs(output_path.read_text(encoding="utf-8"))
+    assert code == 1
+    assert outputs["scan_ok"] == "true"
+    assert outputs["has_dropped"] == "false"
+    assert outputs["dropped_slugs"] == ""
+    state = _read_pending(pending)
+    assert "grok-kept" not in state.get("slugs", {})
+    assert set(state["slugs"]["grok-retired"]) == {"first_miss"}
+
+
+def test_xts_c10_clean_scan_writes_empty_object(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    live = {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, dict(live), pending_path=pending
+    )
+    assert code == 0
+    assert outputs["scan_ok"] == "true"
+    assert pending.read_bytes() == b"{}\n"
+
+
+def test_xts_c10_reappearance_rewrites_empty_object(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        watch.dump_pending({"resolutions": {"720p": {"first_miss": "2026-11-25T01:00:00Z"}}}),
+        encoding="utf-8",
+    )
+    live = {"slugs": ["grok-4.6"], "resolutions": ["1k", "720p"]}
+    code, _outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, dict(live), pending_path=pending
+    )
+    assert code == 0
+    assert pending.exists()
+    assert pending.read_bytes() == b"{}\n"
+
+
+def test_xts_c11_second_miss_stays_pending_without_reported_at(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        watch.dump_pending(
+            {
+                "slugs": {"grok-retired": {"first_miss": "2026-11-25T01:00:00Z"}},
+                "resolutions": {"720p": {"first_miss": "2026-11-25T01:00:00Z"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    live = {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+    baseline = {
+        "slugs": ["grok-4.6", "grok-retired"],
+        "resolutions": ["1k", "720p"],
+    }
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code == 2
+    assert outputs["has_dropped"] == "true"
+    state = _read_pending(pending)
+    assert state["slugs"]["grok-retired"] == {"first_miss": "2026-11-25T01:00:00Z"}
+    assert state["resolutions"]["720p"] == {"first_miss": "2026-11-25T01:00:00Z"}
+
+
+def test_xts_c11_reported_token_omitted_from_dropped(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        watch.dump_pending(
+            {
+                "slugs": {
+                    "grok-retired": {
+                        "first_miss": "2026-11-25T01:00:00Z",
+                        "reported_at": "2026-11-25T01:05:00Z",
+                    }
+                },
+                "resolutions": {
+                    "720p": {
+                        "first_miss": "2026-11-25T01:00:00Z",
+                        "reported_at": "2026-11-25T01:05:00Z",
+                    }
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    before = pending.read_bytes()
+    live = {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+    baseline = {
+        "slugs": ["grok-4.6", "grok-retired"],
+        "resolutions": ["1k", "720p"],
+    }
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code == 0
+    assert outputs["dropped_slugs"] == ""
+    assert outputs["dropped_resolutions"] == ""
+    assert outputs["has_dropped"] == "false"
+    assert pending.read_bytes() == before
+
+
+def test_xts_c11_reported_reappearance_and_baseline_drop(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        watch.dump_pending(
+            {
+                "slugs": {
+                    "grok-retired": {
+                        "first_miss": "2026-11-25T01:00:00Z",
+                        "reported_at": "2026-11-25T01:05:00Z",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    live = {"slugs": ["grok-4.6", "grok-retired"], "resolutions": ["1k"]}
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, dict(live), pending_path=pending
+    )
+    assert code == 0
+    assert outputs["has_dropped"] == "false"
+    assert pending.read_bytes() == b"{}\n"
+
+    live_miss = {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+    baseline_miss = {"slugs": ["grok-4.6", "grok-retired"], "resolutions": ["1k"]}
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live_miss, baseline_miss, pending_path=pending
+    )
+    assert code != 2
+    assert outputs["dropped_slugs"] == ""
+    assert set(_read_pending(pending)["slugs"]["grok-retired"]) == {"first_miss"}
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live_miss, baseline_miss, pending_path=pending
+    )
+    assert code == 2
+    assert outputs["dropped_slugs"] == "grok-retired"
+    assert outputs["has_dropped"] == "true"
+
+
+def test_xts_c11_select_unlisted_still_filters_open_issue(tmp_path, capsys) -> None:
+    watch = _load()
+    issues = [
+        {
+            "number": 80,
+            "title": "xAI public docs added models or resolutions",
+            "body": "**Dropped slugs:** `grok-retired`\n**Dropped resolutions:** `none`\n",
+            "comments": "",
+        }
+    ]
+    path = tmp_path / "issues.json"
+    path.write_text(json.dumps(issues), encoding="utf-8")
+    code = watch.main(
+        [
+            "--select-unlisted",
+            "--slugs",
+            "none",
+            "--resolutions",
+            "none",
+            "--dropped-slugs",
+            "grok-retired",
+            "--dropped-resolutions",
+            "none",
+            "--issues-json",
+            str(path),
+        ]
+    )
+    assert code == 0
+    printed = _printed_outputs(capsys.readouterr().out)
+    assert printed["dropped_slugs"] == ""
+    assert printed["has_dropped"] == "false"
+
+
+def test_xts_c13_partial_parse_counts_as_scan(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        watch.dump_pending({"resolutions": {"1080p": {"first_miss": "2026-11-25T01:00:00Z"}}}),
+        encoding="utf-8",
+    )
+    pages = {
+        watch.SLUG_URLS[0]: "see grok-4.6 in the table",
+        watch.SLUG_URLS[1]: "no sku on this page",
+        watch.RESOLUTION_URLS[0]: "frame 1k",
+        watch.RESOLUTION_URLS[1]: "caption only",
+    }
+    _bind_pages(watch, monkeypatch, pages)
+    code, outputs = _run_pages(
+        watch,
+        tmp_path,
+        pages,
+        {"slugs": ["grok-4.6", "grok-retired"], "resolutions": ["1k", "1080p"]},
+        pending,
+    )
+    assert code == 2
+    assert outputs["scan_ok"] == "true"
+    assert outputs["dropped_slugs"] == ""
+    assert outputs["dropped_resolutions"] == "1080p"
+    assert outputs["has_dropped"] == "true"
+    state = _read_pending(pending)
+    assert set(state["slugs"]["grok-retired"]) == {"first_miss"}
+    assert state["resolutions"]["1080p"]["first_miss"] == "2026-11-25T01:00:00Z"
+    assert "reported_at" not in state["resolutions"]["1080p"]
+
+
+def test_xts_c14_mark_reported_sets_utc_reported_at(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        watch.dump_pending(
+            {
+                "slugs": {"grok-retired": {"first_miss": "2026-11-25T01:00:00Z"}},
+                "resolutions": {"720p": {"first_miss": "2026-11-25T01:00:00Z"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(watch, "_utc_now_stamp", lambda: "2026-11-25T02:00:00Z")
+
+    def fail_fetch(url, *, timeout=30.0):
+        raise AssertionError("fetched")
+
+    monkeypatch.setattr(watch, "fetch_text", fail_fetch)
+    code = watch.main(
+        [
+            "--mark-reported",
+            "--pending",
+            str(pending),
+            "--dropped-slugs",
+            "grok-retired,grok-missing",
+            "--dropped-resolutions",
+            "720p",
+        ]
+    )
+    assert code == 0
+    state = _read_pending(pending)
+    assert state["slugs"]["grok-retired"]["first_miss"] == "2026-11-25T01:00:00Z"
+    assert state["slugs"]["grok-retired"]["reported_at"] == "2026-11-25T02:00:00Z"
+    assert state["resolutions"]["720p"]["reported_at"] == "2026-11-25T02:00:00Z"
+    assert "grok-missing" not in state["slugs"]
+    assert _stamp_ok(state["slugs"]["grok-retired"]["reported_at"])
+    assert state["slugs"]["grok-retired"]["reported_at"] >= state["slugs"]["grok-retired"]["first_miss"]
+    text = pending.read_text(encoding="utf-8")
+    assert "true" not in text
+    assert "false" not in text
+    again = text
+    code = watch.main(
+        [
+            "--mark-reported",
+            "--pending",
+            str(pending),
+            "--dropped-slugs",
+            "grok-retired",
+            "--dropped-resolutions",
+            "720p",
+        ]
+    )
+    assert code == 0
+    assert pending.read_text(encoding="utf-8") == again
+
+
+def test_xts_c15_slug_and_resolution_pending_stay_apart(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    live = {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+    baseline = {"slugs": ["grok-4.6", "grok-retired"], "resolutions": ["1k", "720p"]}
+    _run_offline_main(watch, tmp_path, monkeypatch, live, baseline, pending_path=pending)
+    state = _read_pending(pending)
+    assert set(state["slugs"]) == {"grok-retired"}
+    assert set(state["resolutions"]) == {"720p"}
+    assert "720p" not in state["slugs"]
+    assert "grok-retired" not in state["resolutions"]
+
+
+def test_xts_c16_mark_reported_does_not_fetch(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        watch.dump_pending({"slugs": {"grok-retired": {"first_miss": "2026-11-25T01:00:00Z"}}}),
+        encoding="utf-8",
+    )
+
+    def fail_fetch(url, *, timeout=30.0):
+        raise AssertionError("fetched")
+
+    monkeypatch.setattr(watch, "fetch_text", fail_fetch)
+    monkeypatch.setattr(watch, "scan_pages", lambda pages, **kwargs: (_ for _ in ()).throw(AssertionError("scanned")))
+    code = watch.main(
+        [
+            "--mark-reported",
+            "--pending",
+            str(pending),
+            "--dropped-slugs",
+            "grok-retired",
+            "--dropped-resolutions",
+            "",
+        ]
+    )
+    assert code == 0
+    assert "reported_at" in _read_pending(pending)["slugs"]["grok-retired"]
+
+
+def test_xts_failed_filing_retries_next_scan(tmp_path, monkeypatch) -> None:
+    """M26: reported_at set before filing, or without a successful filing, fails this test."""
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    live = {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+    baseline = {"slugs": ["grok-4.6", "grok-retired"], "resolutions": ["1k"]}
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code != 2
+    assert outputs["dropped_slugs"] == ""
+    assert "reported_at" not in pending.read_text(encoding="utf-8")
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code == 2
+    assert outputs["dropped_slugs"] == "grok-retired"
+    assert outputs["has_dropped"] == "true"
+    assert "reported_at" not in _read_pending(pending)["slugs"]["grok-retired"]
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code == 2
+    assert outputs["dropped_slugs"] == "grok-retired"
+    assert "reported_at" not in _read_pending(pending)["slugs"]["grok-retired"]
+    marked = pending.read_text(encoding="utf-8")
+    code = watch.main(
+        [
+            "--mark-reported",
+            "--pending",
+            str(pending),
+            "--dropped-slugs",
+            "grok-retired",
+            "--dropped-resolutions",
+            "",
+        ]
+    )
+    assert code == 0
+    reported_at = _read_pending(pending)["slugs"]["grok-retired"]["reported_at"]
+    assert _stamp_ok(reported_at)
+    assert reported_at >= _read_pending(pending)["slugs"]["grok-retired"]["first_miss"]
+    assert pending.read_text(encoding="utf-8") != marked
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert outputs["dropped_slugs"] == ""
+    assert outputs["has_dropped"] == "false"
+    assert code != 2
+    assert _read_pending(pending)["slugs"]["grok-retired"]["reported_at"] == reported_at
+
+
+def test_xts_malformed_pending_errors(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    cases = {
+        "invalid json": "{",
+        "array": "[]\n",
+        "null": "null\n",
+        "unknown key": '{"extra": {}}\n',
+        "side list": '{"slugs": []}\n',
+        "token string": '{"slugs": {"grok-retired": "x"}}\n',
+        "missing first_miss": '{"slugs": {"grok-retired": {}}}\n',
+        "non-string first_miss": '{"slugs": {"grok-retired": {"first_miss": true}}}\n',
+        "boolean marker": (
+            '{"slugs": {"grok-retired": {"first_miss": "2026-11-25T01:00:00Z", '
+            '"reported": true}}}\n'
+        ),
+    }
+
+    def fail_fetch(url, *, timeout=30.0):
+        raise AssertionError("fetched")
+
+    monkeypatch.setattr(watch, "fetch_text", fail_fetch)
+    for name, body in cases.items():
+        pending = tmp_path / f"{name.replace(' ', '-')}.json"
+        pending.write_text(body, encoding="utf-8")
+        before = pending.read_bytes()
+        baseline_path = tmp_path / f"{name.replace(' ', '-')}-baseline.json"
+        baseline_path.write_bytes(b"KEEP\n")
+        output_path = tmp_path / f"{name.replace(' ', '-')}-out.txt"
+        code = watch.main(
+            [
+                "--baseline",
+                str(baseline_path),
+                "--pending",
+                str(pending),
+                "--github-output",
+                str(output_path),
+                "--write-baseline",
+            ]
+        )
+        assert code == 1, name
+        assert pending.read_bytes() == before, name
+        assert baseline_path.read_bytes() == b"KEEP\n", name
+        assert _github_outputs(output_path.read_text(encoding="utf-8"))["scan_ok"] == "false", name
+
+
+def test_xts_mark_reported_empty_lists_noop(tmp_path, monkeypatch) -> None:
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        watch.dump_pending({"slugs": {"grok-retired": {"first_miss": "2026-11-25T01:00:00Z"}}}),
+        encoding="utf-8",
+    )
+    before = pending.read_bytes()
+
+    def fail_fetch(url, *, timeout=30.0):
+        raise AssertionError("fetched")
+
+    monkeypatch.setattr(watch, "fetch_text", fail_fetch)
+    code = watch.main(
+        [
+            "--mark-reported",
+            "--pending",
+            str(pending),
+            "--dropped-slugs",
+            "",
+            "--dropped-resolutions",
+            "",
+        ]
+    )
+    assert code == 0
+    assert pending.read_bytes() == before
+
+
+def test_xts_c7_pending_dump_is_deterministic() -> None:
+    watch = _load()
+    state = {
+        "slugs": {
+            "grok-retired": {
+                "reported_at": "2026-11-25T02:00:00Z",
+                "first_miss": "2026-11-25T01:00:00Z",
+            }
+        },
+        "resolutions": {"720p": {"first_miss": "2026-11-25T01:00:00Z"}},
+    }
+    first = watch.dump_pending(state)
+    assert first == watch.dump_pending(state)
+    assert first.endswith("\n")
+    assert first != "{}\n"
+    assert watch.dump_pending({}) == "{}\n"
+    parsed = json.loads(first)
+    assert list(parsed) == ["resolutions", "slugs"]
+    assert list(parsed["slugs"]["grok-retired"]) == ["first_miss", "reported_at"]
+    assert "true" not in first
