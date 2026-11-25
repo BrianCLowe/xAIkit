@@ -1,7 +1,11 @@
 """Diff public xAI docs against a committed slug/resolution baseline.
 
-Catches new model ids (Imagine 3.0) and new resolution tokens (4k) without
-an API key. Does not invent knobs — it only prompts a human/kit check.
+A new slug or resolution is reported on the first scan. A baseline id that
+leaves the live docs is a first miss in scripts/data/xai_models_watch_pending.json
+and is reported as a drop only after a second miss. The daily workflow commits
+that file in "Commit watch pending file when the scan changes". A drop stays
+quiet only when a Dropped slugs or Dropped resolutions line lists it. After a
+real knob change, run --write-baseline.
 
     uv run python scripts/watch_xai_models.py
     uv run python scripts/watch_xai_models.py --write-baseline
@@ -318,6 +322,10 @@ _DECLARED_LINE = re.compile(
     r"^\s*\*\*(?:New|Dropped) (?:slugs|resolutions):\*\*\s*`([^`]*)`",
     re.IGNORECASE | re.MULTILINE,
 )
+_DROPPED_DECLARED_LINE = re.compile(
+    r"^\s*\*\*Dropped (?:slugs|resolutions):\*\*\s*`([^`]*)`",
+    re.IGNORECASE | re.MULTILINE,
+)
 
 
 def split_watch_tokens(raw: str) -> list[str]:
@@ -381,15 +389,16 @@ def unlisted_watch_tokens(
 
     New tokens use the base rule: a New slugs/resolutions line, a whole token
     in an issue title, or a whole token in a comment. Dropped tokens are
-    declared only by a New or Dropped line in an issue body. A guard title,
-    guard body, or comment does not declare a dropped token.
+    declared only by a Dropped slugs or Dropped resolutions line in an issue
+    body. A New line, a title, a comment, or a guard issue does not declare
+    a dropped token.
     """
     declared: set[str] = set()
     loose: list[str] = []
     for issue in issues:
         body = str(issue.get("body") or "")
         if dropped:
-            declared.update(declared_watch_tokens(body))
+            declared.update(_line_tokens(body, _DROPPED_DECLARED_LINE))
             continue
         title = str(issue.get("title") or "")
         declared.update(_line_tokens(body, _NEW_DECLARED_LINE))
@@ -975,6 +984,32 @@ def _mark_reported(args: argparse.Namespace) -> int:
     return 0
 
 
+def _format_pending_ids(tokens: set[str]) -> str:
+    if not tokens:
+        return "none"
+    return ",".join(sorted(tokens))
+
+
+def _pending_watch_line(
+    pending: Mapping[str, Mapping[str, Mapping[str, str]]],
+    first_miss: set[tuple[str, str]],
+) -> str:
+    """Name this scan's first misses, then every other id still pending."""
+    first: set[str] = set()
+    still: set[str] = set()
+    for side in ("slugs", "resolutions"):
+        for token in pending.get(side) or {}:
+            if (side, token) in first_miss:
+                first.add(token)
+            else:
+                still.add(token)
+    return (
+        "xAI public docs watch pending: "
+        f"first-miss {_format_pending_ids(first)}; "
+        f"still-absent {_format_pending_ids(still)}"
+    )
+
+
 def _write_watch_outputs(
     path: Path | None,
     *,
@@ -1101,26 +1136,33 @@ def main(argv: list[str] | None = None) -> int:
         "resolutions": res_tokens if res_ok else base_resolutions,
     }
     delta = diff_watch(live_view, baseline)
+    first_miss: set[tuple[str, str]] = set()
     if slug_ok:
+        before_slugs = pending.get("slugs") or {}
         kept, dropped_slugs = _apply_side(
-            pending.get("slugs") or {},
+            before_slugs,
             base_slugs,
             slug_tokens,
             now=now,
             record_misses=True,
         )
+        first_miss.update(("slugs", token) for token in kept if token not in before_slugs)
         _store_side(pending, "slugs", kept)
         new_slugs = delta["slugs"]
     else:
         dropped_slugs = []
         new_slugs = []
     if res_ok:
+        before_res = pending.get("resolutions") or {}
         kept, dropped_resolutions = _apply_side(
-            pending.get("resolutions") or {},
+            before_res,
             base_resolutions,
             res_tokens,
             now=now,
             record_misses=True,
+        )
+        first_miss.update(
+            ("resolutions", token) for token in kept if token not in before_res
         )
         _store_side(pending, "resolutions", kept)
         new_resolutions = delta["resolutions"]
@@ -1138,8 +1180,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     _write_pending(args.pending, pending)
 
-    if not has_new and not has_dropped:
+    if pending.get("slugs") or pending.get("resolutions"):
+        print(_pending_watch_line(pending, first_miss))
+    elif not has_new and not has_dropped:
         print("xAI public docs match the committed watch baseline")
+
+    if not has_new and not has_dropped:
         return 1 if prices_failed else 0
 
     if has_new:
