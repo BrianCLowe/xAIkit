@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import re
 from pathlib import Path
 
@@ -149,6 +150,65 @@ def test_wdi_c07_commit_gate_unchanged() -> None:
     assert "xai_models_watch.json" not in step
     assert "git add scripts/data/xai_public_prices.json" in step
     assert "git push" in step
+
+
+_ISSUE_STEP_SHA = "edb56c2cee0957abd004556429c7eec2320b0db957551def6665f53dd343657b"
+
+
+def test_xts_scan_pending_commit_step() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    step = _step_block(workflow, "Commit watch pending file when the scan changes")
+    condition = _if_line(step)
+    assert condition == "if: ${{ !cancelled() && steps.scan.outputs.scan_ok == 'true' }}"
+    assert "cancelled()" in condition
+    assert "steps.scan.outputs.scan_ok == 'true'" in condition
+    assert "steps.guard" not in step
+    assert "exit_code" not in step
+    assert "git add scripts/data/xai_models_watch_pending.json" in step
+    assert "git diff --cached --quiet" in step
+    assert "git commit" in step
+    assert "git push" in step
+    assert 'git config user.name "github-actions[bot]"' in step
+    assert (
+        'git config user.email "41898282+github-actions[bot]@users.noreply.github.com"'
+        in step
+    )
+    price = _step_block(workflow, "Commit price gap file when the extract changes")
+    assert "xai_models_watch_pending.json" not in price
+    assert "Commit watch pending file when the scan changes" not in price
+    assert step != price
+
+
+def test_xts_mark_reported_step() -> None:
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    step = _step_block(workflow, "Mark reported watch tokens")
+    assert "if: ${{ !cancelled() && steps.issue.outcome == 'success' }}" in step
+    assert "steps.guard" not in step
+    assert "DROPPED_SLUGS: ${{ steps.scan.outputs.dropped_slugs }}" in step
+    assert "DROPPED_RESOLUTIONS: ${{ steps.scan.outputs.dropped_resolutions }}" in step
+    script = step.split("run: |", 1)[1]
+    assert "${{" not in script
+    assert '"$DROPPED_SLUGS"' in script
+    assert '"$DROPPED_RESOLUTIONS"' in script
+    command = (
+        "uv run python scripts/watch_xai_models.py --mark-reported "
+        "--pending scripts/data/xai_models_watch_pending.json "
+        '--dropped-slugs "$DROPPED_SLUGS" '
+        '--dropped-resolutions "$DROPPED_RESOLUTIONS"'
+    )
+    assert command in script
+    assert "git add scripts/data/xai_models_watch_pending.json" in script
+    assert "git diff --cached --quiet" in script
+    assert "git commit" in script
+    assert "git push" in script
+    assert 'git config user.name "github-actions[bot]"' in script
+    issue = _step_block(workflow, "Open issue for tokens not already listed")
+    assert "\n        id: issue\n" in issue
+    stripped = issue.replace("        id: issue\n", "", 1)
+    assert "id:" not in stripped
+    assert hashlib.sha256(stripped.encode()).hexdigest() == _ISSUE_STEP_SHA
+    assert "--select-unlisted" in issue
+    assert "steps.guard" not in step
 
 
 def test_wdi_g7_watcher_tests_assert_output_without_gh() -> None:
