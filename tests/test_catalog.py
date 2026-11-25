@@ -176,7 +176,7 @@ def _live_like_catalog() -> list[ModelInfo]:
             created=1785974400,
         ),
         ModelInfo(
-            id="grok-build-0.1",
+            id="grok-build-test-sku",
             capabilities=["chat", "text"],
             input_per_million=10.0,
             created=1776297600,
@@ -197,7 +197,7 @@ def test_three_intents_on_live_like_lineup() -> None:
     assert best.model_id == "grok-4.6"
     assert best.source == "intent:best"
     # coding SKU is cheaper on paper but excluded from general intents
-    assert cheapest_model(cat) != "grok-build-0.1"
+    assert cheapest_model(cat) != "grok-build-test-sku"
     # grok-4.5 alias grok-build-latest must not exclude the flagship family
     assert best.model_id == "grok-4.6"
 
@@ -238,14 +238,14 @@ def test_intents_overlap_when_lineup_is_thin() -> None:
 def test_coding_only_catalog_still_resolves() -> None:
     cat = [
         ModelInfo(
-            id="grok-build-0.1",
+            id="grok-build-test-sku",
             capabilities=["chat"],
             input_per_million=10.0,
             created=1,
         )
     ]
-    assert resolve_model_selection(intent="cheapest", catalog=cat).model_id == "grok-build-0.1"
-    assert resolve_model_selection(intent="best", catalog=cat).model_id == "grok-build-0.1"
+    assert resolve_model_selection(intent="cheapest", catalog=cat).model_id == "grok-build-test-sku"
+    assert resolve_model_selection(intent="best", catalog=cat).model_id == "grok-build-test-sku"
 
 
 def _mixed_role_catalog() -> list[ModelInfo]:
@@ -289,7 +289,7 @@ def test_role_filters_pool() -> None:
         "grok-voice-latest",
     }
     assert "grok-4.6" in chat_ids
-    assert "grok-build-0.1" not in chat_ids
+    assert "grok-build-test-sku" not in chat_ids
     assert image_ids.isdisjoint(chat_ids)
     assert video_ids.isdisjoint(chat_ids)
     assert voice_ids.isdisjoint(chat_ids)
@@ -315,8 +315,8 @@ def test_role_filters_pool() -> None:
 
 def test_coding_skip_does_not_apply_to_image_video_voice() -> None:
     cat = _mixed_role_catalog()
-    # grok-build-0.1 is cheaper than general chat but skipped for chat only
-    assert resolve_model_selection(intent="cheapest", catalog=cat).model_id != "grok-build-0.1"
+    # grok-build-test-sku is cheaper than general chat but skipped for chat only
+    assert resolve_model_selection(intent="cheapest", catalog=cat).model_id != "grok-build-test-sku"
     image_cheap = resolve_model_selection(intent="cheapest", role="image", catalog=cat)
     assert image_cheap.model_id == "grok-code-fast-image"
     assert image_cheap.source == "intent:cheapest"

@@ -325,14 +325,6 @@ _BASE_RATE_SNAPSHOT: dict[str, dict[str, object]] = {
         "output_long_per_million": 12.0,
         "output_per_million": 6.0,
     },
-    "grok-build-0.1": {
-        "cached_input_long_per_million": 0.4,
-        "cached_input_per_million": 0.2,
-        "input_long_per_million": 2.0,
-        "input_per_million": 1.0,
-        "output_long_per_million": 4.0,
-        "output_per_million": 2.0,
-    },
     "grok-imagine-image": {
         "input_per_million": 0.0,
         "output_per_million": 0.0,
@@ -448,3 +440,75 @@ def test_shipped_image_defaults_match_listed_html_tiers() -> None:
     assert {
         model_id: _present_rates(price) for model_id, price in table.models.items()
     } == _BASE_RATE_SNAPSHOT
+
+
+def test_xpd_c1_default_table_has_no_grok_build_0_1() -> None:
+    assert "grok-build-0.1" not in default_price_table().models
+
+
+def test_xpd_c1_price_for_and_estimate_usd_are_none() -> None:
+    table = default_price_table()
+    assert table.price_for("grok-build-0.1") is None
+    assert (
+        table.estimate_usd(
+            "grok-build-0.1",
+            prompt_tokens=1_000_000,
+            completion_tokens=1_000_000,
+        )
+        is None
+    )
+
+
+def test_xpd_c1_no_prefix_row_resurrects_rates() -> None:
+    """A shorter key must not price grok-build-0.1 at the old $1 / $2 rates."""
+    table = default_price_table()
+    retired = "grok-build-0.1"
+    price = table.price_for(retired)
+    assert price is None
+    for name, row in table.models.items():
+        if name == "default" or not retired.startswith(name):
+            continue
+        rest = retired[len(name) :]
+        if rest != "" and not rest.startswith("-"):
+            continue
+        assert row.input_per_million != 1.0 or row.output_per_million != 2.0
+
+
+def test_xpd_c1b_gap_file_and_record_leave_price_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from xaikit import UsageMeter
+    from xaikit.catalog import clear_catalog_cache, inject_catalog
+    from xaikit.pricing import clear_public_price_cache, price_table_from_public_payload
+
+    gap_path = Path(__file__).resolve().parents[1] / "scripts" / "data" / "xai_public_prices.json"
+    payload = json.loads(gap_path.read_text(encoding="utf-8"))
+    models = payload["models"]
+    assert isinstance(models, dict)
+    assert "grok-build-0.1" not in models
+    gap = price_table_from_public_payload(payload)
+    assert gap is not None
+    assert gap.price_for("grok-build-0.1") is None
+    assert (
+        gap.estimate_usd(
+            "grok-build-0.1",
+            prompt_tokens=1_000_000,
+            completion_tokens=1_000_000,
+        )
+        is None
+    )
+
+    monkeypatch.setattr(
+        "xaikit.pricing.fetch_public_price_payload",
+        lambda url="", timeout=10.0: payload,
+    )
+    inject_catalog(None)
+    clear_catalog_cache()
+    clear_public_price_cache()
+    event = UsageMeter().record(
+        purpose="xpd-c1b",
+        model="grok-build-0.1",
+        prompt_tokens=1_000_000,
+        completion_tokens=1_000_000,
+    )
+    assert event.estimated_usd is None
