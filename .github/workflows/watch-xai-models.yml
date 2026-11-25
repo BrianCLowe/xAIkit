@@ -145,6 +145,9 @@ jobs:
           dropped_slugs="$(printf '%s\n' "$filtered" | sed -n 's/^dropped_slugs=//p')"
           dropped_res="$(printf '%s\n' "$filtered" | sed -n 's/^dropped_resolutions=//p')"
           has_dropped="$(printf '%s\n' "$filtered" | sed -n 's/^has_dropped=//p')"
+          echo "dropped_slugs=${dropped_slugs}" >> "$GITHUB_OUTPUT"
+          echo "dropped_resolutions=${dropped_res}" >> "$GITHUB_OUTPUT"
+          echo "has_dropped=${has_dropped}" >> "$GITHUB_OUTPUT"
           if [ -z "$slugs" ] && [ -z "$res" ] && [ "$has_dropped" != "true" ]; then
             echo "tokens already listed on an open xai-models issue"
             exit 0
@@ -176,8 +179,8 @@ jobs:
       - name: Mark reported watch tokens
         if: ${{ !cancelled() && steps.issue.outcome == 'success' }}
         env:
-          DROPPED_SLUGS: ${{ steps.scan.outputs.dropped_slugs }}
-          DROPPED_RESOLUTIONS: ${{ steps.scan.outputs.dropped_resolutions }}
+          DROPPED_SLUGS: ${{ steps.issue.outputs.dropped_slugs }}
+          DROPPED_RESOLUTIONS: ${{ steps.issue.outputs.dropped_resolutions }}
         run: |
           set -euo pipefail
           uv run python scripts/watch_xai_models.py --mark-reported --pending scripts/data/xai_models_watch_pending.json --dropped-slugs "$DROPPED_SLUGS" --dropped-resolutions "$DROPPED_RESOLUTIONS"

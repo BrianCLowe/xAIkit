@@ -152,7 +152,7 @@ def test_wdi_c07_commit_gate_unchanged() -> None:
     assert "git push" in step
 
 
-_ISSUE_STEP_SHA = "edb56c2cee0957abd004556429c7eec2320b0db957551def6665f53dd343657b"
+_ISSUE_STEP_SHA = "36c21169f5a2042bba23dcf2f42ae99d807bd836eabb0ca7eb7336d2fe8fd62a"
 
 
 def test_xts_scan_pending_commit_step() -> None:
@@ -184,8 +184,9 @@ def test_xts_mark_reported_step() -> None:
     step = _step_block(workflow, "Mark reported watch tokens")
     assert "if: ${{ !cancelled() && steps.issue.outcome == 'success' }}" in step
     assert "steps.guard" not in step
-    assert "DROPPED_SLUGS: ${{ steps.scan.outputs.dropped_slugs }}" in step
-    assert "DROPPED_RESOLUTIONS: ${{ steps.scan.outputs.dropped_resolutions }}" in step
+    assert "DROPPED_SLUGS: ${{ steps.issue.outputs.dropped_slugs }}" in step
+    assert "DROPPED_RESOLUTIONS: ${{ steps.issue.outputs.dropped_resolutions }}" in step
+    assert "steps.scan.outputs" not in step
     script = step.split("run: |", 1)[1]
     assert "${{" not in script
     assert '"$DROPPED_SLUGS"' in script
@@ -204,6 +205,16 @@ def test_xts_mark_reported_step() -> None:
     assert 'git config user.name "github-actions[bot]"' in script
     issue = _step_block(workflow, "Open issue for tokens not already listed")
     assert "\n        id: issue\n" in issue
+    early = issue.index(
+        'if [ -z "$slugs" ] && [ -z "$res" ] && [ "$has_dropped" != "true" ]'
+    )
+    for line in (
+        'echo "dropped_slugs=${dropped_slugs}" >> "$GITHUB_OUTPUT"',
+        'echo "dropped_resolutions=${dropped_res}" >> "$GITHUB_OUTPUT"',
+        'echo "has_dropped=${has_dropped}" >> "$GITHUB_OUTPUT"',
+    ):
+        assert line in issue
+        assert issue.index(line) < early
     stripped = issue.replace("        id: issue\n", "", 1)
     assert "id:" not in stripped
     assert hashlib.sha256(stripped.encode()).hexdigest() == _ISSUE_STEP_SHA

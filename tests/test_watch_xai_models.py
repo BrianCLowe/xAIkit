@@ -560,9 +560,14 @@ def test_main_writes_dropped_outputs_and_exits_2(tmp_path, monkeypatch, capsys) 
     assert outputs["new_slugs"] == ""
     assert outputs["new_resolutions"] == ""
     stdout = capsys.readouterr().out
-    assert "grok-retired" not in stdout
-    assert "720p" not in stdout
     assert "Dropped xAI public-docs tokens" not in stdout
+    assert "dropped slugs:" not in stdout
+    assert "dropped resolutions:" not in stdout
+    assert "xAI public docs match the committed watch baseline" not in stdout
+    assert (
+        "xAI public docs watch pending: first-miss 720p,grok-retired; still-absent none"
+        in stdout
+    )
 
 
 def test_main_no_drop_outputs_false_and_exits_0(tmp_path, monkeypatch, capsys) -> None:
@@ -612,10 +617,14 @@ def test_main_new_and_dropped_both_reported(tmp_path, monkeypatch, capsys) -> No
     stdout = capsys.readouterr().out
     assert "New xAI public-docs signals" in stdout
     assert "Dropped xAI public-docs tokens" not in stdout
+    assert "dropped slugs:" not in stdout
+    assert "dropped resolutions:" not in stdout
     assert "grok-imagine-image-3.0" in stdout
     assert "4k" in stdout
-    assert "grok-retired" not in stdout
-    assert "720p" not in stdout
+    assert (
+        "xAI public docs watch pending: first-miss 720p,grok-retired; still-absent none"
+        in stdout
+    )
 
 
 def test_committed_baseline_has_current_public_table() -> None:
@@ -1692,3 +1701,343 @@ def test_xts_c7_pending_dump_is_deterministic() -> None:
     assert list(parsed) == ["resolutions", "slugs"]
     assert list(parsed["slugs"]["grok-retired"]) == ["first_miss", "reported_at"]
     assert "true" not in first
+
+
+def test_xnf_c1_new_slugs_line_does_not_file_a_drop() -> None:
+    """A dropped id that appears only on a New slugs line is not already filed."""
+    watch = _load()
+    issues = [
+        {
+            "number": 11,
+            "title": "xAI public docs added models or resolutions",
+            "body": (
+                "**New slugs:** `grok-retired`\n"
+                "**New resolutions:** `none`\n"
+                "**Dropped slugs:** `none`\n"
+                "**Dropped resolutions:** `none`\n"
+            ),
+            "comments": "",
+        }
+    ]
+    assert watch.unlisted_watch_tokens(["grok-retired"], issues, dropped=True) == [
+        "grok-retired"
+    ]
+
+
+def test_xnf_c1_new_resolutions_line_does_not_file_a_drop() -> None:
+    """A dropped id that appears only on a New resolutions line is not already filed."""
+    watch = _load()
+    issues = [
+        {
+            "number": 12,
+            "title": "xAI public docs added models or resolutions",
+            "body": (
+                "**New slugs:** `none`\n"
+                "**New resolutions:** `720p`\n"
+                "**Dropped slugs:** `none`\n"
+                "**Dropped resolutions:** `none`\n"
+            ),
+            "comments": "",
+        }
+    ]
+    assert watch.unlisted_watch_tokens(["720p"], issues, dropped=True) == ["720p"]
+
+
+def test_xnf_c1_title_comment_guard_do_not_file_a_drop() -> None:
+    """A title, a comment, a guard issue, or a New line does not file a drop."""
+    watch = _load()
+    token = "grok-retired"
+    title_only = {
+        "number": 1,
+        "title": f"flagship {token}",
+        "body": "**New slugs:** `none`\n**Dropped slugs:** `none`\n",
+        "comments": "",
+    }
+    comment_only = {
+        "number": 2,
+        "title": "xAI public docs added models or resolutions",
+        "body": "**Dropped slugs:** `none`\n",
+        "comments": f"still seeing {token}",
+    }
+    guard = {
+        "number": 3,
+        "title": f"xAI shipped image price guard failed: {token}",
+        "body": (
+            "The watcher extract is missing a shipped image id "
+            f"or its per_call_usd does not match the shipped default.\n\n- {token}\n"
+        ),
+        "comments": f"ping {token}",
+    }
+    new_line = {
+        "number": 4,
+        "title": token,
+        "body": f"**New slugs:** `{token}`\n",
+        "comments": token,
+    }
+    assert watch.unlisted_watch_tokens([token], [title_only], dropped=True) == [token]
+    assert watch.unlisted_watch_tokens([token], [comment_only], dropped=True) == [token]
+    assert watch.unlisted_watch_tokens([token], [guard], dropped=True) == [token]
+    assert watch.unlisted_watch_tokens(
+        [token], [title_only, comment_only, guard, new_line], dropped=True
+    ) == [token]
+
+
+def test_xnf_c2_mark_reported_skips_unfiled_new_slugs_hit(tmp_path, monkeypatch, capsys) -> None:
+    """A New slugs hit is not a Dropped-line filing, so reported_at stays unset."""
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        watch.dump_pending(
+            {"slugs": {"grok-retired": {"first_miss": "2026-11-25T01:00:00Z"}}}
+        ),
+        encoding="utf-8",
+    )
+    before = pending.read_bytes()
+    issues = [
+        {
+            "number": 21,
+            "title": "xAI public docs added models or resolutions",
+            "body": (
+                "**New slugs:** `grok-retired`\n"
+                "**New resolutions:** `none`\n"
+                "**Dropped slugs:** `none`\n"
+                "**Dropped resolutions:** `none`\n"
+            ),
+            "comments": "",
+        }
+    ]
+    path = tmp_path / "issues.json"
+    path.write_text(json.dumps(issues), encoding="utf-8")
+
+    def fail_fetch(url, *, timeout=30.0):
+        raise AssertionError("fetched")
+
+    monkeypatch.setattr(watch, "fetch_text", fail_fetch)
+    code = watch.main(
+        [
+            "--select-unlisted",
+            "--slugs",
+            "none",
+            "--resolutions",
+            "none",
+            "--dropped-slugs",
+            "grok-retired",
+            "--dropped-resolutions",
+            "none",
+            "--issues-json",
+            str(path),
+        ]
+    )
+    assert code == 0
+    printed = _printed_outputs(capsys.readouterr().out)
+    assert printed["dropped_slugs"] == "grok-retired"
+    assert printed["has_dropped"] == "true"
+    code = watch.main(
+        [
+            "--mark-reported",
+            "--pending",
+            str(pending),
+            "--dropped-slugs",
+            "",
+            "--dropped-resolutions",
+            "",
+        ]
+    )
+    assert code == 0
+    assert pending.read_bytes() == before
+    assert "reported_at" not in pending.read_text(encoding="utf-8")
+
+
+def test_xnf_c2_next_scan_retries_until_filed(tmp_path, monkeypatch, capsys) -> None:
+    """Until a drop is filed, the next scan still reports the id."""
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    live = {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+    baseline = {"slugs": ["grok-4.6", "grok-retired"], "resolutions": ["1k"]}
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code == 0
+    assert outputs["dropped_slugs"] == ""
+    assert "reported_at" not in pending.read_text(encoding="utf-8")
+    capsys.readouterr()
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code == 2
+    assert outputs["dropped_slugs"] == "grok-retired"
+    assert "reported_at" not in _read_pending(pending)["slugs"]["grok-retired"]
+    capsys.readouterr()
+
+    issues = [
+        {
+            "number": 22,
+            "title": "xAI public docs added models or resolutions",
+            "body": "**New slugs:** `grok-retired`\n**Dropped slugs:** `none`\n",
+            "comments": "",
+        }
+    ]
+    path = tmp_path / "issues.json"
+    path.write_text(json.dumps(issues), encoding="utf-8")
+    code = watch.main(
+        [
+            "--select-unlisted",
+            "--slugs",
+            "none",
+            "--resolutions",
+            "none",
+            "--dropped-slugs",
+            "grok-retired",
+            "--dropped-resolutions",
+            "none",
+            "--issues-json",
+            str(path),
+        ]
+    )
+    assert code == 0
+    printed = _printed_outputs(capsys.readouterr().out)
+    assert printed["dropped_slugs"] == "grok-retired"
+    assert "reported_at" not in _read_pending(pending)["slugs"]["grok-retired"]
+
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code == 2
+    assert outputs["dropped_slugs"] == "grok-retired"
+    assert "reported_at" not in _read_pending(pending)["slugs"]["grok-retired"]
+    capsys.readouterr()
+
+    code = watch.main(
+        [
+            "--mark-reported",
+            "--pending",
+            str(pending),
+            "--dropped-slugs",
+            "grok-retired",
+            "--dropped-resolutions",
+            "",
+        ]
+    )
+    assert code == 0
+    assert "reported_at" in _read_pending(pending)["slugs"]["grok-retired"]
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert outputs["dropped_slugs"] == ""
+    assert outputs["has_dropped"] == "false"
+    assert code != 2
+
+
+def test_xnf_c3_first_miss_log_names_pending_ids(tmp_path, monkeypatch, capsys) -> None:
+    """Row: baseline grok-4.6, grok-a, grok-b. Scan 1 omits grok-a. Scan 2 restores it and omits grok-b."""
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    baseline = {
+        "slugs": ["grok-4.6", "grok-a", "grok-b"],
+        "resolutions": ["1k"],
+    }
+    code, outputs = _run_offline_main(
+        watch,
+        tmp_path,
+        monkeypatch,
+        {"slugs": ["grok-4.6", "grok-b"], "resolutions": ["1k"]},
+        baseline,
+        pending_path=pending,
+    )
+    stdout = capsys.readouterr().out
+    assert code == 0
+    assert outputs["has_dropped"] == "false"
+    assert outputs["dropped_slugs"] == ""
+    assert "xAI public docs match the committed watch baseline" not in stdout
+    assert (
+        "xAI public docs watch pending: first-miss grok-a; still-absent none" in stdout
+    )
+    assert set(_read_pending(pending)["slugs"]) == {"grok-a"}
+
+    code, outputs = _run_offline_main(
+        watch,
+        tmp_path,
+        monkeypatch,
+        {"slugs": ["grok-4.6", "grok-a"], "resolutions": ["1k"]},
+        baseline,
+        pending_path=pending,
+    )
+    stdout = capsys.readouterr().out
+    assert code == 0
+    assert outputs["has_dropped"] == "false"
+    assert outputs["dropped_slugs"] == ""
+    assert "xAI public docs match the committed watch baseline" not in stdout
+    assert (
+        "xAI public docs watch pending: first-miss grok-b; still-absent none" in stdout
+    )
+    assert "grok-a" not in stdout
+    assert set(_read_pending(pending)["slugs"]) == {"grok-b"}
+
+
+def test_xnf_c3_mixed_and_still_absent_log(tmp_path, monkeypatch, capsys) -> None:
+    """A second-miss id emitted in dropped_* is still-absent, not first-miss."""
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        watch.dump_pending(
+            {
+                "resolutions": {
+                    "720p": {
+                        "first_miss": "2026-11-25T01:00:00Z",
+                        "reported_at": "2026-11-25T01:05:00Z",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    baseline = {
+        "slugs": ["grok-4.6", "grok-a", "grok-b"],
+        "resolutions": ["1k", "720p"],
+    }
+    code, outputs = _run_offline_main(
+        watch,
+        tmp_path,
+        monkeypatch,
+        {"slugs": ["grok-4.6", "grok-b"], "resolutions": ["1k"]},
+        baseline,
+        pending_path=pending,
+    )
+    stdout = capsys.readouterr().out
+    assert code == 0
+    assert outputs["has_dropped"] == "false"
+    assert outputs["dropped_slugs"] == ""
+    assert "xAI public docs match the committed watch baseline" not in stdout
+    assert (
+        "xAI public docs watch pending: first-miss grok-a; still-absent 720p" in stdout
+    )
+
+    code, outputs = _run_offline_main(
+        watch,
+        tmp_path,
+        monkeypatch,
+        {"slugs": ["grok-4.6"], "resolutions": ["1k"]},
+        baseline,
+        pending_path=pending,
+    )
+    stdout = capsys.readouterr().out
+    assert code == 2
+    assert outputs["dropped_slugs"] == "grok-a"
+    assert "grok-b" not in outputs["dropped_slugs"].split(",")
+    assert outputs["dropped_resolutions"] == ""
+    assert outputs["has_dropped"] == "true"
+    assert "xAI public docs match the committed watch baseline" not in stdout
+    logged = next(
+        line
+        for line in stdout.splitlines()
+        if line.startswith("xAI public docs watch pending:")
+    )
+    assert logged == (
+        "xAI public docs watch pending: first-miss grok-b; still-absent 720p,grok-a"
+    )
+    first_part, still_part = logged.split("; still-absent ", 1)
+    assert "grok-a" not in first_part
+    assert "grok-a" in still_part
+    assert outputs["dropped_slugs"] == "grok-a"
+    assert "Dropped xAI public-docs tokens" in stdout
+    assert "dropped slugs:" in stdout

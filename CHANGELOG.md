@@ -2,6 +2,12 @@
 
 All notable changes to xaikit-py. Newest entry on top.
 
+## Unreleased
+
+### Fixed
+
+- The model watcher baseline no longer lists retired slugs that left the public docs (#138). New ids are reported on the first scan. A dropped slug or resolution is reported only after a second miss, and `scripts/data/xai_models_watch_pending.json` is committed by the workflow step "Commit watch pending file when the scan changes" (#139). A drop stays quiet only when a Dropped line lists that id, and `reported_at` is stamped only for an id written on a Dropped line of a drop issue on that run. A scan with any pending id logs the first-miss and still-absent ids instead of the committed-baseline match line.
+
 ## 0.5.2 (2026-11-10)
 
 ### Changed
