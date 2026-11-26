@@ -2041,3 +2041,118 @@ def test_xnf_c3_mixed_and_still_absent_log(tmp_path, monkeypatch, capsys) -> Non
     assert outputs["dropped_slugs"] == "grok-a"
     assert "Dropped xAI public-docs tokens" in stdout
     assert "dropped slugs:" in stdout
+
+
+def _watch_pages(watch, slug_text: str, resolution_text: str) -> dict[str, str]:
+    return {
+        watch.SLUG_URLS[0]: slug_text,
+        watch.SLUG_URLS[1]: slug_text,
+        watch.RESOLUTION_URLS[0]: resolution_text,
+        watch.RESOLUTION_URLS[1]: resolution_text,
+    }
+
+
+def _pending_lines(stdout: str) -> list[str]:
+    return [
+        line
+        for line in stdout.splitlines()
+        if line.startswith("xAI public docs watch pending:")
+    ]
+
+
+def test_xnu_c1_c3_failed_slug_side_pending_is_unscanned_not_still_absent(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """C1 and C3: a slug-only pending id is unscanned when slug pages do not parse."""
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    seeded = {"slugs": {"grok-retired": {"first_miss": "2026-11-25T01:00:00Z"}}}
+    pending.write_text(watch.dump_pending(seeded), encoding="utf-8")
+    before = pending.read_bytes()
+    pages = _watch_pages(watch, "no model sku here", "frame 1k")
+    _bind_pages(watch, monkeypatch, pages)
+    code, _outputs = _run_pages(
+        watch,
+        tmp_path,
+        pages,
+        {"slugs": ["grok-4.6", "grok-retired"], "resolutions": ["1k"]},
+        pending,
+    )
+    stdout = capsys.readouterr().out
+    assert "still-absent grok-retired" not in stdout
+    assert "first-miss grok-retired" not in stdout
+    assert _pending_lines(stdout) == []
+    assert "first-miss none; still-absent none" not in stdout
+    assert "xAI public docs match the committed watch baseline" in stdout
+    assert "xAI public docs watch unscanned: slugs skipped" in stdout
+    assert code == 0
+    assert pending.read_bytes() == before
+
+
+def test_xnu_c1_failed_resolution_side_pending_is_unscanned_not_still_absent(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """A resolution-only pending id is unscanned when resolution pages do not parse."""
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    seeded = {"resolutions": {"720p": {"first_miss": "2026-11-25T01:00:00Z"}}}
+    pending.write_text(watch.dump_pending(seeded), encoding="utf-8")
+    before = pending.read_bytes()
+    pages = _watch_pages(watch, "grok-4.6", "no frame size")
+    _bind_pages(watch, monkeypatch, pages)
+    code, _outputs = _run_pages(
+        watch,
+        tmp_path,
+        pages,
+        {"slugs": ["grok-4.6"], "resolutions": ["1k", "720p"]},
+        pending,
+    )
+    stdout = capsys.readouterr().out
+    assert "still-absent 720p" not in stdout
+    assert "first-miss 720p" not in stdout
+    assert _pending_lines(stdout) == []
+    assert "first-miss none; still-absent none" not in stdout
+    assert "xAI public docs match the committed watch baseline" in stdout
+    assert "xAI public docs watch unscanned: resolutions skipped" in stdout
+    assert code == 0
+    assert pending.read_bytes() == before
+
+
+def test_xnu_c1_scanned_pending_line_omits_unscanned_side_id(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """A scanned-side first miss stays on the pending line; the failed-side id does not."""
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    seeded = {"slugs": {"grok-retired": {"first_miss": "2026-11-25T01:00:00Z"}}}
+    pending.write_text(watch.dump_pending(seeded), encoding="utf-8")
+    before = pending.read_text(encoding="utf-8")
+    pages = _watch_pages(watch, "no model sku here", "frame 1k")
+    _bind_pages(watch, monkeypatch, pages)
+    code, _outputs = _run_pages(
+        watch,
+        tmp_path,
+        pages,
+        {"slugs": ["grok-4.6", "grok-retired"], "resolutions": ["1k", "720p"]},
+        pending,
+    )
+    stdout = capsys.readouterr().out
+    pending_lines = _pending_lines(stdout)
+    assert len(pending_lines) == 1
+    logged = pending_lines[0]
+    first_part, still_part = logged.split("; still-absent ", 1)
+    assert "grok-retired" not in first_part
+    assert "grok-retired" not in still_part
+    assert logged == (
+        "xAI public docs watch pending: first-miss 720p; still-absent none"
+    )
+    assert "xAI public docs watch unscanned: slugs skipped" in stdout
+    assert "xAI public docs match the committed watch baseline" not in stdout
+    assert code == 0
+    after = pending.read_text(encoding="utf-8")
+    assert json.dumps(json.loads(after)["slugs"], sort_keys=True) == json.dumps(
+        json.loads(before)["slugs"], sort_keys=True
+    )
+    slug_entry = '"grok-retired": {\n      "first_miss": "2026-11-25T01:00:00Z"\n    }'
+    assert slug_entry in before
+    assert slug_entry in after
