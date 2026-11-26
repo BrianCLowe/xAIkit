@@ -46,7 +46,16 @@ _CHAT_EXTRAS = [
     "x_video_understanding",
     "mcp",
 ]
-_WATCH_CHAT_46 = frozenset({"grok-4-6", "grok-4-7", "grok-4.6", "grok-4.7"})
+_WATCH_CHAT_46 = frozenset(
+    {
+        "grok-4-6",
+        "grok-4-7",
+        "grok-4.6",
+        "grok-4.6-latest",
+        "grok-4.7",
+        "grok-4.7-latest",
+    }
+)
 _WATCH_BATCH = frozenset({"grok-4.3", "grok-4.3-latest"})
 _WATCH_QUALITY = frozenset({"grok-imagine-video"})
 _WATCH_15 = frozenset(
@@ -87,8 +96,8 @@ def _assert_best(catalog: list[ModelInfo], role: str, want: str) -> None:
 def _watch_slugs() -> list[str]:
     payload = json.loads(_WATCH_PATH.read_text(encoding="utf-8"))
     slugs = [str(slug) for slug in payload["slugs"]]
-    assert len(slugs) == 51
-    assert len(set(slugs)) == 51
+    assert len(slugs) == 53
+    assert len(set(slugs)) == 53
     return slugs
 
 
