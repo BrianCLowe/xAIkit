@@ -993,11 +993,21 @@ def _format_pending_ids(tokens: set[str]) -> str:
 def _pending_watch_line(
     pending: Mapping[str, Mapping[str, Mapping[str, str]]],
     first_miss: set[tuple[str, str]],
+    *,
+    slug_ok: bool,
+    res_ok: bool,
 ) -> str:
-    """Name this scan's first misses, then every other id still pending."""
+    """Name this scan's first misses, then other pending ids on scanned sides."""
+    scanned = {
+        side
+        for side, ok in (("slugs", slug_ok), ("resolutions", res_ok))
+        if ok
+    }
     first: set[str] = set()
     still: set[str] = set()
     for side in ("slugs", "resolutions"):
+        if side not in scanned:
+            continue
         for token in pending.get(side) or {}:
             if (side, token) in first_miss:
                 first.add(token)
@@ -1180,10 +1190,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     _write_pending(args.pending, pending)
 
-    if pending.get("slugs") or pending.get("resolutions"):
-        print(_pending_watch_line(pending, first_miss))
+    pending_line = _pending_watch_line(
+        pending, first_miss, slug_ok=slug_ok, res_ok=res_ok
+    )
+    # An empty classification is "none; none". Do not print that line.
+    # Failed-side carry-over is not first-miss or still-absent.
+    scanned_has_pending = pending_line != (
+        "xAI public docs watch pending: first-miss none; still-absent none"
+    )
+    if scanned_has_pending:
+        print(pending_line)
     elif not has_new and not has_dropped:
         print("xAI public docs match the committed watch baseline")
+    if not slug_ok:
+        print("xAI public docs watch unscanned: slugs skipped")
+    if not res_ok:
+        print("xAI public docs watch unscanned: resolutions skipped")
 
     if not has_new and not has_dropped:
         return 1 if prices_failed else 0
