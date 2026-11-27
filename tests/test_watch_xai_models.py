@@ -149,6 +149,7 @@ def test_already_reported_drop_opens_no_new_issue(tmp_path, capsys) -> None:
             "--dropped-slugs", "grok-retired",
             "--dropped-resolutions", "720p",
             "--issues-json", str(path),
+            "--pending", str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -167,6 +168,7 @@ def test_already_reported_drop_opens_no_new_issue(tmp_path, capsys) -> None:
             "--dropped-slugs", "grok-legacy",
             "--dropped-resolutions", "4k",
             "--issues-json", str(path),
+            "--pending", str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -210,6 +212,7 @@ def test_guard_issue_title_does_not_suppress_dropped_token(tmp_path, capsys) -> 
             "--dropped-slugs", dropped,
             "--dropped-resolutions", "none",
             "--issues-json", str(path),
+            "--pending", str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -240,6 +243,7 @@ def test_guard_issue_title_does_not_suppress_dropped_token(tmp_path, capsys) -> 
             "--dropped-slugs", dropped,
             "--dropped-resolutions", "none",
             "--issues-json", str(path),
+            "--pending", str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -262,6 +266,8 @@ def test_select_unlisted_cli_prints_only_new_tokens(tmp_path, capsys) -> None:
             "--resolutions", "4k",
             "--issues-json",
             str(path),
+            "--pending",
+            str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -1420,6 +1426,8 @@ def test_xts_c11_select_unlisted_still_filters_open_issue(tmp_path, capsys) -> N
             "none",
             "--issues-json",
             str(path),
+            "--pending",
+            str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -1826,6 +1834,8 @@ def test_xnf_c2_mark_reported_skips_unfiled_new_slugs_hit(tmp_path, monkeypatch,
             "none",
             "--issues-json",
             str(path),
+            "--pending",
+            str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -1892,6 +1902,8 @@ def test_xnf_c2_next_scan_retries_until_filed(tmp_path, monkeypatch, capsys) -> 
             "none",
             "--issues-json",
             str(path),
+            "--pending",
+            str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -2381,3 +2393,160 @@ def test_xdr_c4_select_unlisted_malformed_pending_keeps_outputs(tmp_path, capsys
         "has_dropped": "true",
     }
     assert pending.read_text(encoding="utf-8") == "{"
+
+
+def test_b6_select_unlisted_leaves_committed_pending_file(tmp_path, capsys) -> None:
+    """B6: the existing select-unlisted calls stamp a tmp pending file.
+
+    The committed scripts/data/xai_models_watch_pending.json stays byte-identical.
+    """
+    watch = _load()
+    committed = ROOT / "scripts" / "data" / "xai_models_watch_pending.json"
+    assert committed == watch.PENDING_PATH
+    before = committed.read_bytes()
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        json.dumps(
+            {
+                "resolutions": {"720p": {"first_miss": "2026-11-25T01:00:00Z"}},
+                "slugs": {
+                    "grok-imagine-image-2.0": {"first_miss": "2026-11-25T01:00:00Z"},
+                    "grok-retired": {"first_miss": "2026-11-25T01:00:00Z"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    issues_path = tmp_path / "issues.json"
+
+    def run(issues: list, extra: list[str]) -> None:
+        issues_path.write_text(json.dumps(issues), encoding="utf-8")
+        code = watch.main(
+            [
+                "--select-unlisted",
+                "--pending",
+                str(pending),
+                "--issues-json",
+                str(issues_path),
+                *extra,
+            ]
+        )
+        assert code == 0
+        capsys.readouterr()
+
+    listed_body = (
+        "**New slugs:** `none`\n"
+        "**New resolutions:** `none`\n"
+        "**Dropped slugs:** `grok-retired`\n"
+        "**Dropped resolutions:** `720p`\n"
+    )
+    listed = [
+        {
+            "number": 80,
+            "title": "xAI public docs added models or resolutions",
+            "body": listed_body,
+            "comments": "",
+        }
+    ]
+    run(
+        listed,
+        [
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", "grok-retired",
+            "--dropped-resolutions", "720p",
+        ],
+    )
+    run(
+        listed,
+        [
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", "grok-legacy",
+            "--dropped-resolutions", "4k",
+        ],
+    )
+    dropped = "grok-imagine-image-2.0"
+    guard = {
+        "number": 90,
+        "title": f"xAI shipped image price guard failed: {dropped}",
+        "body": f"- {dropped}\n",
+        "comments": f"ping {dropped}",
+    }
+    run(
+        [guard],
+        [
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", dropped,
+            "--dropped-resolutions", "none",
+        ],
+    )
+    reported = {
+        "number": 80,
+        "title": f"xAI public docs added models or resolutions {dropped}",
+        "body": (
+            f"**Dropped slugs:** `{dropped}`\n"
+            "**Dropped resolutions:** `none`\n"
+        ),
+        "comments": "",
+    }
+    run(
+        [guard, reported],
+        [
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", dropped,
+            "--dropped-resolutions", "none",
+        ],
+    )
+    run(
+        [
+            {
+                "number": 57,
+                "title": "watch",
+                "body": "**New slugs:** `grok-4.6`",
+                "comments": "",
+            }
+        ],
+        ["--slugs", "grok-4.6,grok-4.7,none", "--resolutions", "4k"],
+    )
+    dropped_line = [
+        {
+            "number": 80,
+            "title": "xAI public docs added models or resolutions",
+            "body": "**Dropped slugs:** `grok-retired`\n**Dropped resolutions:** `none`\n",
+            "comments": "",
+        }
+    ]
+    run(
+        dropped_line,
+        [
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", "grok-retired",
+            "--dropped-resolutions", "none",
+        ],
+    )
+    new_line = [
+        {
+            "number": 21,
+            "title": "xAI public docs added models or resolutions",
+            "body": "**New slugs:** `grok-retired`\n**Dropped slugs:** `none`\n",
+            "comments": "",
+        }
+    ]
+    new_args = [
+        "--slugs", "none",
+        "--resolutions", "none",
+        "--dropped-slugs", "grok-retired",
+        "--dropped-resolutions", "none",
+    ]
+    run(new_line, new_args)
+    run(new_line, new_args)
+
+    assert committed.read_bytes() == before
+    state = _read_pending(pending)
+    assert "reported_at" in state["slugs"]["grok-retired"]
+    assert "reported_at" in state["resolutions"]["720p"]
+    assert "reported_at" in state["slugs"]["grok-imagine-image-2.0"]
