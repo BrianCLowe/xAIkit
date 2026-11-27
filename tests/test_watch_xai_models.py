@@ -149,6 +149,7 @@ def test_already_reported_drop_opens_no_new_issue(tmp_path, capsys) -> None:
             "--dropped-slugs", "grok-retired",
             "--dropped-resolutions", "720p",
             "--issues-json", str(path),
+            "--pending", str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -167,6 +168,7 @@ def test_already_reported_drop_opens_no_new_issue(tmp_path, capsys) -> None:
             "--dropped-slugs", "grok-legacy",
             "--dropped-resolutions", "4k",
             "--issues-json", str(path),
+            "--pending", str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -210,6 +212,7 @@ def test_guard_issue_title_does_not_suppress_dropped_token(tmp_path, capsys) -> 
             "--dropped-slugs", dropped,
             "--dropped-resolutions", "none",
             "--issues-json", str(path),
+            "--pending", str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -240,6 +243,7 @@ def test_guard_issue_title_does_not_suppress_dropped_token(tmp_path, capsys) -> 
             "--dropped-slugs", dropped,
             "--dropped-resolutions", "none",
             "--issues-json", str(path),
+            "--pending", str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -262,6 +266,8 @@ def test_select_unlisted_cli_prints_only_new_tokens(tmp_path, capsys) -> None:
             "--resolutions", "4k",
             "--issues-json",
             str(path),
+            "--pending",
+            str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -1420,6 +1426,8 @@ def test_xts_c11_select_unlisted_still_filters_open_issue(tmp_path, capsys) -> N
             "none",
             "--issues-json",
             str(path),
+            "--pending",
+            str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -1826,6 +1834,8 @@ def test_xnf_c2_mark_reported_skips_unfiled_new_slugs_hit(tmp_path, monkeypatch,
             "none",
             "--issues-json",
             str(path),
+            "--pending",
+            str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -1892,6 +1902,8 @@ def test_xnf_c2_next_scan_retries_until_filed(tmp_path, monkeypatch, capsys) -> 
             "none",
             "--issues-json",
             str(path),
+            "--pending",
+            str(tmp_path / "pending.json"),
         ]
     )
     assert code == 0
@@ -2156,3 +2168,385 @@ def test_xnu_c1_scanned_pending_line_omits_unscanned_side_id(
     slug_entry = '"grok-retired": {\n      "first_miss": "2026-11-25T01:00:00Z"\n    }'
     assert slug_entry in before
     assert slug_entry in after
+
+
+_XDR_SEEDED = "2026-11-25T01:00:00Z"
+
+
+def _xdr_seed(pending: Path, slugs=(), resolutions=()) -> None:
+    state: dict = {}
+    if slugs:
+        state["slugs"] = {token: {"first_miss": _XDR_SEEDED} for token in slugs}
+    if resolutions:
+        state["resolutions"] = {token: {"first_miss": _XDR_SEEDED} for token in resolutions}
+    pending.write_text(json.dumps(state), encoding="utf-8")
+
+
+def _xdr_select_unlisted(watch, tmp_path, capsys, outputs: dict, issues: list, pending=None) -> dict:
+    """The issue step's --select-unlisted call. pending=None uses the default path, as the workflow does."""
+    issues_path = tmp_path / "xdr_issues.json"
+    issues_path.write_text(json.dumps(issues), encoding="utf-8")
+    argv = [
+        "--select-unlisted",
+        "--slugs", outputs.get("new_slugs", ""),
+        "--resolutions", outputs.get("new_resolutions", ""),
+        "--dropped-slugs", outputs.get("dropped_slugs", ""),
+        "--dropped-resolutions", outputs.get("dropped_resolutions", ""),
+        "--issues-json", str(issues_path),
+    ]
+    if pending is not None:
+        argv.extend(["--pending", str(pending)])
+    capsys.readouterr()
+    code = watch.main(argv)
+    assert code == 0
+    return _printed_outputs(capsys.readouterr().out)
+
+
+def _xdr_mark(watch, pending: Path, printed: dict) -> None:
+    """The mark step: --mark-reported with the issue step's filtered outputs."""
+    code = watch.main(
+        [
+            "--mark-reported",
+            "--pending", str(pending),
+            "--dropped-slugs", printed["dropped_slugs"],
+            "--dropped-resolutions", printed["dropped_resolutions"],
+        ]
+    )
+    assert code == 0
+
+
+_XDR_LISTED_ISSUE = {
+    "number": 80,
+    "title": "xAI public docs added models or resolutions",
+    "body": (
+        "**New slugs:** `none`\n"
+        "**New resolutions:** `none`\n"
+        "**Dropped slugs:** `grok-retired`\n"
+        "**Dropped resolutions:** `none`\n"
+    ),
+    "comments": "",
+}
+
+
+def test_xdr_c1_already_listed_dropped_slug_is_stamped_and_next_scan_quiet(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """Nightly digest repro: an open issue already lists the drop on a Dropped line."""
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    _xdr_seed(pending, slugs=["grok-retired"])
+    baseline = {"slugs": ["grok-4.6", "grok-retired"], "resolutions": ["1k"]}
+    live = {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code == 2
+    assert outputs["dropped_slugs"] == "grok-retired"
+    printed = _xdr_select_unlisted(
+        watch, tmp_path, capsys, outputs, [_XDR_LISTED_ISSUE], pending=pending
+    )
+    assert printed["dropped_slugs"] == ""
+    assert printed["has_dropped"] == "false"
+    _xdr_mark(watch, pending, printed)
+    entry = _read_pending(pending)["slugs"]["grok-retired"]
+    assert entry["first_miss"] == _XDR_SEEDED
+    assert "reported_at" in entry
+    assert _stamp_ok(entry["reported_at"])
+    capsys.readouterr()
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    out = capsys.readouterr().out
+    assert code == 0
+    assert outputs["has_dropped"] == "false"
+    assert outputs["dropped_slugs"] == ""
+    assert "Dropped xAI public-docs tokens" not in out
+
+
+def test_xdr_c1_listed_resolution_and_fresh_slug_drop_both_stamped(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """A listed resolution drop is stamped next to a fresh slug drop filed this run."""
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    _xdr_seed(pending, slugs=["grok-legacy"], resolutions=["720p"])
+    baseline = {"slugs": ["grok-4.6", "grok-legacy"], "resolutions": ["1k", "720p"]}
+    live = {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code == 2
+    assert outputs["dropped_slugs"] == "grok-legacy"
+    assert outputs["dropped_resolutions"] == "720p"
+    issues = [
+        {
+            "number": 81,
+            "title": "xAI public docs added models or resolutions",
+            "body": "**Dropped slugs:** `none`\n**Dropped resolutions:** `720p`\n",
+            "comments": "",
+        }
+    ]
+    printed = _xdr_select_unlisted(watch, tmp_path, capsys, outputs, issues, pending=pending)
+    assert printed["dropped_slugs"] == "grok-legacy"
+    assert printed["dropped_resolutions"] == ""
+    assert printed["has_dropped"] == "true"
+    _xdr_mark(watch, pending, printed)
+    state = _read_pending(pending)
+    assert "reported_at" in state["slugs"]["grok-legacy"]
+    assert "reported_at" in state["resolutions"]["720p"]
+    capsys.readouterr()
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    out = capsys.readouterr().out
+    assert code == 0
+    assert outputs["has_dropped"] == "false"
+    assert "Dropped xAI public-docs tokens" not in out
+
+
+def test_xdr_c1_workflow_select_unlisted_stamps_default_pending_file(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """Production path: the issue step runs --select-unlisted without --pending, and the mark step commits that file."""
+    watch = _load()
+    assert watch.PENDING_PATH == ROOT / "scripts" / "data" / "xai_models_watch_pending.json"
+    workflow = (ROOT / ".github" / "workflows" / "watch-xai-models.yml").read_text(encoding="utf-8")
+    issue_step = workflow.split("- name: Open issue for tokens not already listed", 1)[1]
+    issue_step, mark_step = issue_step.split("- name: Mark reported watch tokens", 1)
+    mark_step = mark_step.split("\n      - name: ", 1)[0]
+    select_call = issue_step.split("--select-unlisted", 1)[1].split(")\"", 1)[0]
+    assert "--pending" not in select_call
+    assert "if: ${{ !cancelled() && steps.issue.outcome == 'success' }}" in mark_step
+    assert "git add scripts/data/xai_models_watch_pending.json" in mark_step
+    assert "git commit" in mark_step
+
+    pending = tmp_path / "default_pending.json"
+    _xdr_seed(pending, slugs=["grok-retired"])
+    monkeypatch.setattr(watch, "PENDING_PATH", pending)
+    outputs = {
+        "new_slugs": "",
+        "new_resolutions": "",
+        "dropped_slugs": "grok-retired",
+        "dropped_resolutions": "",
+    }
+    printed = _xdr_select_unlisted(watch, tmp_path, capsys, outputs, [_XDR_LISTED_ISSUE])
+    assert printed["has_dropped"] == "false"
+    _xdr_mark(watch, pending, printed)
+    entry = _read_pending(pending)["slugs"]["grok-retired"]
+    assert entry["first_miss"] == _XDR_SEEDED
+    assert "reported_at" in entry
+
+
+def test_xdr_c2_new_line_title_or_comment_only_drop_is_not_stamped(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """Only a Dropped line lists a drop. New line, title, and comment mentions stay unstamped."""
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    _xdr_seed(pending, slugs=["grok-retired"])
+    baseline = {"slugs": ["grok-4.6", "grok-retired"], "resolutions": ["1k"]}
+    live = {"slugs": ["grok-4.6"], "resolutions": ["1k"]}
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code == 2
+    issues = [
+        {
+            "number": 82,
+            "title": "xAI public docs: grok-retired",
+            "body": "**New slugs:** `grok-retired`\n**Dropped slugs:** `none`\n",
+            "comments": "grok-retired looks gone",
+        }
+    ]
+    printed = _xdr_select_unlisted(watch, tmp_path, capsys, outputs, issues, pending=pending)
+    assert printed["dropped_slugs"] == "grok-retired"
+    assert printed["has_dropped"] == "true"
+    # --select-unlisted must not stamp it; only a new issue filed for it may.
+    assert _read_pending(pending)["slugs"]["grok-retired"] == {"first_miss": _XDR_SEEDED}
+    # No new issue filed (for example the issue create failed, so the mark step is skipped).
+    code, outputs = _run_offline_main(
+        watch, tmp_path, monkeypatch, live, baseline, pending_path=pending
+    )
+    assert code == 2
+    assert outputs["has_dropped"] == "true"
+    assert outputs["dropped_slugs"] == "grok-retired"
+
+
+def test_xdr_c4_select_unlisted_malformed_pending_keeps_outputs(tmp_path, capsys) -> None:
+    """A malformed pending file never blocks issue filing: same stdout, exit 0, file untouched."""
+    watch = _load()
+    pending = tmp_path / "pending.json"
+    pending.write_text("{", encoding="utf-8")
+    printed = _xdr_select_unlisted(
+        watch,
+        tmp_path,
+        capsys,
+        {"dropped_slugs": "grok-retired,grok-legacy"},
+        [_XDR_LISTED_ISSUE],
+        pending=pending,
+    )
+    assert printed == {
+        "slugs": "",
+        "resolutions": "",
+        "dropped_slugs": "grok-legacy",
+        "dropped_resolutions": "",
+        "has_dropped": "true",
+    }
+    assert pending.read_text(encoding="utf-8") == "{"
+
+
+def test_b6_select_unlisted_leaves_committed_pending_file(tmp_path, capsys) -> None:
+    """B6: the existing select-unlisted calls stamp a tmp pending file.
+
+    The committed scripts/data/xai_models_watch_pending.json stays byte-identical.
+    """
+    watch = _load()
+    committed = ROOT / "scripts" / "data" / "xai_models_watch_pending.json"
+    assert committed == watch.PENDING_PATH
+    before = committed.read_bytes()
+    pending = tmp_path / "pending.json"
+    pending.write_text(
+        json.dumps(
+            {
+                "resolutions": {"720p": {"first_miss": "2026-11-25T01:00:00Z"}},
+                "slugs": {
+                    "grok-imagine-image-2.0": {"first_miss": "2026-11-25T01:00:00Z"},
+                    "grok-retired": {"first_miss": "2026-11-25T01:00:00Z"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    issues_path = tmp_path / "issues.json"
+
+    def run(issues: list, extra: list[str]) -> None:
+        issues_path.write_text(json.dumps(issues), encoding="utf-8")
+        code = watch.main(
+            [
+                "--select-unlisted",
+                "--pending",
+                str(pending),
+                "--issues-json",
+                str(issues_path),
+                *extra,
+            ]
+        )
+        assert code == 0
+        capsys.readouterr()
+
+    listed_body = (
+        "**New slugs:** `none`\n"
+        "**New resolutions:** `none`\n"
+        "**Dropped slugs:** `grok-retired`\n"
+        "**Dropped resolutions:** `720p`\n"
+    )
+    listed = [
+        {
+            "number": 80,
+            "title": "xAI public docs added models or resolutions",
+            "body": listed_body,
+            "comments": "",
+        }
+    ]
+    run(
+        listed,
+        [
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", "grok-retired",
+            "--dropped-resolutions", "720p",
+        ],
+    )
+    run(
+        listed,
+        [
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", "grok-legacy",
+            "--dropped-resolutions", "4k",
+        ],
+    )
+    dropped = "grok-imagine-image-2.0"
+    guard = {
+        "number": 90,
+        "title": f"xAI shipped image price guard failed: {dropped}",
+        "body": f"- {dropped}\n",
+        "comments": f"ping {dropped}",
+    }
+    run(
+        [guard],
+        [
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", dropped,
+            "--dropped-resolutions", "none",
+        ],
+    )
+    reported = {
+        "number": 80,
+        "title": f"xAI public docs added models or resolutions {dropped}",
+        "body": (
+            f"**Dropped slugs:** `{dropped}`\n"
+            "**Dropped resolutions:** `none`\n"
+        ),
+        "comments": "",
+    }
+    run(
+        [guard, reported],
+        [
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", dropped,
+            "--dropped-resolutions", "none",
+        ],
+    )
+    run(
+        [
+            {
+                "number": 57,
+                "title": "watch",
+                "body": "**New slugs:** `grok-4.6`",
+                "comments": "",
+            }
+        ],
+        ["--slugs", "grok-4.6,grok-4.7,none", "--resolutions", "4k"],
+    )
+    dropped_line = [
+        {
+            "number": 80,
+            "title": "xAI public docs added models or resolutions",
+            "body": "**Dropped slugs:** `grok-retired`\n**Dropped resolutions:** `none`\n",
+            "comments": "",
+        }
+    ]
+    run(
+        dropped_line,
+        [
+            "--slugs", "none",
+            "--resolutions", "none",
+            "--dropped-slugs", "grok-retired",
+            "--dropped-resolutions", "none",
+        ],
+    )
+    new_line = [
+        {
+            "number": 21,
+            "title": "xAI public docs added models or resolutions",
+            "body": "**New slugs:** `grok-retired`\n**Dropped slugs:** `none`\n",
+            "comments": "",
+        }
+    ]
+    new_args = [
+        "--slugs", "none",
+        "--resolutions", "none",
+        "--dropped-slugs", "grok-retired",
+        "--dropped-resolutions", "none",
+    ]
+    run(new_line, new_args)
+    run(new_line, new_args)
+
+    assert committed.read_bytes() == before
+    state = _read_pending(pending)
+    assert "reported_at" in state["slugs"]["grok-retired"]
+    assert "reported_at" in state["resolutions"]["720p"]
+    assert "reported_at" in state["slugs"]["grok-imagine-image-2.0"]
