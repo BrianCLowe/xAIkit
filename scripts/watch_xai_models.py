@@ -419,6 +419,30 @@ def unlisted_watch_tokens(
     return pending
 
 
+def listed_dropped_tokens(
+    tokens: Sequence[str],
+    issues: Sequence[dict[str, Any]],
+) -> list[str]:
+    """Dropped tokens already on a Dropped line of an open issue body.
+
+    These are the ids ``unlisted_watch_tokens(..., dropped=True)`` filters out.
+    A New line, a title, or a comment does not list a dropped token.
+    """
+    declared: set[str] = set()
+    for issue in issues:
+        declared.update(_line_tokens(str(issue.get("body") or ""), _DROPPED_DECLARED_LINE))
+    listed: list[str] = []
+    seen: set[str] = set()
+    for token in tokens:
+        key = token.strip().lower()
+        if not key or key == "none" or key in seen:
+            continue
+        seen.add(key)
+        if key in declared:
+            listed.append(key)
+    return listed
+
+
 def _usd_per_million(raw: Any) -> float | None:
     """USD per 1M tokens. ``0`` is a real rate. Missing values stay unset."""
     if raw is None or raw == "":
@@ -869,7 +893,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--select-unlisted",
         action="store_true",
-        help="Print slugs/resolutions not already listed on open watch issues",
+        help=(
+            "Print slugs/resolutions not already listed on open watch issues; "
+            "set reported_at on pending drops already on a Dropped line"
+        ),
     )
     parser.add_argument("--slugs", default="", help="Comma-separated slugs to filter")
     parser.add_argument(
@@ -943,13 +970,60 @@ def _select_unlisted(args: argparse.Namespace) -> int:
         issues,
         dropped=True,
     )
+    listed_slugs = listed_dropped_tokens(split_watch_tokens(args.dropped_slugs), issues)
+    listed_resolutions = listed_dropped_tokens(
+        split_watch_tokens(args.dropped_resolutions), issues
+    )
     has_dropped = bool(dropped_slugs or dropped_resolutions)
     print(f"slugs={','.join(slugs)}")
     print(f"resolutions={','.join(resolutions)}")
     print(f"dropped_slugs={','.join(dropped_slugs)}")
     print(f"dropped_resolutions={','.join(dropped_resolutions)}")
     print(f"has_dropped={'true' if has_dropped else 'false'}")
+    _stamp_listed_drops(args.pending, listed_slugs, listed_resolutions)
     return 0
+
+
+def _stamp_reported(
+    state: dict[str, dict[str, dict[str, str]]],
+    slugs: Sequence[str],
+    resolutions: Sequence[str],
+) -> bool:
+    """Set reported_at on pending entries that lack it. True when any changed."""
+    now: str | None = None
+    changed = False
+    for side, tokens in (("slugs", slugs), ("resolutions", resolutions)):
+        entries = state.get(side)
+        if not entries:
+            continue
+        for token in tokens:
+            entry = entries.get(token)
+            if entry is None or "reported_at" in entry:
+                continue
+            if now is None:
+                now = _utc_now_stamp()
+            entry["reported_at"] = now
+            changed = True
+    return changed
+
+
+def _stamp_listed_drops(path: Path, slugs: Sequence[str], resolutions: Sequence[str]) -> None:
+    """Stamp drops already on an open Dropped line in the pending file.
+
+    --select-unlisted filters these ids out of the issue-create lists, so the
+    mark step never receives them. The mark step commits this file. Stdout and
+    the exit code stay the same, and a malformed file is left for the scan to
+    report, so issue filing is never blocked.
+    """
+    if not slugs and not resolutions:
+        return
+    try:
+        state = load_pending(path)
+    except _PendingError:
+        print(f"pending file is malformed {path}", file=sys.stderr)
+        return
+    if _stamp_reported(state, slugs, resolutions):
+        _write_pending(path, state)
 
 
 def _mark_reported(args: argparse.Namespace) -> int:
@@ -965,21 +1039,7 @@ def _mark_reported(args: argparse.Namespace) -> int:
         print(f"pending file is malformed {path}", file=sys.stderr)
         _write_scan_ok(args.github_output, False)
         return 1
-    now: str | None = None
-    changed = False
-    for side, tokens in (("slugs", slugs), ("resolutions", resolutions)):
-        entries = state.get(side)
-        if not entries:
-            continue
-        for token in tokens:
-            entry = entries.get(token)
-            if entry is None or "reported_at" in entry:
-                continue
-            if now is None:
-                now = _utc_now_stamp()
-            entry["reported_at"] = now
-            changed = True
-    if changed:
+    if _stamp_reported(state, slugs, resolutions):
         _write_pending(path, state)
     return 0
 
